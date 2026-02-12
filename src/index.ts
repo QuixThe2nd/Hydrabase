@@ -14,7 +14,11 @@ const CONFIG = {
 };
 
 const upnp = natUpnp.createClient();
-export const portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => setInterval(() => upnp.portMapping({ public: port, private: port, ttl: CONFIG.upnpTTL, protocol, description }, err => { if (err) console.error(err) }), CONFIG.upnpReannounce*1_000)
+const _portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => upnp.portMapping({ public: port, private: port, ttl: CONFIG.upnpTTL, protocol, description }, err => { if (err) console.error(err) })
+export const portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => {
+  _portForward(port, description, protocol)
+  setInterval(() => _portForward(port, description, protocol), CONFIG.upnpReannounce*1_000)
+}
 
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
