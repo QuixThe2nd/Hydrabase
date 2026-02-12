@@ -4,14 +4,17 @@ import Peers from './Peers'
 import Server from './Server'
 import natUpnp from 'nat-upnp'
 
-export const upnp = natUpnp.createClient();
-
 const CONFIG = {
   serverPort: 3000,
   dhtPort: 30000,
   dhtRoom: '0000dabae71be086ec43ca1be7e97b2f982620f0',
-  dummyNodes: 0 // Dummy nodes are full nodes used for testing, each is run on a sequential port
+  dummyNodes: 0, // Dummy nodes are full nodes used for testing, each is run on a sequential port
+  upnpTTL: 3600, // Seconds
+  upnpReannounce: 1800, // Seconds
 };
+
+const upnp = natUpnp.createClient();
+export const portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => setInterval(() => upnp.portMapping({ public: port, private: port, ttl: CONFIG.upnpTTL, protocol, description }, err => { if (err) console.error(err) }), CONFIG.upnpReannounce*1_000)
 
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
