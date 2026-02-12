@@ -4,7 +4,7 @@ import Peers from "./Peers";
 import Server from "./Server";
 
 const server = new Server(new MetadataManager([new ITunes()]))
-const peers = new Peers(["ws://localhost:3000", "ws://localhost:3000"])
+const peers = new Peers(["ws://localhost:3000", "ws://127.0.0.1:3000"]) // TODO: peer discovery
 
 await new Promise(res => setTimeout(res, 1_000))
 const request = {
