@@ -16,3 +16,13 @@ To run:
 ```bash
 bun src/index.ts
 ```
+
+## Networking
+
+Currently Hydrabase needs 2 ports forwarded:
+```
+TCP: 3000 (WebSocket - Used to communicate with peers)
+UDP: 30000 (DHT - Used to discover peers)
+```
+
+Theoretically, if there's enough peers in the network, you can use Hydrabase without port forwarding, but if everyone did that, Hydrabase won't work. Plus, not port forwarding reduces your connectability.
