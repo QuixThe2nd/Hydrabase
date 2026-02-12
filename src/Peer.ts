@@ -10,6 +10,8 @@ export default class Peer {
   private isOpen = false
   private pendingRequests = new Map<number, PendingRequest>()
   private nonce = -1;
+  private _points = 0; // Sum of past confidence confidence scores
+  private _events = 0; // Number of events that triggered a point change
 
   constructor(public readonly hostname: string) {
     console.log(`Connecting to peer ${hostname}`)
@@ -27,7 +29,7 @@ export default class Peer {
     });
   }
 
-  async sendRequest(request: Request): Promise<Response> {
+  public async sendRequest(request: Request): Promise<Response> {
     if (!this.isOpen) {
       console.warn("Not connected to peer", this.hostname)
       return {}
@@ -38,6 +40,17 @@ export default class Peer {
       this.pendingRequests.set(this.nonce, { resolve, reject })
       this.socket.send(JSON.stringify({ nonce: this.nonce, request }))
     })
+  }
+
+  get points() {
+    return this._points
+  }
+  get events() {
+    return this._events
+  }
+  set points(points: number) { // TODO: store on disk
+    this._points += points;
+    this._events++;
   }
 }
 

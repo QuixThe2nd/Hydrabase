@@ -47,6 +47,8 @@ Hydrabase nodes can query their peers to lookup metadata for them. This will tri
 ### Confidence Scoring
 A score is calculated that represents your confidence/trust in a peer's response. This aims to represent the odds that a peer is lying to you. Currently, this is calculated by comparing the results for plugins you and your peer share in common. a confidence score of 1 means that for all information you can verify, they always told the truth. While 0 means that all the results they gave you were inconsistent with what you can verify with a local lookup.
 
-### Future Plans
+### Peer Reputation
+Historic confidence scores of each peers' responses are kept track of. This will be used in the future to weight votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
 
+### Future Plans
 While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism. The end goal is for peers running different plugins to benefit by exchanging api responses from different metadata providers.
