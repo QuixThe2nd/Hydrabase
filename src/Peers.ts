@@ -3,11 +3,13 @@ import type { Request } from './Messages'
 import type { SearchResult } from './Metadata'
 import DHT from 'bittorrent-dht'
 import krpc from 'k-rpc'
+import { upnp } from '.'
 
 export default class Peers {
   private readonly peers: { [hostname: string]: Peer } = {}
 
   constructor(serverPort: number, dhtPort: number, dhtRoom: string) {
+    upnp.portMapping({ public: dhtPort, private: dhtPort, ttl: 10, protocol: 'UDP', description: 'Hydrabase DHT' }, err => { if (err) console.error(err) });
     const dht = new DHT({ krpc: krpc() })
     dht.listen(dhtPort, '0.0.0.0', () => {
       console.log(`DHT Listening on port ${dhtPort}`)

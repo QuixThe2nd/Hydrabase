@@ -26,6 +26,8 @@ TCP: 3000 (WebSocket - Used to communicate with peers)
 UDP: 30000 (DHT - Used to discover peers)
 ```
 
+Hydrabase will automatically try to forward required ports using uPnP, but manual port forwarding is recommended.
+
 Theoretically, if there's enough peers in the network, you can use Hydrabase without port forwarding, but if everyone did that, Hydrabase won't work. Plus, not port forwarding reduces your connectability.
 
 ## How it Works

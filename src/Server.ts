@@ -1,9 +1,11 @@
 import type { ServerWebSocket } from "bun";
 import { matchRequest, type Request, type Response } from "./Messages";
 import type MetadataManager from "./Metadata";
+import { upnp } from '.'
 
 export default class Server {
   constructor(private readonly metadataManager: MetadataManager, port: number) {
+    upnp.portMapping({ public: port, private: port, ttl: 10, protocol: 'TCP', description: 'Hydrabase Peer' }, err => { if (err) console.error(err) });
     Bun.serve({
       port,
       hostname: '0.0.0.0',

@@ -1,7 +1,10 @@
-import ITunes from "./Metadata/plugins/iTunes";
-import MetadataManager from "./Metadata";
-import Peers from "./Peers";
-import Server from "./Server";
+import ITunes from './Metadata/plugins/iTunes'
+import MetadataManager from './Metadata'
+import Peers from './Peers'
+import Server from './Server'
+import natUpnp from 'nat-upnp'
+
+export const upnp = natUpnp.createClient();
 
 const CONFIG = {
   serverPort: 3000,
@@ -41,11 +44,10 @@ const search = async (query: string) => {
 
   console.log('Searching peers')
   const peerResults = await peers.requestAll(request, hashes)
-  return peerResults
+  return peerResults // TODO: merge local and remote results
 }
 
 console.log(await search('dont stop me now'));
 
 // TODO: cache results
-// TODO: uPnP
 // TODO: prevent connecting to self
