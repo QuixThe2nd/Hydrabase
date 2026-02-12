@@ -38,7 +38,7 @@ Hydrabase nodes connect to BitTorrent's DHT network and query it for an infohash
 
 ### Local Metadata Lookups
 
-Hydrabase nodes can run plugins. For now, only an iTunes plugin exists. These plugins expose a `search` function, which is used locally to search iTunes directly for music.
+Hydrabase nodes can run plugins. For now, only an iTunes plugin exists. These plugins expose a `search` function which is used to search iTunes directly for music.
 
 ### Remote Metadata Lookups
 
@@ -49,4 +49,4 @@ A score is calculated that represents your confidence/trust in a peer's response
 
 ### Future Plans
 
-While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism.
+While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism. The end goal is for peers running different plugins to benefit by exchanging api responses from different metadata providers.

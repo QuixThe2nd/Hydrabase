@@ -11,7 +11,6 @@ const CONFIG = {
 
 // for (let i = 1; i < 3; i++) {
 //   console.log('Starting node', i)
-
 //   new Server(new MetadataManager([new ITunes()]), CONFIG.serverPort+i)
 //   new Peers(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
 // }
@@ -25,7 +24,7 @@ const request = {
   trackName: 'dont stop me now'
 } as const;
 
-console.log('Search locally')
+console.log('Searching locally')
 const results = await server.handleRawRequest(request)
 const hashes: { [pluginId: string]: bigint } = {}
 for (const id in results) {
@@ -34,7 +33,7 @@ for (const id in results) {
   hashes[id] = hash;
 }
 
-console.log('Search peers')
+console.log('Searching peers')
 const peerResults = await peers.requestAll(request, hashes)
 console.log(peerResults)
 
