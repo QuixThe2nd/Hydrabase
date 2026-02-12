@@ -8,6 +8,7 @@ type PendingRequest = {
 export default class Peer {
   private readonly socket: WebSocket
   private isOpen = false
+  private _isClosed = false;
   private pendingRequests = new Map<number, PendingRequest>()
   private nonce = -1;
   private _points = 0; // Sum of past confidence confidence scores
@@ -19,6 +20,10 @@ export default class Peer {
     this.socket.addEventListener('open', () => {
       console.log(`Connected to peer ${hostname}`)
       this.isOpen = true
+    })
+    this.socket.addEventListener('error', () => {
+      console.warn('Connection failed', hostname)
+      this._isClosed = true
     })
     this.socket.addEventListener('message', message => {
       const { nonce, response } = JSON.parse(message.data)
@@ -49,8 +54,12 @@ export default class Peer {
     return this._events
   }
   set points(points: number) { // TODO: store on disk
-    this._points += points;
-    this._events++;
+    this._points += points
+    this._events++
+  }
+
+  get isClosed() {
+    return this._isClosed
   }
 }
 

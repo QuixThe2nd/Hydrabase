@@ -32,7 +32,7 @@ for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
 const server = new Server(new MetadataManager([new ITunes()]), CONFIG.serverPort)
 const peers = new Peers(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
 
-await new Promise(res => setTimeout(res, 5_000))
+await new Promise(res => setTimeout(res, 10_000))
 
 const search = async (query: string) => {
   const request = {

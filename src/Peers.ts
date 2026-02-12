@@ -27,6 +27,11 @@ export default class Peers {
     const results: { [plugin: string]: { [hash: number]: { result: SearchResult[], confidence: { current: number, historic: number }[] } } } = {}
     for (const hostname in this.peers) {
       const peer = this.peers[hostname]!
+      if (peer.isClosed) {
+        delete this.peers[hostname]
+        continue
+      }
+
       const response = await peer.sendRequest(request)
 
       // Compare Results
