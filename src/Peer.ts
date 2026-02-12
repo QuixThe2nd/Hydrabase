@@ -12,8 +12,12 @@ export default class Peer {
   private nonce = -1;
 
   constructor(public readonly hostname: string) {
+    console.log(`Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname)
-    this.socket.addEventListener('open', () => { this.isOpen = true })
+    this.socket.addEventListener('open', () => {
+      console.log(`Connected to peer ${hostname}`)
+      this.isOpen = true
+    })
     this.socket.addEventListener('message', message => {
       const { nonce, response } = JSON.parse(message.data)
       const pending = this.pendingRequests.get(nonce)
@@ -23,10 +27,10 @@ export default class Peer {
     });
   }
 
-  sendRequest(request: Request): Promise<Response> {
+  async sendRequest(request: Request): Promise<Response> {
     if (!this.isOpen) {
-      console.warn("WebSocket not open yet")
-      return Promise.reject("WebSocket not open")
+      console.warn("Not connected to peer", this.hostname)
+      return {}
     }
     this.nonce++;
 
@@ -36,3 +40,5 @@ export default class Peer {
     })
   }
 }
+
+// TODO: Prevent 2 nodes from connecting as both client/server to each other, wasteful

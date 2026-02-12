@@ -3,9 +3,10 @@ import { matchRequest, type Request, type Response } from "./Messages";
 import type MetadataManager from "./Metadata";
 
 export default class Server {
-  constructor(private readonly metadataManager: MetadataManager, port = 3000) {
+  constructor(private readonly metadataManager: MetadataManager, port: number) {
     Bun.serve({
       port,
+      hostname: '0.0.0.0',
       fetch: (req, server) =>  server.upgrade(req) ? undefined : new Response("Upgrade failed", { status: 500 }),
       websocket: { message: (ws, message) => this.handleMessage(ws, message) }
     });
