@@ -7,7 +7,7 @@ const CONFIG = {
   serverPort: 3000,
   dhtPort: 30000,
   dhtRoom: '0000dabae71be086ec43ca1be7e97b2f982620f0',
-  dummyNodes: 1 // Dummy nodes are full nodes that are run in sequential ports, used for testing
+  dummyNodes: 0 // Dummy nodes are full nodes used for testing, each is run on a sequential port
 };
 
 // Start Dummy Nodes
