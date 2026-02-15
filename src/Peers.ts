@@ -2,7 +2,7 @@ import type { Request } from './Messages'
 import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import type WebSocketClient from './networking/ws/client'
-import { Peer } from './networking/ws/Peer'
+import { Peer } from './networking/ws/peer'
 import type { WebSocketServerConnection } from './networking/ws/server'
 
 export default class Peers {
