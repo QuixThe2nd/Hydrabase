@@ -1,33 +1,26 @@
-import Peer from './Peer'
 import type { Request } from './Messages'
 import type { SearchResult } from './Metadata'
-import DHT from 'bittorrent-dht'
-import krpc from 'k-rpc'
-import { portForward } from '.'
+import { discoverPeers } from './networking/dht'
+import type WebSocketClient from './networking/ws/client'
+import { Peer } from './networking/ws/Peer'
+import type { WebSocketServerConnection } from './networking/ws/server'
 
 export default class Peers {
   private readonly peers: { [hostname: string]: Peer } = {}
 
   constructor(serverPort: number, dhtPort: number, dhtRoom: string) {
-    portForward(dhtPort, 'Hydrabase DHT', 'UDP');
-    const dht = new DHT({ krpc: krpc() })
-    dht.listen(dhtPort, '0.0.0.0', () => {
-      console.log(`DHT Listening on port ${dhtPort}`)
-      dht.announce(dhtRoom, serverPort, err => { if (err) console.error(err) })
-      dht.lookup(dhtRoom, (err) => { if (err) console.error(err) })
-    })
-    dht.on('peer', peer => this.addPeer(`ws://${peer.host}:${peer.port}`))
+    discoverPeers(serverPort, dhtPort, dhtRoom, this.addPeer)
   }
 
-  public addPeer(hostname: string) {
-    if (!(hostname in this.peers)) this.peers[hostname] = new Peer(hostname)
+  public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
+    if (!(peer.hostname in this.peers)) this.peers[peer.hostname] = new Peer(peer)
   }
 
   public async requestAll<P extends string>(request: Request, hashes: Record<P, bigint>) {
     const results: { [plugin: string]: { [hash: number]: { result: SearchResult[], confidence: { current: number, historic: number }[] } } } = {}
     for (const hostname in this.peers) {
       const peer = this.peers[hostname]!
-      if (peer.isClosed) {
+      if (!peer.isOpened) {
         delete this.peers[hostname]
         continue
       }

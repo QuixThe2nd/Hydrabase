@@ -1,36 +1,30 @@
 import ITunes from './Metadata/plugins/iTunes'
 import MetadataManager from './Metadata'
 import Peers from './Peers'
-import Server from './Server'
-import natUpnp from 'nat-upnp'
+import { WebSocketServer } from './networking/ws/server';
 
-const CONFIG = {
-  serverPort: 3000,
-  dhtPort: 30000,
+export const CONFIG = {
+  serverPort: 4000,
+  dhtPort: 40000,
   dhtRoom: '0000dabae71be086ec43ca1be7e97b2f982620f0',
-  dummyNodes: 0, // Dummy nodes are full nodes used for testing, each is run on a sequential port
+  dummyNodes: 2, // Dummy nodes are full nodes used for testing, each is run on a sequential port
   upnpTTL: 3600, // Seconds
   upnpReannounce: 1800, // Seconds
 };
 
-const upnp = natUpnp.createClient();
-const _portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => upnp.portMapping({ public: port, private: port, ttl: CONFIG.upnpTTL, protocol, description }, err => { if (err) console.error(err) })
-export const portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => {
-  _portForward(port, description, protocol)
-  setInterval(() => _portForward(port, description, protocol), CONFIG.upnpReannounce*1_000)
-}
+export const metadataManager = new MetadataManager([new ITunes()])
 
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
   console.log('Starting node', i)
-  new Server(new MetadataManager([new ITunes()]), CONFIG.serverPort+i)
-  new Peers(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
-  await new Promise(res => setTimeout(res, 1_000))
+  const peers = new Peers(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
+  new WebSocketServer(CONFIG.serverPort+i, peers.addPeer)
+  await new Promise(res => setTimeout(res, 5_000))
 }
 
 // Start Node
-const server = new Server(new MetadataManager([new ITunes()]), CONFIG.serverPort)
 const peers = new Peers(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
+const server = new WebSocketServer(CONFIG.serverPort, peers.addPeer)
 
 await new Promise(res => setTimeout(res, 10_000))
 
@@ -41,7 +35,7 @@ const search = async (query: string) => {
   } as const;
 
   console.log('Searching locally')
-  const results = await server.handleRawRequest(request)
+  const results = await metadataManager.handleRequest(request)
   const hashes: { [pluginId: string]: bigint } = {}
   for (const id in results) {
     const result = results[id]!

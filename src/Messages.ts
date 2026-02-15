@@ -25,3 +25,11 @@ export function matchRequest(value: unknown): MatchResult | null {
   }
   return null;
 }
+
+export function matchMessage(value: unknown): 'request' | 'response' | null {
+  for (const key of Object.keys(MessageSchemas) as MessageKey[]) {
+    if (MessageSchemas[key].request.safeParse(value).success) return 'request';
+    if (MessageSchemas[key].response.safeParse(value).success) return 'response';
+  }
+  return null;
+}
