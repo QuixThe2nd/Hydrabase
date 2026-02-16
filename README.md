@@ -6,9 +6,10 @@ Hydrabase is a WIP and not intended for use yet.
 
 ## Install
 
-To install dependencies:
-
+To install:
 ```bash
+git clone https://github.com/QuixThe2nd/Hydrabase
+cd Hydrabase
 bun install
 ```
 
@@ -17,6 +18,14 @@ To run:
 ```bash
 bun src
 ```
+
+### Docker
+
+To install with Docker, place the `Dockerfile` and `docker-compose.yaml` in the same directory (or just git clone the repo) and run.
+
+## Configuration
+
+Set the environment variables `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` for spotify support.
 
 ## Networking
 

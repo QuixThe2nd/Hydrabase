@@ -1,0 +1,11 @@
+services:
+  hydrabase:
+    build: .
+    container_name: hydrabase
+    ports:
+      - 3000:3000/tcp
+      - 30000:30000/udp
+    environment:
+      SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
+      SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
+networks: {}

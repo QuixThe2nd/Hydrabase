@@ -10,7 +10,7 @@ export default class WebSocketClient {
       console.log('LOG:', `Connected to peer ${hostname}`)
       this._isOpened = true
     })
-    this.socket.addEventListener('error', err => {
+    this.socket.addEventListener('error', () => {
       // console.warn('WARN:', `Error thrown on connection with ${hostname}`, err)
       this._isOpened = false
     })
