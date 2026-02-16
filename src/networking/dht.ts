@@ -28,8 +28,10 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
     addPeer(`ws://${peer.host}:${peer.port}`)
   })
   dht.on('announce', (peer, _infoHash) => {
+    if (knownPeers.has(`${peer.host}:${peer.port}`)) return
     const infoHash = _infoHash.toString('hex')
     if (infoHash === dhtRoom) {
+      knownPeers.add(`${peer.host}:${peer.port}`)
       console.log('LOG:', `Received announce from ${peer.host}:${peer.port} on ${infoHash}`)
       addPeer(`ws://${peer.host}:${peer.port}`)
     }
