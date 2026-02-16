@@ -25,28 +25,26 @@ export class WebSocketServerConnection {
   }
 }
 
-export class WebSocketServer {
-  constructor(port: number, addPeer: (conn: WebSocketServerConnection) => void) {
-    portForward(port, 'Hydrabase (TCP)', 'TCP');
-    Bun.serve({
-      port,
-      hostname: '0.0.0.0',
-      fetch: (req, server) =>  server.upgrade(req, { data: { isOpened: false } }) ? undefined : new Response("Upgrade failed", { status: 500 }),
-      websocket: {
-        data: {} as WebSocketData,
-        open: (ws) => {
-          const conn = new WebSocketServerConnection(ws)
-          addPeer(conn)
-          ws.data = { isOpened: true, conn }
-        },
-        close(ws) {
-          ws.data = { isOpened: false }
-        },
-        message: async (ws, message) => {
-          if (typeof message !== 'string') return;
-          ws.data.conn?._handleMessage(message)
-        }
+export const startServer = (port: number, addPeer: (conn: WebSocketServerConnection) => void) => {
+  portForward(port, 'Hydrabase (TCP)', 'TCP');
+  Bun.serve({
+    port,
+    hostname: '0.0.0.0',
+    fetch: (req, server) =>  server.upgrade(req, { data: { isOpened: false } }) ? undefined : new Response("Upgrade failed", { status: 500 }),
+    websocket: {
+      data: {} as WebSocketData,
+      open: (ws) => {
+        const conn = new WebSocketServerConnection(ws)
+        addPeer(conn)
+        ws.data = { isOpened: true, conn }
+      },
+      close(ws) {
+        ws.data = { isOpened: false }
+      },
+      message: async (ws, message) => {
+        if (typeof message !== 'string') return;
+        ws.data.conn?._handleMessage(message)
       }
-    });
-  }
+    }
+  });
 }

@@ -3,13 +3,14 @@ import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import type WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
-import type { WebSocketServerConnection } from './networking/ws/server'
+import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 
-export default class Peers {
+export default class Node {
   private readonly peers: { [hostname: string]: Peer } = {}
 
   constructor(serverPort: number, dhtPort: number, dhtRoom: string) {
     discoverPeers(serverPort, dhtPort, dhtRoom, this.addPeer)
+    startServer(serverPort, this.addPeer)
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {

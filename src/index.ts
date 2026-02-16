@@ -1,11 +1,10 @@
 import ITunes from './Metadata/plugins/iTunes'
 import MetadataManager from './Metadata'
-import Peers from './Peers'
-import { WebSocketServer } from './networking/ws/server';
+import Node from './Node'
 
 export const CONFIG = {
   serverPort: 4000,
-  dhtPort: 40000,
+  dhtPort: 30000,
   dhtRoom: '0000dabae71be086ec43ca1be7e97b2f982620f0',
   dummyNodes: 2, // Dummy nodes are full nodes used for testing, each is run on a sequential port
   upnpTTL: 3600, // Seconds
@@ -17,14 +16,12 @@ export const metadataManager = new MetadataManager([new ITunes()])
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
   console.log('Starting node', i)
-  const peers = new Peers(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
-  new WebSocketServer(CONFIG.serverPort+i, peers.addPeer)
+  new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
   await new Promise(res => setTimeout(res, 5_000))
 }
 
 // Start Node
-const peers = new Peers(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
-const server = new WebSocketServer(CONFIG.serverPort, peers.addPeer)
+const peers = new Node(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
 
 await new Promise(res => setTimeout(res, 10_000))
 
