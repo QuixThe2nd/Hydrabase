@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { AlbumSearchResult, ArtistSearchResult, MetadataPlugin, TrackSearchResult } from "..";
-import dotenv from 'dotenv';
 
 const spotifyTrackSchema = z.object({
   id: z.string(),
@@ -64,8 +63,6 @@ const spotifyTokenResponseSchema = z.object({
   token_type: z.literal('Bearer'),
   expires_in: z.number(),
 });
-
-dotenv.config({ path: './src/Metadata/plugins/.spotify.env' })
 
 export default class Spotify implements MetadataPlugin {
   public readonly id = "Spotify";
