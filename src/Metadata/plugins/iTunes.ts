@@ -5,39 +5,12 @@ const iTunesTrackSchema = z.object({
   artistName: z.string(),
   trackName: z.string(),
   artworkUrl100: z.url(),
-  primaryGenreName: z.string(),
-  wrapperType: z.literal("track"),
-  kind: z.enum(["song", "music-video"]),
-  artistId: z.number(),
-  collectionId: z.number().optional(),
   trackId: z.number(),
-  collectionArtistId: z.number().optional(),
-  collectionArtistName: z.string().optional(),
-  contentAdvisoryRating: z.literal('Clean').optional(),
   collectionName: z.string().optional(),
-  collectionCensoredName: z.string().optional(),
-  trackCensoredName: z.string(),
-  artistViewUrl: z.url().optional(),
-  collectionArtistViewUrl: z.url().optional(),
-  collectionViewUrl: z.url().optional(),
   trackViewUrl: z.url(),
   previewUrl: z.url().optional(),
-  artworkUrl30: z.url(),
-  artworkUrl60: z.url(),
-  collectionPrice: z.number().optional(),
-  trackPrice: z.number().optional(),
-  releaseDate: z.string(),
-  isStreamable: z.boolean().optional(),
-  collectionExplicitness: z.enum(["explicit", "cleaned", "notExplicit"]),
-  trackExplicitness: z.enum(["explicit", "cleaned", "notExplicit"]),
-  discCount: z.number().optional(),
-  discNumber: z.number().optional(),
-  trackCount: z.number().optional(),
-  trackNumber: z.number().optional(),
-  trackTimeMillis: z.number().optional(),
-  country: z.string(),
-  currency: z.string(),
-}).strict();
+  trackTimeMillis: z.number().optional()
+});
 
 export const iTunesSearchResponseSchema = z.object({
   resultCount: z.number(),
@@ -67,6 +40,7 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid iTunes API response: ${parsed.error}`);
 
     return parsed.data.results.map(result => ({
+      id: String(result.trackId),
       name: result.trackName,
       artists: [result.artistName],
       album: result.collectionName ?? '',

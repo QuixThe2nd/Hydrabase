@@ -2,6 +2,7 @@ import z from 'zod';
 import type { Request } from '../Messages'
 
 export const SearchResultSchema = z.object({
+  id: z.string(),
   name: z.string(),
   artists: z.array(z.string()),
   album: z.string(),

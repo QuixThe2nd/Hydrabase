@@ -2,6 +2,7 @@ import ITunes from './Metadata/plugins/iTunes'
 import MetadataManager from './Metadata'
 import Node from './Node'
 import { CONFIG } from './config';
+import Spotify from './Metadata/plugins/Spotify';
 
 declare global {
   interface Console {
@@ -11,7 +12,7 @@ declare global {
   }
 }
 
-export const metadataManager = new MetadataManager([new ITunes()])
+export const metadataManager = new MetadataManager([new ITunes(), new Spotify()])
 
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
@@ -49,7 +50,7 @@ const search = async (query: string) => {
     peerResults.set(hash, { ...result, confidences: [...peerResults.get(hash)?.confidences ?? [], Infinity] })
   }
 
-  return peerResults.values()
+  return [...peerResults.values()]
 }
 
 console.log('LOG:', 'Search results:', await search('dont stop me now'));
