@@ -50,7 +50,7 @@ export default class Node {
         const hash = responseHashes[pluginId]!;
         const result = response[pluginId]!;
         if (!(pluginId in results)) results[pluginId] = {}
-        results[pluginId]![Number(hash)] = { result, confidence: [...results[pluginId]![Number(hash)]?.confidence ?? [], { current: confidence, historic: peer.points }] }
+        results[pluginId]![Number(hash)] = { result, confidence: [...results[pluginId]![Number(hash)]?.confidence ?? [], { current: confidence, historic: peer.points / peer.events }] }
       }
     }
     return results;

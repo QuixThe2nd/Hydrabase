@@ -4,14 +4,14 @@ export default class WebSocketClient {
   private messageHandler?: (message: string) => void
 
   constructor(public readonly hostname: string) {
-    console.log(`Connecting to peer ${hostname}`)
+    console.log('LOG:', `Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname)
     this.socket.addEventListener('open', () => {
-      console.log(`Connected to peer ${hostname}`)
+      console.log('LOG:', `Connected to peer ${hostname}`)
       this._isOpened = true
     })
-    this.socket.addEventListener('error', () => {
-      console.warn('Connection failed', hostname)
+    this.socket.addEventListener('error', err => {
+      console.warn('WARN:', `Error thrown on connection with ${hostname}`, err)
       this._isOpened = false
     })
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));

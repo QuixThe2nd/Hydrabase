@@ -15,20 +15,20 @@ export class Peer {
   private pendingRequests = new Map<number, PendingRequest>()
 
   constructor(private readonly socket: WebSocketClient | WebSocketServerConnection) {
-    console.log('Created peer', socket.hostname)
+    console.log('LOG:', `Created peer ${socket.hostname}`)
     this.socket.onMessage(async message => {
       const { nonce, result } = JSON.parse(message)
       const type = matchMessage(result)
       if (type === 'request') {
         const request = matchRequest(result)
-        if (!request) return console.warn('Unexpect request')
+        if (!request) return console.warn('WARN:', 'Unexpected request', `- ${message}`)
         socket.send(JSON.stringify({ response: await metadataManager.handleRequest(request), nonce }))
       } else if (type === 'response') {
         const pending = this.pendingRequests.get(nonce)
-        if (!pending) return console.warn("Received response for unknown request id:", nonce)
+        if (!pending) return console.warn('WARN:', `Unexpected response with nonce ${nonce}`, `- ${message}`)
         pending.resolve(result)
         this.pendingRequests.delete(nonce)
-      } else console.warn('Unexpected message')
+      } else console.warn('WARN:', 'Unexpected message', `- ${message}`)
     })
   }
 
@@ -49,7 +49,7 @@ export class Peer {
 
   public async sendRequest(request: Request): Promise<Response> {
     if (!this.socket.isOpened) {
-      console.warn("Not connected to peer", this.socket.hostname)
+      console.warn('WARN:', `Not connected to peer ${this.socket.hostname}`)
       return {}
     }
     this.nonce++;

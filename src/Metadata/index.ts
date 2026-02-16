@@ -25,7 +25,7 @@ export default class MetadataManager {
 
   public async handleRequest(request: Request) {
     if (request.type === 'search') return await this.search(request.trackName);
-    else console.warn('Invalid request')
+    else console.warn('WARN:', 'Invalid request')
   }
 }
 

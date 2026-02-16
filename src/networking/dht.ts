@@ -10,15 +10,15 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
     krpc: krpc(),
     bootstrap: ['router.bittorrent.com:6881', 'router.utorrent.com:6881', 'dht.transmissionbt.com:6881']
   })
-  dht.listen(dhtPort, '0.0.0.0', () => console.log(`DHT Listening on port ${dhtPort}`))
-  dht.on('error', err => console.error(err))
-  dht.on('warning', warning => console.warn(warning))
+  dht.listen(dhtPort, '0.0.0.0', () => console.log('LOG:', `DHT Listening on port ${dhtPort}`))
+  dht.on('error', err => console.error('ERROR:', 'DHT the an error', err))
+  dht.on('warning', warning => console.warn('WARN:', 'DHT threw a warning', warning))
   dht.on('ready', () => {
-    console.log('DHT ready, nodes in table:', dht.toJSON().nodes.map(peer => `${peer.host}:${peer.port}`))
+    console.log('LOG:', 'DHT ready, nodes in table:', dht.toJSON().nodes.map(peer => `${peer.host}:${peer.port}`))
     // dht.announce(dhtRoom, serverPort, err => { if (err) console.error(err) })
-    dht.lookup(dhtRoom, err => { if (err) console.error(err) })
+    dht.lookup(dhtRoom, err => { if (err) console.error('ERROR:', 'An error occurred during lookup', err) })
   })
-  dht.on('node', node => console.log(`New DHT node ${node.host}:${node.port}`))
+  dht.on('node', node => console.log('LOG:', `New DHT node ${node.host}:${node.port}`))
   dht.on('peer', peer => addPeer(new WebSocketClient(`ws://${peer.host}:${peer.port}`)))
-  dht.on('announce', (peer, infoHash) => console.log('announce', peer, infoHash))
+  dht.on('announce', (peer, infoHash) => console.log('LOG:', `Received announce from ${peer} on ${infoHash}`))
 }
