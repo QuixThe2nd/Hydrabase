@@ -2,11 +2,15 @@ import z from 'zod';
 import type { Request } from '../Messages'
 
 export const SearchResultSchema = z.object({
-  artistName: z.string(),
-  trackName: z.string(),
-  artworkUrl: z.url(),
-  genre: z.string(),
-  pluginId: z.string()
+  name: z.string(),
+  artists: z.array(z.string()),
+  album: z.string(),
+  duration_ms: z.number(),
+  popularity: z.number(),
+  preview_url: z.url(),
+  external_urls: z.array(z.url()),
+  image_url: z.url(),
+  plugin_id: z.string()
 });
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 

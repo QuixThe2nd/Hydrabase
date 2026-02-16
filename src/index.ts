@@ -37,7 +37,7 @@ const search = async (query: string) => {
   const plugins = new Set<string>()
   for (const result of results) {
     hashes.add(BigInt(Bun.hash(JSON.stringify(result))))
-    plugins.add(result.pluginId)
+    plugins.add(result.plugin_id)
   }
 
   console.log('LOG:', 'Searching peers')
@@ -49,7 +49,7 @@ const search = async (query: string) => {
     peerResults.set(hash, { ...result, confidences: [...peerResults.get(hash)?.confidences ?? [], Infinity] })
   }
 
-  return peerResults
+  return peerResults.values()
 }
 
 console.log('LOG:', 'Search results:', await search('dont stop me now'));

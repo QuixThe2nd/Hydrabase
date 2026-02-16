@@ -40,8 +40,8 @@ export default class Node {
       const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}
       for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        if (!(result.pluginId in pluginMatches)) pluginMatches[result.pluginId] = { match: 0, mismatch: 0 }
-        pluginMatches[result.pluginId]![confirmedHashes.has(hash) ? 'match' : 'mismatch']++
+        if (!(result.plugin_id in pluginMatches)) pluginMatches[result.plugin_id] = { match: 0, mismatch: 0 }
+        pluginMatches[result.plugin_id]![confirmedHashes.has(hash) ? 'match' : 'mismatch']++
         // if (pluginId in hashes) responseMatches[pluginId as P] = hashes[pluginId as P] === hash;
       }
 

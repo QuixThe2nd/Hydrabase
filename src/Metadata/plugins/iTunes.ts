@@ -67,11 +67,15 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid iTunes API response: ${parsed.error}`);
 
     return parsed.data.results.map(result => ({
-      artistName: result.artistName,
-      trackName: result.trackName,
-      genre: result.primaryGenreName,
-      artworkUrl: result.artworkUrl100,
-      pluginId: this.id
+      name: result.trackName,
+      artists: [result.artistName],
+      album: result.collectionName ?? '',
+      duration_ms: result.trackTimeMillis ?? 0,
+      popularity: 0,
+      preview_url: result.previewUrl ?? '',
+      external_urls: [result.trackViewUrl],
+      image_url: result.artworkUrl100,
+      plugin_id: this.id
     }));
   }
 }
