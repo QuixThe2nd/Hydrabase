@@ -1,9 +1,11 @@
+import { Parser } from 'expr-eval'
 import type { Request } from './Messages'
 import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
+import { CONFIG } from './config'
 
 export default class Node {
   private readonly peers: { [hostname: string]: Peer } = {}
@@ -45,14 +47,15 @@ export default class Node {
       const invalidMatches = Object.entries(responseMatches).filter(([,matched]) => !matched).map(([pluginId]) => pluginId).length
       const matches = validMatches + invalidMatches
       // const noMatches = Object.keys(hashes).length - matches;
-      const confidence = validMatches / matches
+      const confidence = Parser.evaluate(CONFIG.confidenceExpression, { x: validMatches, y: matches })
       peer.points += confidence;
 
       for (const pluginId in response) {
         const hash = responseHashes[pluginId]!;
         const result = response[pluginId]!;
         if (!(pluginId in results)) results[pluginId] = {}
-        results[pluginId]![Number(hash)] = { result, confidence: [...results[pluginId]![Number(hash)]?.confidence ?? [], { current: confidence, historic: peer.points / peer.events }] }
+        results[pluginId]![Number(hash)] = { result, confidence: [...results[pluginId]![Number(hash)]?.confidence ?? [], { current: confidence, historic: 
+          Parser.evaluate(CONFIG.historicConfidenceExpression, { x: peer.points, y: peer.events }) }] }
       }
     }
     return results;

@@ -48,7 +48,9 @@ export default class ITunes implements MetadataPlugin {
   public readonly id = 'iTunes';
   private baseUrl = "https://itunes.apple.com/search";
 
-  constructor(private country: string = "US", private limit: number = 200) {}
+  constructor(private country: string = "US", private limit: number = 3) {
+    if (limit > 200) throw new Error('Maximum limit is 200')
+  }
 
   async search(term: string): Promise<SearchResult[]> {
     const params = new URLSearchParams({
