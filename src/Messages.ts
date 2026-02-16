@@ -1,14 +1,14 @@
 import z from 'zod';
 import { SearchResultSchema } from './Metadata';
 
-type Message = { request: z.ZodObject, response: z.ZodRecord<z.ZodString, z.ZodArray<z.ZodObject>> }
+type Message = { request: z.ZodObject, response: z.ZodArray<z.ZodObject> }
 
 const search = {
   request: z.object({
     type: z.literal('search'),
     trackName: z.string()
   }),
-  response: z.record(z.string(), z.array(SearchResultSchema)),
+  response: z.array(SearchResultSchema),
 } satisfies Message;
 
 const MessageSchemas = { search } as const satisfies Record<string, Message>;

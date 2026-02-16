@@ -5,7 +5,8 @@ export const SearchResultSchema = z.object({
   artistName: z.string(),
   trackName: z.string(),
   artworkUrl: z.url(),
-  genre: z.string()
+  genre: z.string(),
+  pluginId: z.string()
 });
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 
@@ -17,15 +18,18 @@ export interface MetadataPlugin {
 export default class MetadataManager {
   constructor(private readonly plugins: MetadataPlugin[]) {}
 
-  async search(query: string): Promise<{ [pluginId: string]: SearchResult[] }> {
-    const results: { [pluginId: string]: SearchResult[] } = {};
-    for (const plugin of this.plugins) results[plugin.id] = await plugin.search(query);
+  async search(query: string): Promise<SearchResult[]> {
+    const results: SearchResult[] = [];
+    for (const plugin of this.plugins) results.push(...await plugin.search(query))
     return results;
   }
 
   public async handleRequest(request: Request) {
     if (request.type === 'search') return await this.search(request.trackName);
-    else console.warn('WARN:', 'Invalid request')
+    else {
+      console.warn('WARN:', 'Invalid request')
+      return []
+    }
   }
 }
 

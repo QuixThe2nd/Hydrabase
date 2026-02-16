@@ -7,6 +7,10 @@ import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import { CONFIG } from './config'
 
+type ExtendedSearchResult = SearchResult & { confidences: number[] }
+
+const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
+
 export default class Node {
   private readonly peers: { [hostname: string]: Peer } = {}
 
@@ -21,8 +25,8 @@ export default class Node {
     } else if (!(peer.hostname in this.peers)) this.peers[peer.hostname] = new Peer(peer)
   }
 
-  public async requestAll<P extends string>(request: Request, hashes: Record<P, bigint>) {
-    const results: { [plugin: string]: { [hash: number]: { result: SearchResult[], confidence: { current: number, historic: number }[] } } } = {}
+  public async requestAll(request: Request, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
+    const results = new Map<bigint, ExtendedSearchResult>()
     for (const hostname in this.peers) {
       const peer = this.peers[hostname]!
       if (!peer.isOpened) {
@@ -30,35 +34,32 @@ export default class Node {
         continue
       }
 
-      const response = await peer.sendRequest(request)
+      const peerResults = await peer.sendRequest(request)
 
       // Compare Results
-      const responseHashes: Record<string, bigint> = {}
-      const responseMatches: Partial<Record<P, boolean>> = {}
-      for (const pluginId in response) {
-        const result = response[pluginId]!
+      const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}
+      for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        responseHashes[pluginId] = hash;
-        if (pluginId in hashes) responseMatches[pluginId as P] = hashes[pluginId as P] === hash;
+        if (!(result.pluginId in pluginMatches)) pluginMatches[result.pluginId] = { match: 0, mismatch: 0 }
+        pluginMatches[result.pluginId]![confirmedHashes.has(hash) ? 'match' : 'mismatch']++
+        // if (pluginId in hashes) responseMatches[pluginId as P] = hashes[pluginId as P] === hash;
       }
 
-      // Calculate Certainty
-      const validMatches = Object.entries(responseMatches).filter(([,matched]) => matched).map(([pluginId]) => pluginId).length
-      const invalidMatches = Object.entries(responseMatches).filter(([,matched]) => !matched).map(([pluginId]) => pluginId).length
-      const matches = validMatches + invalidMatches
-      // const noMatches = Object.keys(hashes).length - matches;
-      const confidence = Parser.evaluate(CONFIG.confidenceExpression, { x: validMatches, y: matches })
+      const confidence = avg(
+        Object.entries(pluginMatches)
+          .filter(([pluginId]) => installedPlugins.has(pluginId))
+          .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
+      )
+
       peer.points += confidence;
 
-      for (const pluginId in response) {
-        const hash = responseHashes[pluginId]!;
-        const result = response[pluginId]!;
-        if (!(pluginId in results)) results[pluginId] = {}
-        results[pluginId]![Number(hash)] = { result, confidence: [...results[pluginId]![Number(hash)]?.confidence ?? [], { current: confidence, historic: 
-          Parser.evaluate(CONFIG.historicConfidenceExpression, { x: peer.points, y: peer.events }) }] }
+      for (const result of peerResults) {
+        const hash = BigInt(Bun.hash(JSON.stringify(result)))
+        results.set(hash, { ...result, confidences: [...results.get(hash)?.confidences ?? [], confidence] })
       }
     }
-    return results;
+
+    return results
   }
 }
 

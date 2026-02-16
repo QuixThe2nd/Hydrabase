@@ -50,7 +50,7 @@ export class Peer {
   public async sendRequest(request: Request): Promise<Response> {
     if (!this.socket.isOpened) {
       console.warn('WARN:', `Not connected to peer ${this.socket.hostname}`)
-      return {}
+      return []
     }
     this.nonce++;
 

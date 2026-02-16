@@ -15,7 +15,7 @@ bun install
 To run:
 
 ```bash
-bun src/index.ts
+bun src
 ```
 
 ## Networking

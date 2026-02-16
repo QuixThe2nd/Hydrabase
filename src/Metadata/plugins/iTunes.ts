@@ -70,7 +70,8 @@ export default class ITunes implements MetadataPlugin {
       artistName: result.artistName,
       trackName: result.trackName,
       genre: result.primaryGenreName,
-      artworkUrl: result.artworkUrl100
+      artworkUrl: result.artworkUrl100,
+      pluginId: this.id
     }));
   }
 }

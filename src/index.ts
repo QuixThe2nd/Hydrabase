@@ -33,21 +33,22 @@ const search = async (query: string) => {
 
   console.log('LOG:', 'Searching locally')
   const results = await metadataManager.handleRequest(request)
-  const hashes: { [pluginId: string]: bigint } = {}
-  for (const id in results) {
-    const result = results[id]!
-    const hash = BigInt(Bun.hash(JSON.stringify(result)))
-    hashes[id] = hash;
+  const hashes = new Set<bigint>()
+  const plugins = new Set<string>()
+  for (const result of results) {
+    hashes.add(BigInt(Bun.hash(JSON.stringify(result))))
+    plugins.add(result.pluginId)
   }
 
   console.log('LOG:', 'Searching peers')
-  const peerResults = await peers.requestAll(request, hashes)
+  const peerResults = await peers.requestAll(request, hashes, plugins)
 
   // Inject local results
-  for (const id in results) {
-    if (!(id in peerResults)) peerResults[id] = {}
-    peerResults[id]![0] = { result: results[id]!, confidence: [{ current: 1, historic: 1 }] }
+  for (const result of results) {
+    const hash = BigInt(Bun.hash(JSON.stringify(result)))
+    peerResults.set(hash, { ...result, confidences: [...peerResults.get(hash)?.confidences ?? [], Infinity] })
   }
+
   return peerResults
 }
 
