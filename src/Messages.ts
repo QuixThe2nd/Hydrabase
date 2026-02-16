@@ -1,19 +1,24 @@
 import z from 'zod';
-import { ArtistSearchResultSchema, TrackSearchResultSchema } from './Metadata';
+import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from './Metadata';
 
 const message = {
   request: z.object({
-    type: z.union([z.literal('searchTrack'), z.literal('searchArtist'), z.literal('searchAlbum')]),
+    type: z.union([z.literal('track'), z.literal('artist'), z.literal('album')]),
     query: z.string()
   }),
-  response: z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema)]),
+  response: z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)]),
 };
-
-
 
 const MessageSchemas = { message } as const;
 export type Request = z.infer<(typeof MessageSchemas)[keyof typeof MessageSchemas]['request']>;
-export type Response = z.infer<(typeof MessageSchemas)[keyof typeof MessageSchemas]['response']>;
+
+interface MessageMap {
+  track: z.infer<typeof TrackSearchResultSchema>[];
+  artist: z.infer<typeof ArtistSearchResultSchema>[];
+  album: z.infer<typeof AlbumSearchResultSchema>[];
+}
+
+export type Response<T extends keyof MessageMap = keyof MessageMap> = MessageMap[T];
 
 type MessageKey = keyof typeof MessageSchemas;
 type MatchResult<K extends MessageKey = MessageKey> = z.infer<(typeof MessageSchemas)[K]['request']>;

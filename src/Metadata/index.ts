@@ -1,5 +1,5 @@
 import z from 'zod';
-import type { Request } from '../Messages'
+import type { Request, Response } from '../Messages'
 
 export const TrackSearchResultSchema = z.object({
   id: z.string(),
@@ -40,6 +40,12 @@ export const AlbumSearchResultSchema = z.object({
 })
 export type AlbumSearchResult = z.infer<typeof AlbumSearchResultSchema>
 
+export interface SearchResult {
+  track: TrackSearchResult
+  artist: ArtistSearchResult
+  album: AlbumSearchResult
+}
+
 export interface MetadataPlugin {
   id: string
   searchTrack: (query: string) => Promise<TrackSearchResult[]>
@@ -68,10 +74,10 @@ export default class MetadataManager {
     return results;
   }
 
-  public async handleRequest(request: Request) {
-    if (request.type === 'searchTrack') return await this.searchTrack(request.query)
-    if (request.type === 'searchArtist') return await this.searchArtist(request.query)
-    if (request.type === 'searchAlbum') return await this.searchAlbum(request.query)
+  public async handleRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
+    if (request.type === 'track') return await this.searchTrack(request.query) as Response<T>
+    if (request.type === 'artist') return await this.searchArtist(request.query) as Response<T>
+    if (request.type === 'album') return await this.searchAlbum(request.query) as Response<T>
     else {
       console.warn('WARN:', 'Invalid request')
       return []

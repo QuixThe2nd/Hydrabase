@@ -4,7 +4,7 @@ import type WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
 type PendingRequest = {
-  resolve: (value: Response) => void
+  resolve: <T extends Request['type']>(value: Promise<Response<T>>) => void
   reject: (reason?: any) => void
 }
 
@@ -47,14 +47,14 @@ export class Peer {
     this._events++
   }
 
-  public async sendRequest(request: Request): Promise<Response> {
+  public async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
     if (!this.socket.isOpened) {
       console.warn('WARN:', `Not connected to peer ${this.socket.hostname}`)
       return []
     }
     this.nonce++;
 
-    return new Promise<Response>((resolve, reject) => {
+    return new Promise<Response<T>>((resolve, reject) => {
       this.pendingRequests.set(this.nonce, { resolve, reject })
       this.socket.send(JSON.stringify({ nonce: this.nonce, request }))
     })

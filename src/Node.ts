@@ -1,13 +1,13 @@
 import { Parser } from 'expr-eval'
-import type { Request } from './Messages'
-import type { TrackSearchResult } from './Metadata'
+import type { Request, Response } from './Messages'
+import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import { CONFIG } from './config'
 
-type ExtendedSearchResult = TrackSearchResult & { confidences: number[] }
+type ExtendedSearchResult<T extends Request['type']> = SearchResult[T] & { confidences: number[] }
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
@@ -25,8 +25,8 @@ export default class Node {
     } else if (!(peer.hostname in this.peers)) this.peers[peer.hostname] = new Peer(peer)
   }
 
-  public async requestAll(request: Request, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
-    const results = new Map<bigint, ExtendedSearchResult>()
+  public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
+    const results = new Map<bigint, ExtendedSearchResult<T>>()
     for (const hostname in this.peers) {
       const peer = this.peers[hostname]!
       if (!peer.isOpened) {
@@ -34,7 +34,7 @@ export default class Node {
         continue
       }
 
-      const peerResults = await peer.sendRequest(request)
+      const peerResults = await peer.sendRequest<T>(request)
 
       // Compare Results
       const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}
@@ -51,11 +51,15 @@ export default class Node {
           .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
       )
 
+      const historicConfidence = Parser.evaluate(CONFIG.historicConfidence, { x: peer.points, y: peer.events })
+
+      const finalConfidence = Parser.evaluate(CONFIG.finalConfidence, { x: confidence, y: historicConfidence })
+
       peer.points += confidence;
 
       for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        results.set(hash, { ...result, confidences: [...results.get(hash)?.confidences ?? [], confidence] })
+        results.set(hash, { ...result, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
       }
     }
 

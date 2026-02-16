@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { AlbumSearchResult, ArtistSearchResult, MetadataPlugin, TrackSearchResult } from "..";
-import env from './.spotify.env' with { type: "text" };
+import dotenv from 'dotenv';
 
 const spotifyTrackSchema = z.object({
   id: z.string(),
@@ -65,7 +65,7 @@ const spotifyTokenResponseSchema = z.object({
   expires_in: z.number(),
 });
 
-const ENV: Record<string, string> = Object.fromEntries(env.split('\n').map(line => line.split('=') as [string, string]))
+dotenv.config({ path: './src/Metadata/plugins/.spotify.env' })
 
 export default class Spotify implements MetadataPlugin {
   public readonly id = "Spotify";
@@ -75,8 +75,8 @@ export default class Spotify implements MetadataPlugin {
   private tokenExpiry: number = 0;
 
   constructor(
-    private clientId: string | undefined = ENV.CLIENT_ID,
-    private clientSecret: string | undefined = ENV.CLIENT_SECRET,
+    private clientId: string | undefined = process.env.CLIENT_ID,
+    private clientSecret: string | undefined = process.env.CLIENT_SECRET,
     private market: string = "US",
     private limit: number = 3
   ) {

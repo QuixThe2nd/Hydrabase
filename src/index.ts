@@ -12,8 +12,6 @@ declare global {
   }
 }
 
-const ucFirst = <T extends string>(val: T): Capitalize<T> => (val.charAt(0).toUpperCase() + val.slice(1)) as Capitalize<T>
-
 export const metadataManager = new MetadataManager([new ITunes(), new Spotify()])
 
 // Start Dummy Nodes
@@ -29,7 +27,7 @@ const peers = new Node(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
 await new Promise(res => setTimeout(res, 10_000))
 
 const search = async (type: 'track' | 'artist' | 'album', query: string) => {
-  const request = { type: `search${ucFirst(type)}`, query } as const;
+  const request = { type, query } as const;
 
   console.log('LOG:', 'Searching locally')
   const results = await metadataManager.handleRequest(request)

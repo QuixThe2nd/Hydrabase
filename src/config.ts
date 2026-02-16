@@ -5,5 +5,7 @@ export const CONFIG = {
   dummyNodes: 0, // Dummy nodes are full nodes used for testing, each is run on a sequential port
   upnpTTL: 3600, // Seconds
   upnpReannounce: 1800, // Seconds
-  pluginConfidence: 'x / (x + y)'
+  pluginConfidence: 'x / (x + y)',
+  historicConfidence: 'x * y',
+  finalConfidence: 'x * y'
 }
