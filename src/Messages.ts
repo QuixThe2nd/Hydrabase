@@ -1,17 +1,17 @@
 import z from 'zod';
-import { SearchResultSchema } from './Metadata';
+import { ArtistSearchResultSchema, TrackSearchResultSchema } from './Metadata';
 
-type Message = { request: z.ZodObject, response: z.ZodArray<z.ZodObject> }
-
-const search = {
+const message = {
   request: z.object({
-    type: z.literal('search'),
-    trackName: z.string()
+    type: z.union([z.literal('searchTrack'), z.literal('searchArtist'), z.literal('searchAlbum')]),
+    query: z.string()
   }),
-  response: z.array(SearchResultSchema),
-} satisfies Message;
+  response: z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema)]),
+};
 
-const MessageSchemas = { search } as const satisfies Record<string, Message>;
+
+
+const MessageSchemas = { message } as const;
 export type Request = z.infer<(typeof MessageSchemas)[keyof typeof MessageSchemas]['request']>;
 export type Response = z.infer<(typeof MessageSchemas)[keyof typeof MessageSchemas]['response']>;
 

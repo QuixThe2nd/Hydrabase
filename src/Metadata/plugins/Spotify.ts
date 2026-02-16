@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { MetadataPlugin, SearchResult } from "..";
+import type { AlbumSearchResult, ArtistSearchResult, MetadataPlugin, TrackSearchResult } from "..";
 import env from './.spotify.env' with { type: "text" };
 
 const spotifyTrackSchema = z.object({
@@ -16,9 +16,45 @@ const spotifyTrackSchema = z.object({
   external_urls: z.object({ spotify: z.url() }),
 });
 
+const spotifyArtistSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  popularity: z.number(),
+  genres: z.array(z.string()),
+  followers: z.object({ total: z.number() }),
+  images: z.array(z.object({ url: z.url(), height: z.number().optional(), width: z.number().optional() })),
+  external_urls: z.object({ spotify: z.url() }),
+});
+
+const spotifyAlbumSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  artists: z.array(z.object({ name: z.string() })),
+  release_date: z.string(),
+  release_date_precision: z.enum(['year', 'month', 'day']).optional(),
+  total_tracks: z.number(),
+  album_type: z.string(),
+  images: z.array(z.object({ url: z.url(), height: z.number().optional(), width: z.number().optional() })),
+  external_urls: z.object({ spotify: z.url() }),
+});
+
 export const spotifySearchResponseSchema = z.object({
   tracks: z.object({
     items: z.array(spotifyTrackSchema),
+    total: z.number(),
+  }),
+});
+
+export const spotifyArtistSearchResponseSchema = z.object({
+  artists: z.object({
+    items: z.array(spotifyArtistSchema),
+    total: z.number(),
+  }),
+});
+
+export const spotifyAlbumSearchResponseSchema = z.object({
+  albums: z.object({
+    items: z.array(spotifyAlbumSchema),
     total: z.number(),
   }),
 });
@@ -72,7 +108,7 @@ export default class Spotify implements MetadataPlugin {
     return this.accessToken;
   }
 
-  async search(term: string): Promise<SearchResult[]> {
+  async searchTrack(term: string): Promise<TrackSearchResult[]> {
     const token = await this.authenticate();
 
     const params = new URLSearchParams({
@@ -100,6 +136,67 @@ export default class Spotify implements MetadataPlugin {
       preview_url: track.preview_url ?? "",
       external_urls: [track.external_urls.spotify],
       image_url: track.album.images[0]?.url ?? "",
+      plugin_id: this.id,
+    }));
+  }
+
+  async searchArtist(term: string): Promise<ArtistSearchResult[]> {
+    const token = await this.authenticate();
+
+    const params = new URLSearchParams({
+      q: term,
+      type: "artist",
+      market: this.market,
+      limit: this.limit.toString(),
+    });
+
+    const response = await fetch(`${this.baseUrl}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = await response.json();
+    const parsed = spotifyArtistSearchResponseSchema.safeParse(data);
+    if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`);
+
+    return parsed.data.artists.items.map((artist) => ({
+      id: artist.id,
+      name: artist.name,
+      popularity: artist.popularity,
+      genres: artist.genres,
+      followers: artist.followers.total,
+      image_url: artist.images[0]?.url ?? '',
+      external_urls: Object.values(artist.external_urls),
+      plugin_id: this.id,
+    }));
+  }
+
+  async searchAlbum(term: string): Promise<AlbumSearchResult[]> {
+    const token = await this.authenticate();
+
+    const params = new URLSearchParams({
+      q: term,
+      type: "album",
+      market: this.market,
+      limit: this.limit.toString(),
+    });
+
+    const response = await fetch(`${this.baseUrl}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = await response.json();
+    const parsed = spotifyAlbumSearchResponseSchema.safeParse(data);
+    if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`);
+
+    return parsed.data.albums.items.map((album) => ({
+      id: album.id,
+      name: album.name,
+      artists: album.artists.map((a) => a.name),
+      release_date: album.release_date,
+      total_tracks: album.total_tracks,
+      album_type: album.album_type,
+      image_url: album.images[0]?.url ?? "",
+      external_urls: [album.external_urls.spotify],
       plugin_id: this.id,
     }));
   }

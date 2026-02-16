@@ -12,6 +12,8 @@ declare global {
   }
 }
 
+const ucFirst = <T extends string>(val: T): Capitalize<T> => (val.charAt(0).toUpperCase() + val.slice(1)) as Capitalize<T>
+
 export const metadataManager = new MetadataManager([new ITunes(), new Spotify()])
 
 // Start Dummy Nodes
@@ -26,11 +28,8 @@ const peers = new Node(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
 
 await new Promise(res => setTimeout(res, 10_000))
 
-const search = async (query: string) => {
-  const request = {
-    type: 'search',
-    trackName: query
-  } as const;
+const search = async (type: 'track' | 'artist' | 'album', query: string) => {
+  const request = { type: `search${ucFirst(type)}`, query } as const;
 
   console.log('LOG:', 'Searching locally')
   const results = await metadataManager.handleRequest(request)
@@ -45,15 +44,18 @@ const search = async (query: string) => {
   const peerResults = await peers.requestAll(request, hashes, plugins)
 
   // Inject local results
-  for (const result of results) {
-    const hash = BigInt(Bun.hash(JSON.stringify(result)))
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]!;
+    const hash = [...hashes.values()][i]!;
     peerResults.set(hash, { ...result, confidences: [...peerResults.get(hash)?.confidences ?? [], Infinity] })
   }
 
   return [...peerResults.values()]
 }
 
-console.log('LOG:', 'Search results:', await search('dont stop me now'));
+console.log('LOG:', 'Track results:', await search('track', 'dont stop me now'));
+console.log('LOG:', 'Artist results:', await search('artist', 'jay z'));
+console.log('LOG:', 'Album results:', await search('album', 'made in england'));
 
 // TODO: cache results
 // TODO: prevent connecting to self

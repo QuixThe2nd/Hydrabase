@@ -1,13 +1,13 @@
 import { Parser } from 'expr-eval'
 import type { Request } from './Messages'
-import type { SearchResult } from './Metadata'
+import type { TrackSearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import { CONFIG } from './config'
 
-type ExtendedSearchResult = SearchResult & { confidences: number[] }
+type ExtendedSearchResult = TrackSearchResult & { confidences: number[] }
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 

@@ -1,7 +1,7 @@
 import z from 'zod';
 import type { Request } from '../Messages'
 
-export const SearchResultSchema = z.object({
+export const TrackSearchResultSchema = z.object({
   id: z.string(),
   name: z.string(),
   artists: z.array(z.string()),
@@ -12,25 +12,66 @@ export const SearchResultSchema = z.object({
   external_urls: z.array(z.url()),
   image_url: z.url(),
   plugin_id: z.string()
-});
-export type SearchResult = z.infer<typeof SearchResultSchema>;
+})
+export type TrackSearchResult = z.infer<typeof TrackSearchResultSchema>
+
+export const ArtistSearchResultSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  popularity: z.number(),
+  genres: z.array(z.string()),
+  followers: z.number(),
+  external_urls: z.array(z.url()),
+  image_url: z.url(),
+  plugin_id: z.string()
+})
+export type ArtistSearchResult = z.infer<typeof ArtistSearchResultSchema>
+
+export const AlbumSearchResultSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  artists: z.array(z.string()),
+  release_date: z.string(),
+  total_tracks: z.number(),
+  album_type: z.string(),
+  image_url: z.url(),
+  external_urls: z.array(z.url()),
+  plugin_id: z.string()
+})
+export type AlbumSearchResult = z.infer<typeof AlbumSearchResultSchema>
 
 export interface MetadataPlugin {
   id: string
-  search: (query: string) => Promise<SearchResult[]>
+  searchTrack: (query: string) => Promise<TrackSearchResult[]>
+  searchArtist: (query: string) => Promise<ArtistSearchResult[]>
+  searchAlbum: (query: string) => Promise<AlbumSearchResult[]>
 }
 
 export default class MetadataManager {
   constructor(private readonly plugins: MetadataPlugin[]) {}
 
-  async search(query: string): Promise<SearchResult[]> {
-    const results: SearchResult[] = [];
-    for (const plugin of this.plugins) results.push(...await plugin.search(query))
+  async searchTrack(query: string): Promise<TrackSearchResult[]> {
+    const results: TrackSearchResult[] = [];
+    for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
+    return results;
+  }
+
+  async searchArtist(query: string): Promise<ArtistSearchResult[]> {
+    const results: ArtistSearchResult[] = [];
+    for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
+    return results;
+  }
+
+  async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
+    const results: AlbumSearchResult[] = [];
+    for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
     return results;
   }
 
   public async handleRequest(request: Request) {
-    if (request.type === 'search') return await this.search(request.trackName);
+    if (request.type === 'searchTrack') return await this.searchTrack(request.query)
+    if (request.type === 'searchArtist') return await this.searchArtist(request.query)
+    if (request.type === 'searchAlbum') return await this.searchAlbum(request.query)
     else {
       console.warn('WARN:', 'Invalid request')
       return []
