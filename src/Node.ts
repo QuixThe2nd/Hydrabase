@@ -1,7 +1,7 @@
 import type { Request } from './Messages'
 import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
-import type WebSocketClient from './networking/ws/client'
+import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 
@@ -9,12 +9,14 @@ export default class Node {
   private readonly peers: { [hostname: string]: Peer } = {}
 
   constructor(serverPort: number, dhtPort: number, dhtRoom: string) {
-    discoverPeers(serverPort, dhtPort, dhtRoom, this.addPeer)
-    startServer(serverPort, this.addPeer)
+    discoverPeers(serverPort, dhtPort, dhtRoom, hostname => this.addPeer(hostname))
+    startServer(serverPort, peer => this.addPeer(peer))
   }
 
-  public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
-    if (!(peer.hostname in this.peers)) this.peers[peer.hostname] = new Peer(peer)
+  public addPeer(peer: `ws://${string}` | WebSocketServerConnection) {
+    if (typeof peer === 'string') {
+      if (!(peer in this.peers)) this.peers[peer] = new Peer(new WebSocketClient(peer))
+    } else if (!(peer.hostname in this.peers)) this.peers[peer.hostname] = new Peer(peer)
   }
 
   public async requestAll<P extends string>(request: Request, hashes: Record<P, bigint>) {
@@ -56,3 +58,5 @@ export default class Node {
     return results;
   }
 }
+
+// TODO: Create custom peer discovery network for after users have bootstrapped with dht, dht isnt reliable

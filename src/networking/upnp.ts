@@ -1,5 +1,5 @@
 import natUpnp from 'nat-upnp'
-import { CONFIG } from '..';
+import { CONFIG } from '../config';
 
 const upnp = natUpnp.createClient();
 const _portForward = (port: number, description: string, protocol: 'TCP' | 'UDP' = 'TCP') => {

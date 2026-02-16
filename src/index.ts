@@ -1,6 +1,7 @@
 import ITunes from './Metadata/plugins/iTunes'
 import MetadataManager from './Metadata'
 import Node from './Node'
+import { CONFIG } from './config';
 
 declare global {
   interface Console {
@@ -9,15 +10,6 @@ declare global {
     log(level: 'LOG:', message: string, context?: `- ${string}` | Record<string, any>): void;
   }
 }
-
-export const CONFIG = {
-  serverPort: 4000,
-  dhtPort: 30000,
-  dhtRoom: '0000dabae71be086ec43ca1be7e97b2f982620f0',
-  dummyNodes: 2, // Dummy nodes are full nodes used for testing, each is run on a sequential port
-  upnpTTL: 3600, // Seconds
-  upnpReannounce: 1800, // Seconds
-};
 
 export const metadataManager = new MetadataManager([new ITunes()])
 
