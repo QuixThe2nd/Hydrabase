@@ -75,8 +75,8 @@ export default class Spotify implements MetadataPlugin {
   private tokenExpiry: number = 0;
 
   constructor(
-    private clientId: string | undefined = process.env.CLIENT_ID,
-    private clientSecret: string | undefined = process.env.CLIENT_SECRET,
+    private clientId: string | undefined = process.env['CLIENT_ID'],
+    private clientSecret: string | undefined = process.env['CLIENT_SECRET'],
     private market: string = "US",
     private limit: number = 3
   ) {

@@ -1,5 +1,5 @@
 import { Parser } from 'expr-eval'
-import type { Request, Response } from './Messages'
+import type { Request } from './Messages'
 import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import WebSocketClient from './networking/ws/client'
@@ -59,7 +59,7 @@ export default class Node {
 
       for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        results.set(hash, { ...result, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
+        results.set(hash, { ...result as SearchResult[T], confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
       }
     }
 

@@ -4,7 +4,7 @@ import type WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
 type PendingRequest = {
-  resolve: <T extends Request['type']>(value: Promise<Response<T>>) => void
+  resolve: (value: any) => void
   reject: (reason?: any) => void
 }
 
