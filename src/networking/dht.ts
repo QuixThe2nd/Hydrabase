@@ -3,8 +3,14 @@ import krpc from 'k-rpc'
 import { portForward } from './upnp'
 import WebSocketClient from './ws/client';
 import type { Crypto } from '../crypto';
+import { CONFIG } from '../config';
 
 const knownPeers = new Set<`${string}:${number}`>();
+
+const announce = (dht: DHT, room: string, port: number) => {
+  dht.announce(room, port, err => { if (err) console.error('ERROR:', 'DHT threw an error during announce', err) })
+  dht.lookup(room, err => { if (err) console.error('ERROR:', 'DHT threw an error during lookup', err) })
+}
 
 export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: string, addPeer: (peer: WebSocketClient) => void, crypto: Crypto) => {
   portForward(dhtPort, 'Hydrabase (UDP)', 'UDP');
@@ -17,8 +23,10 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
   // dht.on('warning', warning => console.warn('WARN:', 'DHT threw a warning', warning))
   dht.on('ready', () => {
     console.log('LOG:', 'DHT ready', `- ${dht.toJSON().nodes.length} Nodes`)
-    dht.announce(dhtRoom, serverPort, err => { if (err) console.error('ERROR:', 'DHT threw an error during announce', err) })
-    dht.lookup(dhtRoom, err => { if (err) console.error('ERROR:', 'DHT threw an error during lookup', err) })
+
+    announce(dht, dhtRoom, serverPort)
+    setInterval(() => announce(dht, dhtRoom, serverPort), CONFIG.dhtReannounce)
+
     dht.addNode({ host: 'ddns.yazdani.au', port: 30000 })
     dht.addNode({ host: 'ddns.yazdani.au', port: 40000 })
     dht.addNode({ host: 'ddns.yazdani.au', port: 40001 })
