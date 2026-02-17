@@ -60,14 +60,54 @@ To make an API request, you need to connect to a Hydrabase node via WebSocket. C
 Once connected to a node, you can trigger searches by sending a message structured like so:
 ```json
 {
-    "request": {
-        "type": "artist" | "track" | "album",
-        "query": "black eyed peas"
-    }
+  "request": {
+    "type": "artist" | "track" | "album",
+    "query": "black eyed peas"
+  }
 }
 ```
 
 The Hydrabase node will respond with results.
+
+You can (and should) optionally set a nonce like so:
+```json
+{
+  "request": {
+    "type": "artist" | "track" | "album",
+    "query": "black eyed peas"
+  },
+  "nonce": 20
+}
+```
+
+This nonce can be any number, but should be unique to that request. That way when the server responds, you know which request it's for:
+```json
+{
+  "response": [
+    {
+      "id": "360391",
+      "name": "Black Eyed Peas",
+      "popularity": 0,
+      "genres": [ "Pop" ],
+      "followers": 0,
+      "image_url": "",
+      "external_urls": {},
+      "plugin_id": "iTunes"
+    },
+    {
+      "id": "1yxSLGMDHlW21z4YXirZDS",
+      "name": "Black Eyed Peas",
+      "popularity": 81,
+      "genres": [],
+      "followers": 10041814,
+      "image_url": "https://i.scdn.co/image/ab6761610000e5ebb3037310c07b99cbefbd2c6d",
+      "external_urls": { "spotify": "https://open.spotify.com/artist/1yxSLGMDHlW21z4YXirZDS" },
+      "plugin_id": "Spotify"
+    }
+  ],
+  "nonce": 20
+}
+```
 
 ## Networking
 
