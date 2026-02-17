@@ -48,7 +48,26 @@ bun src
 ```
 
 ### Updates
+
 Hydrabase is automatically updated on launch.
+
+## API Documentation
+
+To make an API request, you need to connect to a Hydrabase node via WebSocket. Connect to `ws://ip_address:3000` with the `x-api-key` header set.
+
+### Requests
+
+Once connected to a node, you can trigger searches by sending a message structured like so:
+```json
+{
+    "request": {
+        "type": "artist" | "track" | "album",
+        "query": "black eyed peas"
+    }
+}
+```
+
+The Hydrabase node will respond with results.
 
 ## Networking
 
