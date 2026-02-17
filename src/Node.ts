@@ -14,9 +14,8 @@ const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) =>
 
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
-  private readonly crypto = new Crypto()
 
-  constructor(serverPort: number, dhtPort: number, dhtRoom: string) {
+  constructor(serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
     discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
     startServer(serverPort, peer => this.addPeer(peer))
   }

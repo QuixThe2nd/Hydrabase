@@ -8,6 +8,14 @@ const generatePrivateKey = (): Buffer => {
   return secp256k1.privateKeyVerify(key) ? key : generatePrivateKey();
 }
 
+export const getPrivateKey = async (offset = 0): Promise<Uint8Array> => {
+  const keyFile = Bun.file(`.key${offset}.env`)
+  if (await keyFile.exists()) return new Uint8Array(await keyFile.arrayBuffer())
+  const privateKey = generatePrivateKey()
+  await keyFile.write(privateKey)
+  return privateKey
+}
+
 export const SignatureSchema = z.object({
   signature: z.instanceof(Uint8Array),
   recid: z.number(),
@@ -16,8 +24,11 @@ export const SignatureSchema = z.object({
 export type Signature = z.infer<typeof SignatureSchema>
 
 export class Crypto {
-  private readonly privKey = generatePrivateKey() // TODO: store private key
-  public readonly address = '0x' + keccak256(secp256k1.publicKeyCreate(this.privKey, false).slice(1)).slice(-40)
+  public readonly address: `0x${string}`
+
+  constructor(private readonly privKey: Uint8Array) {
+    this.address = `0x${keccak256(secp256k1.publicKeyCreate(this.privKey, false).slice(1)).slice(-40)}`
+  }
 
   static hash = (message: string) => {
     const msg = Buffer.from(message)
