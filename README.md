@@ -61,5 +61,11 @@ A score is calculated that represents your confidence/trust in a peer's response
 ### Peer Reputation
 Historic confidence scores of each peers' responses are kept track of. This will be used in the future to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
 
+### Identities
+Hydrabase clients create an ephemeral identity each run. This is just a public and private key-pair that is used to verify identity. This is currently used to de-duplicate peers and to avoid connecting to self. In the future identities will be used to permanently keep track of peer reputation.
+
+### Cache Layer
+Metadata discovered via API lookups is stored in a database. The cache layer for now is write-only, meaning songs, artists, and albums discovered via plugin lookups are cached, but this cache isn't used. In the future the cache will obviously be used. In the future the cache layer will also store peer responses so you can build up a database of metadata for songs that you normally wouldn't have access to.
+
 ### Future Plans
 While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism. The end goal is for peers running different plugins to benefit by exchanging api responses from different metadata providers.

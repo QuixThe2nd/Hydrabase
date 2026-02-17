@@ -16,7 +16,7 @@ export const SignatureSchema = z.object({
 export type Signature = z.infer<typeof SignatureSchema>
 
 export class Crypto {
-  private readonly privKey = generatePrivateKey()
+  private readonly privKey = generatePrivateKey() // TODO: store private key
   public readonly address = '0x' + keccak256(secp256k1.publicKeyCreate(this.privKey, false).slice(1)).slice(-40)
 
   static hash = (message: string) => {
