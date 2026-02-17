@@ -1,6 +1,6 @@
 import SuperJSON from 'superjson'
 import { CONFIG } from '../../config'
-import { Crypto, SignatureSchema } from '../../crypto'
+import { Crypto, SignatureSchema, type Signature } from '../../crypto'
 import { portForward } from '../upnp'
 
 interface WebSocketData {
@@ -38,13 +38,23 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
     port,
     hostname: CONFIG.listenAddress,
     fetch: (req, server) =>  {
-      const signature = SignatureSchema.parse(SuperJSON.parse(req.headers.get("x-signature") ?? ''))
-      const address = (req.headers.get("x-address") ?? '0x0') as `0x${string}`
-      const valid = Crypto.verify(`ws://${CONFIG.serverHostname}:${port}`, signature, address)
-      if (!valid) {
-        return new Response('Authentication failed', { status: 401 })
-      }
-      return server.upgrade(req, { data: { isOpened: false, address } }) ? undefined : new Response("Upgrade failed", { status: 500 })
+      const headers = Object.fromEntries(req.headers.entries())
+      const address = req.headers.get("x-address") as `0x${string}` ?? '0x0'
+
+      type Auth =
+        | { apiKey: string; signature?: undefined }
+        | { apiKey?: undefined; signature: Signature }
+        | { apiKey: string; signature: Signature }
+
+      const apiKey = headers['x-api-key']
+      const signature = headers['x-signature'] ? SignatureSchema.parse(SuperJSON.parse(headers['x-signature'])) : undefined
+
+      const auth = apiKey !== undefined || signature !== undefined ? { apiKey, signature } as Auth : undefined
+
+      if (!auth) return new Response('Missing authentication', { status: 400 })
+      if (auth.apiKey && auth.apiKey !== CONFIG.apiKey) return new Response('Invalid API key', { status: 401 })
+      else if (auth.signature && !Crypto.verify(`ws://${CONFIG.serverHostname}:${port}`, auth.signature, address)) return new Response('Authentication failed', { status: 403 })
+      return server.upgrade(req, { data: { isOpened: false, address: address ?? apiKey } }) ? undefined : new Response("Upgrade failed", { status: 500 })
     },
     websocket: {
       data: {} as WebSocketData,

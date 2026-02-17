@@ -18,5 +18,6 @@ export const CONFIG = {
   publicHostnames: [ // This should be an address only you control, peers, when proving their identity will use your public hostname. If this IP is different to the one being announce, Hydrabase can't authenticate peers.
     `ws://${ip}:${serverPort}`,
     ...Array.from({ length: dummyNodes }, (_, i) => `ws://${ip}:${serverPort + i + 1}`)
-  ]
+  ],
+  apiKey: process.env['API_KEY'] ?? false
 } as const

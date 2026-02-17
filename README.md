@@ -6,19 +6,6 @@ Hydrabase is a WIP and not intended for use yet.
 
 ## Install
 
-To install:
-```bash
-git clone https://github.com/QuixThe2nd/Hydrabase
-cd Hydrabase
-bun install
-```
-
-To run:
-
-```bash
-bun src
-```
-
 ### Docker
 
 ```yml
@@ -39,12 +26,48 @@ services:
       # Ports
       DHT_PORT: 30000
       SERVER_PORT: 3000
+      # Use `openssl rand -hex 16` to generate an api key
+      # API_KEY: $API_KEY
       # Used for testing
       DUMMY_NODES: 0
 ```
 
+### Manual
+
+To install:
+```bash
+git clone https://github.com/QuixThe2nd/Hydrabase
+cd Hydrabase
+bun install
+```
+
+To run:
+
+```bash
+bun src
+```
+
 ### Updates
+
 Hydrabase is automatically updated on launch.
+
+## API Documentation
+
+To make an API request, you need to connect to a Hydrabase node via WebSocket. Connect to `ws://ip_address:3000` with the `x-api-key` header set.
+
+### Requests
+
+Once connected to a node, you can trigger searches by sending a message structured like so:
+```json
+{
+    "request": {
+        "type": "artist" | "track" | "album",
+        "query": "black eyed peas"
+    }
+}
+```
+
+The Hydrabase node will respond with results.
 
 ## Networking
 
