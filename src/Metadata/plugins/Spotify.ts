@@ -72,13 +72,12 @@ export default class Spotify implements MetadataPlugin {
   private tokenExpiry: number = 0;
 
   constructor(
-    private clientId: string | undefined = process.env['SPOTIFY_CLIENT_ID'],
-    private clientSecret: string | undefined = process.env['SPOTIFY_CLIENT_SECRET'],
+    private clientId: string,
+    private clientSecret: string,
     private market: string = "US",
     private limit: number = 3
   ) {
     if (limit > 50) throw new Error("Maximum limit is 50");
-    if (clientId === undefined || clientSecret === undefined) console.error('ERROR:', 'Spotify plugin not setup, create .spotify.env file in plugin dir with SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET')
   }
 
   private async authenticate(): Promise<string> {

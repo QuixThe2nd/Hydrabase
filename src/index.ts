@@ -38,7 +38,10 @@ const search = async (node: Node, type: 'track' | 'artist' | 'album', query: str
   return [...peerResults.values()]
 }
 
-export const metadataManager = new MetadataManager([new ITunes(), new Spotify()])
+const SPOTIFY_CLIENT_ID = process.env['SPOTIFY_CLIENT_ID']
+const SPOTIFY_CLIENT_SECRET = process.env['SPOTIFY_CLIENT_SECRET']
+
+export const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)] : []])
 
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {

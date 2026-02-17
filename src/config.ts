@@ -1,7 +1,7 @@
 const ip = (await (await fetch('https://icanhazip.com')).text()).trim()
 
 const serverPort = Number(process.env['SERVER_PORT'] ?? 3000)
-const dummyNodes = 2
+const dummyNodes = Number(process.env['DUMMY_NODES'] ?? 0)
 
 export const CONFIG = {
   serverPort,

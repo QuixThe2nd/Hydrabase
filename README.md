@@ -21,11 +21,24 @@ bun src
 
 ### Docker
 
-To install with Docker, place the `Dockerfile` and `docker-compose.yaml` in the same directory (or just git clone the repo) and run.
-
-## Configuration
-
-Set the environment variables `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` for spotify support.
+```
+services:
+  hydrabase:
+    image: ghcr.io/quixthe2nd/hydrabase:main
+    container_name: hydrabase
+    ports:
+      - 3000:3000/tcp
+      - 30000:30000/udp
+    environment:
+      # Uncomment to enable Spotify plugin:
+      # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
+      # SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
+      # Ports
+      DHT_PORT: 30000
+      SERVER_PORT: 3000
+      # Used for testing
+      DUMMY_NODES: 0
+```
 
 ## Networking
 
