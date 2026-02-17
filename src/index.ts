@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-const search = async (node: Node, type: 'track' | 'artist' | 'album', query: string) => {
+export const search = async (node: Node, type: 'track' | 'artist' | 'album', query: string) => {
   const request = { type, query } as const;
 
   console.log('LOG:', 'Searching locally')

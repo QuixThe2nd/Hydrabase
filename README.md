@@ -6,19 +6,6 @@ Hydrabase is a WIP and not intended for use yet.
 
 ## Install
 
-To install:
-```bash
-git clone https://github.com/QuixThe2nd/Hydrabase
-cd Hydrabase
-bun install
-```
-
-To run:
-
-```bash
-bun src
-```
-
 ### Docker
 
 ```yml
@@ -39,8 +26,25 @@ services:
       # Ports
       DHT_PORT: 30000
       SERVER_PORT: 3000
+      # Use `openssl rand -hex 16` to generate an api key
+      # API_KEY: $API_KEY
       # Used for testing
       DUMMY_NODES: 0
+```
+
+### Manual
+
+To install:
+```bash
+git clone https://github.com/QuixThe2nd/Hydrabase
+cd Hydrabase
+bun install
+```
+
+To run:
+
+```bash
+bun src
 ```
 
 ### Updates

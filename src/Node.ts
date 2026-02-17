@@ -8,7 +8,7 @@ import { startServer, type WebSocketServerConnection } from './networking/ws/ser
 import { CONFIG } from './config'
 import { Crypto } from './crypto'
 
-type ExtendedSearchResult<T extends Request['type']> = SearchResult[T] & { confidences: number[] }
+export type ExtendedSearchResult<T extends Request['type']> = SearchResult[T] & { confidences: number[] }
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
