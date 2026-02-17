@@ -13,6 +13,7 @@ services:
   hydrabase:
     image: ghcr.io/quixthe2nd/hydrabase:latest
     container_name: hydrabase
+    restart: always
     ports:
       - 3000:3000/tcp
       - 30000:30000/udp

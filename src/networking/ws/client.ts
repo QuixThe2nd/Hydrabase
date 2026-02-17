@@ -17,15 +17,15 @@ export default class WebSocketClient {
       }
     })
     this.socket.addEventListener('open', () => {
-      // console.log('LOG:', `Connected to peer ${hostname}`)
+      console.log('LOG:', `Connected to peer ${hostname}`)
       this._isOpened = true
     })
     this.socket.addEventListener('close', () => {
-      // console.log('LOG:', `Connection closed with peer ${hostname}`)
+      console.log('LOG:', `Connection closed with peer ${hostname}`)
       this._isOpened = false
     })
-    this.socket.addEventListener('error', () => {
-      // console.warn('WARN:', `Error thrown on connection with ${hostname}`, err)
+    this.socket.addEventListener('error', err => {
+      console.warn('WARN:', `Error thrown on connection with ${hostname}`, err)
       this._isOpened = false
     })
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));

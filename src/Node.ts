@@ -18,6 +18,11 @@ export default class Node {
   constructor(serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
     discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
     startServer(serverPort, peer => this.addPeer(peer))
+
+    this.addPeer(new WebSocketClient(`ws://ddns.yazdani.au:3000`, crypto))
+    this.addPeer(new WebSocketClient(`ws://ddns.yazdani.au:5000`, crypto))
+    this.addPeer(new WebSocketClient(`ws://ddns.yazdani.au:5001`, crypto))
+    this.addPeer(new WebSocketClient(`ws://ddns.yazdani.au:5002`, crypto))
   }
 
   // TODO: Prevent 2 nodes from connecting as both client/server to each other, wasteful
