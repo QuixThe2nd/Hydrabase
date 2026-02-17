@@ -1,0 +1,45 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Get PR version
+        id: pr
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Get main version
+        id: main
+        run: |
+          git fetch origin main
+          echo "version=$(git show origin/main:VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version bump
+        run: |
+          PR="${{ steps.pr.outputs.version }}"
+          MAIN="${{ steps.main.outputs.version }}"
+
+          if [[ ! "$PR" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::VERSION file must be valid semver (e.g. 1.2.3), got: $PR"
+            exit 1
+          fi
+
+          IFS='.' read -r pr_major pr_minor pr_patch <<< "$PR"
+          IFS='.' read -r main_major main_minor main_patch <<< "$MAIN"
+
+          pr_num=$((pr_major * 1000000 + pr_minor * 1000 + pr_patch))
+          main_num=$((main_major * 1000000 + main_minor * 1000 + main_patch))
+
+          if (( pr_num <= main_num )); then
+            echo "::error::VERSION must be bumped. Current: $MAIN, PR: $PR"
+            exit 1
+          fi
+
+          echo "✅ Version bump: $MAIN → $PR"
