@@ -21,7 +21,7 @@ bun src
 
 ### Docker
 
-```
+```yml
 services:
   hydrabase:
     image: ghcr.io/quixthe2nd/hydrabase:main
