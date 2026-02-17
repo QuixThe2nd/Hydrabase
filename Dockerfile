@@ -6,4 +6,4 @@ WORKDIR /app
 RUN git clone https://github.com/QuixThe2nd/Hydrabase .
 RUN bun install
 
-CMD ["bun", "src"]
+CMD git pull && bun install && bun src

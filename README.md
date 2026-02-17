@@ -29,6 +29,9 @@ services:
     ports:
       - 3000:3000/tcp
       - 30000:30000/udp
+    # Uncomment for testing
+    # volumes:
+    #   - ./app:/app
     environment:
       # Uncomment to enable Spotify plugin:
       # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
@@ -39,6 +42,9 @@ services:
       # Used for testing
       DUMMY_NODES: 0
 ```
+
+### Updates
+Hydrabase is automatically updated on launch.
 
 ## Networking
 
