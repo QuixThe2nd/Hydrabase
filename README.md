@@ -24,7 +24,7 @@ bun src
 ```yml
 services:
   hydrabase:
-    image: ghcr.io/quixthe2nd/hydrabase:main
+    image: ghcr.io/quixthe2nd/hydrabase:latest
     container_name: hydrabase
     ports:
       - 3000:3000/tcp
