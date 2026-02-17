@@ -1,6 +1,6 @@
 import { metadataManager } from "../..";
 import { matchRequest, type Request, type Response } from "../../Messages";
-import type WebSocketClient from "./client";
+import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
 type PendingRequest = {
@@ -15,7 +15,7 @@ export class Peer {
   private pendingRequests = new Map<number, PendingRequest>()
 
   constructor(private readonly socket: WebSocketClient | WebSocketServerConnection) {
-    // console.log('LOG:', `Created peer ${socket.hostname}`)
+    console.log('LOG:', `Connected to ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onMessage(async message => {
       const { nonce, ...result } = JSON.parse(message)
       const type = 'request' in result ? 'request' as const : 'response' in result ? 'response' as const : null;
@@ -49,7 +49,7 @@ export class Peer {
 
   public async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
     if (!this.socket.isOpened) {
-      console.warn('WARN:', `Not connected to peer ${this.socket.hostname}`)
+      console.warn('WARN:', `Not connected to peer ${this.socket.address}`)
       return []
     }
     this.nonce++;

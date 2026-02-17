@@ -12,21 +12,7 @@ declare global {
   }
 }
 
-export const metadataManager = new MetadataManager([new ITunes(), new Spotify()])
-
-// Start Dummy Nodes
-for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
-  console.log('LOG:', `Starting dummy node ${i}`)
-  new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
-  await new Promise(res => setTimeout(res, 1_000))
-}
-
-// Start Node
-const peers = new Node(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
-
-await new Promise(res => setTimeout(res, 10_000))
-
-const search = async (type: 'track' | 'artist' | 'album', query: string) => {
+const search = async (node: Node, type: 'track' | 'artist' | 'album', query: string) => {
   const request = { type, query } as const;
 
   console.log('LOG:', 'Searching locally')
@@ -39,7 +25,7 @@ const search = async (type: 'track' | 'artist' | 'album', query: string) => {
   }
 
   console.log('LOG:', 'Searching peers')
-  const peerResults = await peers.requestAll(request, hashes, plugins)
+  const peerResults = await node.requestAll(request, hashes, plugins)
 
   // Inject local results
   for (let i = 0; i < results.length; i++) {
@@ -51,9 +37,23 @@ const search = async (type: 'track' | 'artist' | 'album', query: string) => {
   return [...peerResults.values()]
 }
 
-console.log('LOG:', 'Track results:', await search('track', 'dont stop me now'));
-console.log('LOG:', 'Artist results:', await search('artist', 'jay z'));
-console.log('LOG:', 'Album results:', await search('album', 'made in england'));
+export const metadataManager = new MetadataManager([new ITunes(), new Spotify()])
 
-// TODO: cache results
-// TODO: prevent connecting to self
+// Start Dummy Nodes
+for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
+  console.log('LOG:', `Starting dummy node ${i}`)
+  const node = new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom)
+  await new Promise(res => setTimeout(res, 5_000))
+  await search(node, 'track', 'dont stop me now')
+  await search(node, 'artist', 'jay z')
+  await search(node, 'album', 'made in england')
+}
+
+// Start Node
+const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom)
+
+await new Promise(res => setTimeout(res, 10_000))
+
+console.log('LOG:', 'Track results:', await search(node, 'track', 'dont stop me now'));
+console.log('LOG:', 'Artist results:', await search(node, 'artist', 'jay z'));
+console.log('LOG:', 'Album results:', await search(node, 'album', 'made in england'));

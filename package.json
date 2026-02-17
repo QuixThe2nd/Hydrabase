@@ -4,7 +4,9 @@
   "type": "module",
   "devDependencies": {
     "@types/bun": "^1.3.9",
-    "@types/nat-upnp": "^1.1.5"
+    "@types/nat-upnp": "^1.1.5",
+    "@types/secp256k1": "^4.0.7",
+    "drizzle-kit": "^0.31.9"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -12,8 +14,12 @@
   "dependencies": {
     "bittorrent-dht": "^11.0.11",
     "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
     "expr-eval": "^2.0.2",
+    "js-sha3": "^0.9.3",
     "nat-upnp": "^1.1.1",
+    "secp256k1": "^5.0.1",
+    "superjson": "^2.2.6",
     "zod": "^4.3.6"
   }
 }

@@ -1,5 +1,7 @@
 import z from 'zod';
 import type { Request, Response } from '../Messages'
+import { startDatabase } from '../database';
+import { tracks, artists, albums } from '../schema';
 
 export const TrackSearchResultSchema = z.object({
   id: z.string(),
@@ -9,10 +11,11 @@ export const TrackSearchResultSchema = z.object({
   duration_ms: z.number(),
   popularity: z.number(),
   preview_url: z.url(),
-  external_urls: z.array(z.url()),
+  external_urls: z.record(z.string(), z.url()),
   image_url: z.url(),
   plugin_id: z.string()
 })
+
 export type TrackSearchResult = z.infer<typeof TrackSearchResultSchema>
 
 export const ArtistSearchResultSchema = z.object({
@@ -21,7 +24,10 @@ export const ArtistSearchResultSchema = z.object({
   popularity: z.number(),
   genres: z.array(z.string()),
   followers: z.number(),
-  external_urls: z.array(z.url()),
+  external_urls: z.object({
+    itunes: z.url(),
+    spotify: z.url()
+  }).partial(),
   image_url: z.url(),
   plugin_id: z.string()
 })
@@ -35,7 +41,10 @@ export const AlbumSearchResultSchema = z.object({
   total_tracks: z.number(),
   album_type: z.string(),
   image_url: z.url(),
-  external_urls: z.array(z.url()),
+  external_urls: z.object({
+    itunes: z.url(),
+    spotify: z.url()
+  }).partial(),
   plugin_id: z.string()
 })
 export type AlbumSearchResult = z.infer<typeof AlbumSearchResultSchema>
@@ -53,28 +62,34 @@ export interface MetadataPlugin {
   searchAlbum: (query: string) => Promise<AlbumSearchResult[]>
 }
 
-export default class MetadataManager {
+export default class MetadataManager implements MetadataPlugin {
+  public readonly id = 'Hydrabase'
+  private readonly db = startDatabase();
   constructor(private readonly plugins: MetadataPlugin[]) {}
 
   async searchTrack(query: string): Promise<TrackSearchResult[]> {
     const results: TrackSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
+    for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
     return results;
   }
 
   async searchArtist(query: string): Promise<ArtistSearchResult[]> {
     const results: ArtistSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
+    for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
     return results;
   }
 
   async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
     const results: AlbumSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
+    for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
     return results;
   }
 
   public async handleRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
+    // TODO: search db cache
     if (request.type === 'track') return await this.searchTrack(request.query) as Response<T>
     if (request.type === 'artist') return await this.searchArtist(request.query) as Response<T>
     if (request.type === 'album') return await this.searchAlbum(request.query) as Response<T>
@@ -85,8 +100,4 @@ export default class MetadataManager {
   }
 }
 
-/*
-TODO: Database
-store songs in db, source: itunes/musicbrainz/spotify, song id, song name, etc
-create table that matches songs across sources
-*/
+// TODO: Save peer responses to db

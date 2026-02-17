@@ -76,7 +76,7 @@ export default class ITunes implements MetadataPlugin {
       duration_ms: result.trackTimeMillis ?? 0,
       popularity: 0,
       preview_url: result.previewUrl ?? '',
-      external_urls: [result.trackViewUrl],
+      external_urls: { itunes: result.trackViewUrl },
       image_url: result.artworkUrl100.replace('100x100', '600x600'),
       plugin_id: this.id
     }));
@@ -103,7 +103,7 @@ export default class ITunes implements MetadataPlugin {
       genres: result.primaryGenreName ? [result.primaryGenreName] : [],
       followers: 0,
       image_url: result.artworkUrl100?.replace('100x100', '600x600') ?? '',
-      external_urls: result.artistViewUrl ? [result.artistViewUrl] : [],
+      external_urls: result.artistViewUrl ? { itunes: result.artistViewUrl } : {},
       plugin_id: this.id
     }));
   }
@@ -137,7 +137,7 @@ export default class ITunes implements MetadataPlugin {
         total_tracks: trackCount,
         album_type: albumType,
         image_url: result.artworkUrl100?.replace('100x100', '600x600') ?? '',
-        external_urls: result.collectionViewUrl ? [result.collectionViewUrl] : [],
+        external_urls: result.collectionViewUrl ? { itunes: result.collectionViewUrl } : {},
         plugin_id: this.id,
       };
     });

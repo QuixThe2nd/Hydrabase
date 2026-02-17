@@ -131,7 +131,7 @@ export default class Spotify implements MetadataPlugin {
       duration_ms: track.duration_ms,
       popularity: track.popularity,
       preview_url: track.preview_url ?? "",
-      external_urls: [track.external_urls.spotify],
+      external_urls: track.external_urls,
       image_url: track.album.images[0]?.url ?? "",
       plugin_id: this.id,
     }));
@@ -162,7 +162,7 @@ export default class Spotify implements MetadataPlugin {
       genres: artist.genres,
       followers: artist.followers.total,
       image_url: artist.images[0]?.url ?? '',
-      external_urls: Object.values(artist.external_urls),
+      external_urls: artist.external_urls,
       plugin_id: this.id,
     }));
   }
@@ -193,7 +193,7 @@ export default class Spotify implements MetadataPlugin {
       total_tracks: album.total_tracks,
       album_type: album.album_type,
       image_url: album.images[0]?.url ?? "",
-      external_urls: [album.external_urls.spotify],
+      external_urls: album.external_urls,
       plugin_id: this.id,
     }));
   }

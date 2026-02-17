@@ -1,10 +1,12 @@
 import DHT from 'bittorrent-dht'
 import krpc from 'k-rpc'
 import { portForward } from './upnp'
+import WebSocketClient from './ws/client';
+import type { Crypto } from '../crypto';
 
 const knownPeers = new Set<`${string}:${number}`>();
 
-export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: string, addPeer: (hostname: `ws://${string}`) => void) => {
+export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: string, addPeer: (peer: WebSocketClient) => void, crypto: Crypto) => {
   portForward(dhtPort, 'Hydrabase (UDP)', 'UDP');
   const dht = new DHT({
     krpc: krpc(),
@@ -19,13 +21,15 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
     dht.lookup(dhtRoom, err => { if (err) console.error('ERROR:', 'DHT threw an error during lookup', err) })
     dht.addNode({ host: 'ddns.yazdani.au', port: 30000 })
     dht.addNode({ host: 'ddns.yazdani.au', port: 40000 })
+    dht.addNode({ host: 'ddns.yazdani.au', port: 40001 })
+    dht.addNode({ host: 'ddns.yazdani.au', port: 40002 })
   })
   // dht.on('node', node => console.log('LOG:', `Discovered DHT node ${node.host}:${node.port}`))
   dht.on('peer', peer => {
     if (knownPeers.has(`${peer.host}:${peer.port}`)) return
     knownPeers.add(`${peer.host}:${peer.port}`)
     console.log('LOG:', `Discovered peer via DHT ${peer.host}:${peer.port}`)
-    addPeer(`ws://${peer.host}:${peer.port}`)
+    addPeer(new WebSocketClient(`ws://${peer.host}:${peer.port}`, crypto))
   })
   dht.on('announce', (peer, _infoHash) => {
     if (knownPeers.has(`${peer.host}:${peer.port}`)) return
@@ -33,7 +37,7 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
     if (infoHash === dhtRoom) {
       knownPeers.add(`${peer.host}:${peer.port}`)
       console.log('LOG:', `Received announce from ${peer.host}:${peer.port} on ${infoHash}`)
-      addPeer(`ws://${peer.host}:${peer.port}`)
+      addPeer(new WebSocketClient(`ws://${peer.host}:${peer.port}`, crypto))
     }
   })
 }
