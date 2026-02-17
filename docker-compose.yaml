@@ -1,6 +1,6 @@
 services:
   hydrabase:
-    build: .
+    image: ghcr.io/quixthe2nd/hydrabase:main
     container_name: hydrabase
     ports:
       - 3000:3000/tcp
@@ -8,4 +8,3 @@ services:
     environment:
       SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
       SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
-networks: {}
