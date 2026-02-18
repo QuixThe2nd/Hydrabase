@@ -7,6 +7,10 @@ const message = {
     query: z.string()
   }),
   response: z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)]),
+  peer: z.object({ // TODO: Announce/gossip peers
+    address: z.string(),
+    percentile: z.number()
+  })
 };
 
 const MessageSchemas = { message } as const;

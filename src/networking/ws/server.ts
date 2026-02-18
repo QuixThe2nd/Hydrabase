@@ -1,6 +1,5 @@
-import SuperJSON from 'superjson'
 import { CONFIG } from '../../config'
-import { Crypto, SignatureSchema, type Signature } from '../../crypto'
+import { Crypto, Signature } from '../../crypto'
 import { portForward } from '../upnp'
 
 interface WebSocketData {
@@ -32,11 +31,19 @@ export class WebSocketServerConnection {
   }
 }
 
-export const startServer = (port: number, addPeer: (conn: WebSocketServerConnection) => void) => {
+export const startServer = (port: number, addPeer: (conn: WebSocketServerConnection) => void, crypto: Crypto) => {
   portForward(port, 'Hydrabase (TCP)', 'TCP');
-  Bun.serve({
+  const server = Bun.serve({
     port,
     hostname: CONFIG.listenAddress,
+    routes: {
+      '/auth': () => {
+        return new Response(JSON.stringify({
+          signature: crypto.sign(`ws://${CONFIG.serverHostname}:${port}`).toString(),
+          address: crypto.address
+        }))
+      }
+    },
     fetch: (req, server) =>  {
       const headers = Object.fromEntries(req.headers.entries())
       const address = req.headers.get("x-address") as `0x${string}` ?? '0x0'
@@ -47,13 +54,13 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
         | { apiKey: string; signature: Signature }
 
       const apiKey = headers['x-api-key']
-      const signature = headers['x-signature'] ? SignatureSchema.parse(SuperJSON.parse(headers['x-signature'])) : undefined
+      const signature = headers['x-signature'] ? Signature.fromString(headers['x-signature']) : undefined
 
       const auth = apiKey !== undefined || signature !== undefined ? { apiKey, signature } as Auth : undefined
 
       if (!auth) return new Response('Missing authentication', { status: 400 })
       if (auth.apiKey && auth.apiKey !== CONFIG.apiKey) return new Response('Invalid API key', { status: 401 })
-      else if (auth.signature && !Crypto.verify(`ws://${CONFIG.serverHostname}:${port}`, auth.signature, address)) return new Response('Authentication failed', { status: 403 })
+      else if (auth.signature && !auth.signature.verify(`ws://${CONFIG.serverHostname}:${port}`, address)) return new Response('Authentication failed', { status: 403 })
       return server.upgrade(req, { data: { isOpened: false, address: address ?? apiKey } }) ? undefined : new Response("Upgrade failed", { status: 500 })
     },
     websocket: {
@@ -72,4 +79,5 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
       }
     }
   })
+  console.log(`Server listening at ${server.url}`)
 }
