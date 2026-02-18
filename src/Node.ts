@@ -7,39 +7,39 @@ import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import { CONFIG } from './config'
 import { Crypto } from './crypto'
+import { resolve4 } from "dns/promises";
 
 export type ExtendedSearchResult<T extends Request['type']> = SearchResult[T] & { confidences: number[] }
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
+export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
+
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
   constructor(serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
-    startServer(serverPort, peer => this.addPeer(peer))
+    startServer(serverPort, peer => this.addPeer(peer), crypto)
     discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
 
-    WebSocketClient.init(`ws://ddns.yazdani.au:3000`, crypto).then(client => {
+    WebSocketClient.init(`ws://${bootstrapNode}:3000`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
-    WebSocketClient.init(`ws://ddns.yazdani.au:5000`, crypto).then(client => {
+    WebSocketClient.init(`ws://${bootstrapNode}:3001`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
-    WebSocketClient.init(`ws://ddns.yazdani.au:5001`, crypto).then(client => {
+    WebSocketClient.init(`ws://${bootstrapNode}:5000`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
-    WebSocketClient.init(`ws://ddns.yazdani.au:5002`, crypto).then(client => {
+    WebSocketClient.init(`ws://${bootstrapNode}:5001`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
   }
 
-  // TODO: Prevent 2 nodes from connecting as both client/server to each other, wasteful
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
-    if (CONFIG.publicHostnames.includes(peer.address) || peer.address === this.crypto.address) return console.warn('WARN:', `Not connecting to self ${peer.address}`)
-    console.log('LOG:', `Connecting to ${peer.address} as ${peer instanceof WebSocketClient ? 'client' : 'server'}`)
-    if (peer instanceof WebSocketClient) {
-      if (!(peer.address in this.peers)) this.peers[peer.address] = new Peer(peer)
-    } else if (!(peer.address in this.peers)) this.peers[peer.address] = new Peer(peer)
+    console.log('LOG:', `Added peer ${peer.address} as ${peer instanceof WebSocketClient ? 'client' : 'server'}`)
+    if (peer.address in this.peers) return console.warn('WARN:', 'Already connected to peer')
+    this.peers[peer.address] = new Peer(peer)
   }
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {

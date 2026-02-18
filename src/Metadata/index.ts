@@ -67,7 +67,7 @@ export default class MetadataManager implements MetadataPlugin {
   private readonly db = startDatabase();
   constructor(private readonly plugins: MetadataPlugin[]) {}
 
-  async searchTrack(query: string): Promise<TrackSearchResult[]> {
+  async searchTrack(query: string): Promise<TrackSearchResult[]> { // TODO: Merge duplicate artists from diff plugins
     const results: TrackSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
     for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()

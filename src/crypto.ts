@@ -36,6 +36,7 @@ export class Signature implements z.infer<typeof SignatureSchema> {
   }
 
   static readonly fromString = (serialisedSignature: string): Signature => new Signature(SignatureSchema.parse(SuperJSON.parse(serialisedSignature)))
+  public readonly toString = (): string => SuperJSON.stringify({ signature: this.signature, recid: this.recid })
 
   verify = (message: string, address: string) => '0x' + keccak256(secp256k1.ecdsaRecover(this.signature, this.recid, Crypto.hash(message), false).slice(1)).slice(-40) === address
 }

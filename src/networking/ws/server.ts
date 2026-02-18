@@ -1,5 +1,5 @@
 import { CONFIG } from '../../config'
-import { Signature } from '../../crypto'
+import { Crypto, Signature } from '../../crypto'
 import { portForward } from '../upnp'
 
 interface WebSocketData {
@@ -31,11 +31,19 @@ export class WebSocketServerConnection {
   }
 }
 
-export const startServer = (port: number, addPeer: (conn: WebSocketServerConnection) => void) => {
+export const startServer = (port: number, addPeer: (conn: WebSocketServerConnection) => void, crypto: Crypto) => {
   portForward(port, 'Hydrabase (TCP)', 'TCP');
-  Bun.serve({
+  const server = Bun.serve({
     port,
     hostname: CONFIG.listenAddress,
+    routes: {
+      '/auth': () => {
+        return new Response(JSON.stringify({
+          signature: crypto.sign(`ws://${CONFIG.serverHostname}:${port}`).toString(),
+          address: crypto.address
+        }))
+      }
+    },
     fetch: (req, server) =>  {
       const headers = Object.fromEntries(req.headers.entries())
       const address = req.headers.get("x-address") as `0x${string}` ?? '0x0'
@@ -71,4 +79,5 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
       }
     }
   })
+  console.log(`Server listening at ${server.url}`)
 }

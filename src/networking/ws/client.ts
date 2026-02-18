@@ -1,7 +1,5 @@
 import z from 'zod'
-import SuperJSON from 'superjson'
 import { Crypto, Signature } from "../../crypto"
-import { CONFIG } from '../../config'
 
 const AuthSchema = z.object({
   signature: z.string(),
@@ -15,11 +13,10 @@ export default class WebSocketClient {
   private messageHandler?: (message: string) => void
 
   private constructor(public readonly address: `0x${string}`, hostname: `ws://${string}`, crypto: Crypto) {
-
     // console.log('LOG:', `Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname, {
       headers: {
-        'x-signature': SuperJSON.stringify(crypto.sign(hostname)),
+        'x-signature': crypto.sign(hostname).toString(),
         'x-address': crypto.address
       }
     })
@@ -39,12 +36,16 @@ export default class WebSocketClient {
   }
 
   static readonly init = async (hostname: `ws://${string}`, crypto: Crypto) => {
-    const res = await fetch(hostname.replace('ws://', 'http://'))
+    const res = await fetch(hostname.replace('ws://', 'http://') + '/auth')
     const data = await res.text()
-    const auth = AuthSchema.parse(SuperJSON.parse(data))
+    const auth = AuthSchema.parse(JSON.parse(data))
     const signature = Signature.fromString(auth.signature)
-    if (!signature.verify(`ws://${CONFIG.serverHostname}`, auth.address)) {
+    if (!signature.verify(hostname, auth.address)) { // TODO: change the signed message (both directions client/server) to prevent caching verifications
       console.warn('WARN:', 'Invalid authentication from server')
+      return false
+    }
+    if (auth.address === crypto.address) {
+      console.warn('WARN:', `Not connecting to self at ${hostname}`)
       return false
     }
     return new WebSocketClient(auth.address, hostname, crypto)
