@@ -4,8 +4,8 @@ import { Crypto, Signature } from "../../crypto"
 import { CONFIG } from '../../config'
 
 const AuthSchema = z.object({
-  'signature': z.string(),
-  'address': z.string()
+  signature: z.string(),
+  address: z.string().regex(/^0x/i, { message: "Address must start with 0x" }).transform((val) => val as `0x${string}`),
 })
 
 export default class WebSocketClient {
@@ -13,16 +13,9 @@ export default class WebSocketClient {
   private _isOpened = false
   private isAuthenticated = false
   private messageHandler?: (message: string) => void
-  public readonly address: `0x${string}`
 
-  constructor(hostname: `ws://${string}`, crypto: Crypto) {
-    fetch(hostname.replace('ws://', 'http://')).then(res => res.text()).then(data => {
-      const auth = AuthSchema.parse(SuperJSON.parse(data))
-      const signature = Signature.fromString(auth.signature)
-      if (!signature.verify(`ws://${CONFIG.serverHostname}`, auth.address)) return console.warn('WARN:', 'Invalid authentication from server')
-      this.address = auth.address
-      this.isAuthenticated = true
-    })
+  private constructor(public readonly address: `0x${string}`, hostname: `ws://${string}`, crypto: Crypto) {
+
     // console.log('LOG:', `Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname, {
       headers: {
@@ -43,6 +36,18 @@ export default class WebSocketClient {
       this._isOpened = false
     })
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));
+  }
+
+  static readonly init = async (hostname: `ws://${string}`, crypto: Crypto) => {
+    const res = await fetch(hostname.replace('ws://', 'http://'))
+    const data = await res.text()
+    const auth = AuthSchema.parse(SuperJSON.parse(data))
+    const signature = Signature.fromString(auth.signature)
+    if (!signature.verify(`ws://${CONFIG.serverHostname}`, auth.address)) {
+      console.warn('WARN:', 'Invalid authentication from server')
+      return false
+    }
+    return new WebSocketClient(auth.address, hostname, crypto)
   }
 
   get isOpened() {
