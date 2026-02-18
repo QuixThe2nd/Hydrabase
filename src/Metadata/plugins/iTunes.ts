@@ -69,6 +69,7 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid iTunes API response: ${parsed.error}`);
 
     return parsed.data.results.map(result => ({
+      soul_id: 'soul_', // Ignored
       id: String(result.trackId),
       name: result.trackName,
       artists: [result.artistName],
@@ -97,6 +98,7 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid iTunes API response: ${parsed.error}`);
 
     return parsed.data.results.map(result => ({
+      soul_id: 'soul_', // Ignored
       id: String(result.artistId),
       name: result.artistName,
       popularity: 0,
@@ -130,6 +132,7 @@ export default class ITunes implements MetadataPlugin {
       else albumType = 'album';
 
       return {
+        soul_id: 'soul_', // Ignored
         id: String(result.collectionId),
         name: result.collectionName,
         artists: [result.artistName],
