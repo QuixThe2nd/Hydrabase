@@ -1,6 +1,5 @@
-import SuperJSON from 'superjson'
 import { CONFIG } from '../../config'
-import { Crypto, SignatureSchema, type Signature } from '../../crypto'
+import { Signature } from '../../crypto'
 import { portForward } from '../upnp'
 
 interface WebSocketData {
@@ -47,13 +46,13 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
         | { apiKey: string; signature: Signature }
 
       const apiKey = headers['x-api-key']
-      const signature = headers['x-signature'] ? SignatureSchema.parse(SuperJSON.parse(headers['x-signature'])) : undefined
+      const signature = headers['x-signature'] ? Signature.fromString(headers['x-signature']) : undefined
 
       const auth = apiKey !== undefined || signature !== undefined ? { apiKey, signature } as Auth : undefined
 
       if (!auth) return new Response('Missing authentication', { status: 400 })
       if (auth.apiKey && auth.apiKey !== CONFIG.apiKey) return new Response('Invalid API key', { status: 401 })
-      else if (auth.signature && !Crypto.verify(`ws://${CONFIG.serverHostname}:${port}`, auth.signature, address)) return new Response('Authentication failed', { status: 403 })
+      else if (auth.signature && !auth.signature.verify(`ws://${CONFIG.serverHostname}:${port}`, address)) return new Response('Authentication failed', { status: 403 })
       return server.upgrade(req, { data: { isOpened: false, address: address ?? apiKey } }) ? undefined : new Response("Upgrade failed", { status: 500 })
     },
     websocket: {

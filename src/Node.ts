@@ -16,8 +16,8 @@ export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
   constructor(serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
-    discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
     startServer(serverPort, peer => this.addPeer(peer))
+    discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
 
     this.addPeer(new WebSocketClient(`ws://ddns.yazdani.au:3000`, crypto))
     this.addPeer(new WebSocketClient(`ws://ddns.yazdani.au:5000`, crypto))
@@ -76,5 +76,3 @@ export default class Node {
     return results
   }
 }
-
-// TODO: Create custom peer discovery network for after users have bootstrapped with dht, dht isnt reliable
