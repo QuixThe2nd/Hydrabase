@@ -16,6 +16,7 @@ export const CONFIG = {
   finalConfidence: 'x * y',
   listenAddress: '0.0.0.0', // Listen address
   serverHostname: ip,
+  soulIdCutoff: 32, // DO NOT CHANGE - ONLY HERE FOR DEVELOPMENT - CHANGING WILL BREAK SOUL_IDs
   publicHostnames: [ // This should be an address only you control, peers, when proving their identity will use your public hostname. If this IP is different to the one being announce, Hydrabase can't authenticate peers.
     `ws://${ip}:${serverPort}`,
     ...Array.from({ length: dummyNodes }, (_, i) => `ws://${ip}:${serverPort + i + 1}`)
