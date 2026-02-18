@@ -123,6 +123,7 @@ export default class Spotify implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`);
 
     return parsed.data.tracks.items.map((track) => ({
+      soul_id: 'soul_', // Ignored
       id: track.id,
       name: track.name,
       artists: track.artists.map((a) => a.name),
@@ -155,6 +156,7 @@ export default class Spotify implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`);
 
     return parsed.data.artists.items.map((artist) => ({
+      soul_id: 'soul_', // Ignored
       id: artist.id,
       name: artist.name,
       popularity: artist.popularity,
@@ -185,6 +187,7 @@ export default class Spotify implements MetadataPlugin {
     if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`);
 
     return parsed.data.albums.items.map((album) => ({
+      soul_id: 'soul_', // Ignored
       id: album.id,
       name: album.name,
       artists: album.artists.map((a) => a.name),

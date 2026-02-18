@@ -5,6 +5,7 @@ import { tracks, artists, albums } from '../schema';
 import { CONFIG } from '../config';
 
 export const TrackSearchResultSchema = z.object({
+  soul_id: z.string(),
   id: z.string(),
   name: z.string(),
   artists: z.array(z.string()),
@@ -20,6 +21,7 @@ export const TrackSearchResultSchema = z.object({
 export type TrackSearchResult = z.infer<typeof TrackSearchResultSchema>
 
 export const ArtistSearchResultSchema = z.object({
+  soul_id: z.string(),
   id: z.string(),
   name: z.string(),
   popularity: z.number(),
@@ -35,6 +37,7 @@ export const ArtistSearchResultSchema = z.object({
 export type ArtistSearchResult = z.infer<typeof ArtistSearchResultSchema>
 
 export const AlbumSearchResultSchema = z.object({
+  soul_id: z.string(),
   id: z.string(),
   name: z.string(),
   artists: z.array(z.string()),
@@ -68,25 +71,25 @@ export default class MetadataManager implements MetadataPlugin {
   private readonly db = startDatabase();
   constructor(private readonly plugins: MetadataPlugin[]) {}
 
-  async searchTrack(query: string): Promise<(TrackSearchResult & { soul_id: `soul_${string}` })[]> { // TODO: Merge duplicate artists from diff plugins
+  async searchTrack(query: string): Promise<TrackSearchResult[]> { // TODO: Merge duplicate artists from diff plugins
     const results: TrackSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
     for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
-    return results.map(result => ({ soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}`, ...result }));
+    return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
-  async searchArtist(query: string): Promise<(ArtistSearchResult & { soul_id: `soul_${string}` })[]> {
+  async searchArtist(query: string): Promise<ArtistSearchResult[]> {
     const results: ArtistSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
     for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
-    return results.map(result => ({ soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}`, ...result }));
+    return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
-  async searchAlbum(query: string): Promise<(AlbumSearchResult & { soul_id: `soul_${string}` })[]> {
+  async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
     const results: AlbumSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
     for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
-    return results.map(result => ({ soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}`, ...result }));
+    return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   public async handleRequest<T extends Request['type']>(request: Request & { type: T }) {
