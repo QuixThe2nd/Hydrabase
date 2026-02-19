@@ -15,7 +15,7 @@ export class Peer {
   private pendingRequests = new Map<number, PendingRequest>()
 
   constructor(private readonly socket: WebSocketClient | WebSocketServerConnection) {
-    console.log('LOG:', `Connected to ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
+    // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onMessage(async message => {
       const { nonce, ...result } = JSON.parse(message)
       const type = 'request' in result ? 'request' as const : 'response' in result ? 'response' as const : null;

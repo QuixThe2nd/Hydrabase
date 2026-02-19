@@ -9,7 +9,6 @@ const AuthSchema = z.object({
 export default class WebSocketClient {
   private readonly socket: WebSocket
   private _isOpened = false
-  private isAuthenticated = false
   private messageHandler?: (message: string) => void
 
   private constructor(public readonly address: `0x${string}`, hostname: `ws://${string}`, crypto: Crypto) {
@@ -21,15 +20,15 @@ export default class WebSocketClient {
       }
     })
     this.socket.addEventListener('open', () => {
-      console.log('LOG:', `Connected to peer ${hostname}`)
+      console.log('LOG:', `Connected to peer ${address}`)
       this._isOpened = true
     })
     this.socket.addEventListener('close', () => {
-      console.log('LOG:', `Connection closed with peer ${hostname}`)
+      console.log('LOG:', `Connection closed with peer ${address}`)
       this._isOpened = false
     })
     this.socket.addEventListener('error', err => {
-      console.warn('WARN:', `Error thrown on connection with ${hostname}`, err)
+      console.warn('WARN:', `Connection failed with ${address}`, err)
       this._isOpened = false
     })
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));
@@ -45,23 +44,19 @@ export default class WebSocketClient {
       return false
     }
     if (auth.address === crypto.address) {
-      console.warn('WARN:', `Not connecting to self at ${hostname}`)
+      console.warn('WARN:', `Not connecting to self`)
       return false
     }
     return new WebSocketClient(auth.address, hostname, crypto)
   }
 
   get isOpened() {
-    return this.isAuthenticated && this._isOpened
+    return this._isOpened
   }
 
-  public readonly send = (data: string) => {
-    if (this.isAuthenticated) this.socket.send(data)
-  }
+  public readonly send = (data: string) => this.socket.send(data)
 
   public onMessage(handler: (message: string) => void) {
-    this.messageHandler = (msg) => {
-      if (this.isAuthenticated) handler(msg);
-    }
+    this.messageHandler = (msg) => handler(msg)
   }
 }

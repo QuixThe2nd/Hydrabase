@@ -44,8 +44,8 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
     if (knownPeers.has(`${peer.host}:${peer.port}`)) return
     const infoHash = _infoHash.toString('hex')
     if (infoHash === dhtRoom) {
+      console.log('LOG:', `Received announce from ${peer.host}:${peer.port}`)
       knownPeers.add(`${peer.host}:${peer.port}`)
-      console.log('LOG:', `Received announce from ${peer.host}:${peer.port} on ${infoHash}`)
       const client = await WebSocketClient.init(`ws://${peer.host}:${peer.port}`, crypto)
       if (client !== false) addPeer(client)
     }

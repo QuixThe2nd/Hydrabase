@@ -37,21 +37,23 @@ export default class Node {
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
-    console.log('LOG:', `Added peer ${peer.address} as ${peer instanceof WebSocketClient ? 'client' : 'server'}`)
     if (peer.address in this.peers) return console.warn('WARN:', 'Already connected to peer')
     this.peers[peer.address] = new Peer(peer)
   }
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
     const results = new Map<bigint, ExtendedSearchResult<T>>()
+    console.log('LOG:', `Sending request to ${Object.keys(this.peers).length} peers`)
     for (const _address in this.peers) {
       const address = _address as `0x${string}`
       const peer = this.peers[address]!
       if (!peer.isOpened) {
+        console.warn('WARN:', 'Skipping request, connection not open')
         delete this.peers[address]
         continue
       }
 
+      console.log('LOG:', `Sending request to peer ${address}`)
       const peerResults = await peer.sendRequest<T>(request)
 
       // Compare Results
