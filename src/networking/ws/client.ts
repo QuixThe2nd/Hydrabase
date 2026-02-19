@@ -21,7 +21,7 @@ export default class WebSocketClient {
       }
     })
     this.socket.addEventListener('open', () => {
-      console.log('LOG:', `Connected to peer ${address}`)
+      console.log('LOG:', `Connected to peer ${address} ${this.hostname}`)
       this._isOpened = true
     })
     this.socket.addEventListener('close', ev => {
