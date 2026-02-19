@@ -1,7 +1,7 @@
 import z from 'zod'
 import { Crypto, Signature } from "../../crypto"
 
-const AuthSchema = z.object({
+export const AuthSchema = z.object({
   signature: z.string(),
   address: z.string().regex(/^0x/i, { message: "Address must start with 0x" }).transform((val) => val as `0x${string}`),
 })
@@ -11,7 +11,7 @@ export default class WebSocketClient {
   private _isOpened = false
   private messageHandler?: (message: string) => void
 
-  private constructor(public readonly address: `0x${string}`, hostname: `ws://${string}`, crypto: Crypto) {
+  private constructor(public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, crypto: Crypto) {
     // console.log('LOG:', `Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname, {
       headers: {

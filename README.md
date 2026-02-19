@@ -1,8 +1,6 @@
-# Hydrabase
+# Hydrabase - WIP
 
-Hydrabase is currently a proof of concept consensus-less P2P network. The networks primary purpose is to act as a unified source that propagates music metadata.
-
-Hydrabase is a WIP and not intended for use yet.
+Hydrabase is currently a proof of concept consensus-less P2P relational database. The networks primary purpose is to act as a unified source that propagates music metadata.
 
 ## Install
 
@@ -128,7 +126,13 @@ As Hydrabase is under active development, this section will be incomplete. Here 
 
 ### Peer Discovery
 
+#### DHT
+
 Hydrabase nodes connect to BitTorrent's DHT network and query it for an infohash for a torrent that doesn't exist, then announce that they're seeding it. This infohash can be anything, as long as all peers use the same one. This allows for peers to find each other without a centralised tracker or signalling server.
+
+#### Gossip Network
+
+Each time 2 Hydrabase nodes create a connection, they announce each other to all known peers. This acts as a more reliable peer discovery network, using DHT as a bootstrap network.
 
 ### Local Metadata Lookups
 
