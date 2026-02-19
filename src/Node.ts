@@ -28,10 +28,10 @@ export default class Node {
     WebSocketClient.init(`ws://${bootstrapNode}:3001`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
-    WebSocketClient.init(`ws://${bootstrapNode}:5000`, crypto).then(client => {
+    WebSocketClient.init(`ws://${bootstrapNode}:6000`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
-    WebSocketClient.init(`ws://${bootstrapNode}:5001`, crypto).then(client => {
+    WebSocketClient.init(`ws://${bootstrapNode}:6001`, crypto).then(client => {
       if (client !== false) this.addPeer(client)
     })
   }
