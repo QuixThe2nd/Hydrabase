@@ -7,12 +7,15 @@ import { CONFIG } from '../config';
 
 const knownPeers = new Set<`${string}:${number}`>();
 
-const announce = (dht: DHT, room: string, port: number) => {
+const getRoomId = () => Bun.SHA1.hash(CONFIG.dhtRoomSeed + String(Math.round(Date.now()/1000/60/60)), 'hex')
+
+const announce = (dht: DHT, port: number) => {
+  const room = getRoomId()
   dht.announce(room, port, err => { if (err) console.error('ERROR:', 'DHT threw an error during announce', err) })
   dht.lookup(room, err => { if (err) console.error('ERROR:', 'DHT threw an error during lookup', err) })
 }
 
-export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: string, addPeer: (peer: WebSocketClient) => void, crypto: Crypto) => {
+export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (peer: WebSocketClient) => void, crypto: Crypto) => {
   portForward(dhtPort, 'Hydrabase (UDP)', 'UDP');
   const dht = new DHT({
     krpc: krpc(),
@@ -24,8 +27,8 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
   dht.on('ready', () => {
     console.log('LOG:', 'DHT ready', `- ${dht.toJSON().nodes.length} Nodes`)
 
-    announce(dht, dhtRoom, serverPort)
-    setInterval(() => announce(dht, dhtRoom, serverPort), CONFIG.dhtReannounce)
+    announce(dht, serverPort)
+    setInterval(() => announce(dht, serverPort), CONFIG.dhtReannounce)
 
     dht.addNode({ host: 'ddns.yazdani.au', port: 30000 })
     dht.addNode({ host: 'ddns.yazdani.au', port: 50000 })
@@ -43,7 +46,7 @@ export const discoverPeers = (serverPort: number, dhtPort: number, dhtRoom: stri
   dht.on('announce', async (peer, _infoHash) => {
     if (knownPeers.has(`${peer.host}:${peer.port}`)) return
     const infoHash = _infoHash.toString('hex')
-    if (infoHash === dhtRoom) {
+    if (infoHash === getRoomId()) {
       console.log('LOG:', `Received announce from ${peer.host}:${peer.port}`)
       knownPeers.add(`${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(`ws://${peer.host}:${peer.port}`, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)

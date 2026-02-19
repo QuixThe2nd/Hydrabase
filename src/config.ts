@@ -6,7 +6,7 @@ const dummyNodes = Number(process.env['DUMMY_NODES'] ?? 0)
 export const CONFIG = {
   serverPort,
   dhtPort: Number(process.env['DHT_PORT'] ?? 30000),
-  dhtRoom: '0000dabae71be086ec43ca1be7e97b2ff0f0f0f0',
+  dhtRoomSeed: 'hydrabase',
   dhtReannounce: 15*60*1_000, // Ms
   dummyNodes, // Dummy nodes are full nodes used for testing, each is run on a sequential port
   upnpTTL: 3600, // Seconds
