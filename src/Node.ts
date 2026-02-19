@@ -18,14 +18,14 @@ export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
-  constructor(serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
+  constructor(public readonly serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
     startServer(serverPort, peer => this.addPeer(peer), crypto)
     discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
     if (peer.address in this.peers) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto)
+    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort)
     this.announcePeer(peer)
   }
 

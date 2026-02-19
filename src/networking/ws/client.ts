@@ -11,20 +11,21 @@ export default class WebSocketClient {
   private _isOpened = false
   private messageHandler?: (message: string) => void
 
-  private constructor(public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, crypto: Crypto) {
-    // console.log('LOG:', `Connecting to peer ${hostname}`)
+  private constructor(public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) {
+    console.log('LOG:', `Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname, {
       headers: {
         'x-signature': crypto.sign(`I am connecting to ${hostname}`).toString(),
-        'x-address': crypto.address
+        'x-address': crypto.address,
+        "x-hostname": selfHostname
       }
     })
     this.socket.addEventListener('open', () => {
       console.log('LOG:', `Connected to peer ${address}`)
       this._isOpened = true
     })
-    this.socket.addEventListener('close', () => {
-      console.log('LOG:', `Connection closed with peer ${address}`)
+    this.socket.addEventListener('close', ev => {
+      console.log('LOG:', `Connection closed with peer ${address}`, `- ${ev.reason}`)
       this._isOpened = false
     })
     this.socket.addEventListener('error', err => {
@@ -34,7 +35,7 @@ export default class WebSocketClient {
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));
   }
 
-  static readonly init = async (hostname: `ws://${string}`, crypto: Crypto) => {
+  static readonly init = async (hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) => {
     const res = await fetch(hostname.replace('ws://', 'http://') + '/auth')
     const data = await res.text()
     const auth = AuthSchema.parse(JSON.parse(data))
@@ -47,7 +48,7 @@ export default class WebSocketClient {
       console.warn('WARN:', `Not connecting to self`)
       return false
     }
-    return new WebSocketClient(auth.address, hostname, crypto)
+    return new WebSocketClient(auth.address, hostname, crypto, selfHostname)
   }
 
   get isOpened() {
