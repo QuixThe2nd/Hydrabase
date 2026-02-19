@@ -1,20 +1,16 @@
 import z from 'zod';
 import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from './Metadata';
 
-const message = {
+export const MessageSchemas = {
   request: z.object({
     type: z.union([z.literal('track'), z.literal('artist'), z.literal('album')]),
     query: z.string()
   }),
   response: z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)]),
-  peer: z.object({ // TODO: Announce/gossip peers
-    address: z.string(),
-    percentile: z.number()
+  peer: z.object({
+    address: z.string().startsWith('ws://').transform((val) => val as `ws://${string}`)
   })
 };
-
-const MessageSchemas = { message } as const;
-export type Request = z.infer<(typeof MessageSchemas)[keyof typeof MessageSchemas]['request']>;
 
 interface MessageMap {
   track: z.infer<typeof TrackSearchResultSchema>[];
@@ -23,14 +19,5 @@ interface MessageMap {
 }
 
 export type Response<T extends keyof MessageMap = keyof MessageMap> = MessageMap[T];
-
-type MessageKey = keyof typeof MessageSchemas;
-type MatchResult<K extends MessageKey = MessageKey> = z.infer<(typeof MessageSchemas)[K]['request']>;
-
-export function matchRequest(value: unknown): MatchResult | null {
-  for (const key of Object.keys(MessageSchemas) as MessageKey[]) {
-    const result = MessageSchemas[key].request.safeParse(value);
-    if (result.success) return result.data;
-  }
-  return null;
-}
+export type Request = z.infer<(typeof MessageSchemas)['request']>;
+export type AnnouncePeer = z.infer<(typeof MessageSchemas)['peer']>;

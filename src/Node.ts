@@ -38,7 +38,12 @@ export default class Node {
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
     if (peer.address in this.peers) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer)
+    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto)
+    this.announcePeer(peer)
+  }
+
+  private announcePeer(peer: WebSocketClient | WebSocketServerConnection) {
+    for (const address in this.peers) this.peers[address as `0x${string}`]!.announcePeer({ address: peer.hostname })
   }
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
