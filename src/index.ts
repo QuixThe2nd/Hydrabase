@@ -5,6 +5,14 @@ import { CONFIG } from './config';
 import Spotify from './Metadata/plugins/Spotify';
 import { Crypto, getPrivateKey } from './crypto';
 
+process.on('unhandledRejection', (err) => {
+  console.error('ERROR:', 'Unhandled rejection', err)
+})
+process.on('uncaughtException', (err) => {
+  console.error('ERROR:', 'Uncaught exception', err)
+})
+
+
 declare global {
   interface Console {
     error(level: 'ERROR:', message: string, context?: `- ${string}` | Record<string, any>): void;
@@ -61,6 +69,3 @@ await new Promise(res => setTimeout(res, 10_000))
 console.log('LOG:', 'Track results:', await search(node, 'track', 'dont stop me now'));
 console.log('LOG:', 'Artist results:', await search(node, 'artist', 'jay z'));
 console.log('LOG:', 'Album results:', await search(node, 'album', 'made in england'));
-
-// keep-alive
-setInterval(() => {}, 1 << 30)
