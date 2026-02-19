@@ -46,7 +46,7 @@ export const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CL
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
   console.log('LOG:', `Starting dummy node ${i}`)
-  const node = new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, CONFIG.dhtRoom, new Crypto(await getPrivateKey(i)))
+  const node = new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, new Crypto(await getPrivateKey(i)))
   await new Promise(res => setTimeout(res, 5_000))
   await search(node, 'track', 'dont stop me now')
   await search(node, 'artist', 'jay z')
@@ -54,7 +54,7 @@ for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
 }
 
 // Start Node
-const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, CONFIG.dhtRoom, new Crypto(await getPrivateKey()))
+const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, new Crypto(await getPrivateKey()))
 
 await new Promise(res => setTimeout(res, 10_000))
 

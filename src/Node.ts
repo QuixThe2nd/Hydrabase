@@ -18,9 +18,9 @@ export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
-  constructor(public readonly serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
+  constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto) {
     startServer(serverPort, peer => this.addPeer(peer), crypto)
-    discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
+    discoverPeers(serverPort, dhtPort, peer => this.addPeer(peer), this.crypto)
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
