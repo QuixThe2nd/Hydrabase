@@ -61,3 +61,6 @@ await new Promise(res => setTimeout(res, 10_000))
 console.log('LOG:', 'Track results:', await search(node, 'track', 'dont stop me now'));
 console.log('LOG:', 'Artist results:', await search(node, 'artist', 'jay z'));
 console.log('LOG:', 'Album results:', await search(node, 'album', 'made in england'));
+
+// keep-alive
+setInterval(() => {}, 1 << 30)
