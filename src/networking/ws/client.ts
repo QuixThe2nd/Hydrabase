@@ -15,7 +15,7 @@ export default class WebSocketClient {
     // console.log('LOG:', `Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname, {
       headers: {
-        'x-signature': crypto.sign(hostname).toString(),
+        'x-signature': crypto.sign(`I am connecting to ${hostname}`).toString(),
         'x-address': crypto.address
       }
     })
@@ -39,7 +39,7 @@ export default class WebSocketClient {
     const data = await res.text()
     const auth = AuthSchema.parse(JSON.parse(data))
     const signature = Signature.fromString(auth.signature)
-    if (!signature.verify(hostname, auth.address)) { // TODO: change the signed message (both directions client/server) to prevent caching verifications
+    if (!signature.verify(`I am ${hostname}`, auth.address)) {
       console.warn('WARN:', 'Invalid authentication from server')
       return false
     }

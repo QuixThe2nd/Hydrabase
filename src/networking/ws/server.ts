@@ -39,7 +39,7 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
     routes: {
       '/auth': () => {
         return new Response(JSON.stringify({
-          signature: crypto.sign(`ws://${CONFIG.serverHostname}:${port}`).toString(),
+          signature: crypto.sign(`I am ws://${CONFIG.serverHostname}:${port}`).toString(),
           address: crypto.address
         }))
       }
@@ -60,7 +60,7 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
 
       if (!auth) return new Response('Missing authentication', { status: 400 })
       if (auth.apiKey && auth.apiKey !== CONFIG.apiKey) return new Response('Invalid API key', { status: 401 })
-      else if (auth.signature && !auth.signature.verify(`ws://${CONFIG.serverHostname}:${port}`, address)) return new Response('Authentication failed', { status: 403 })
+      else if (auth.signature && !auth.signature.verify(`I am connecting to ws://${CONFIG.serverHostname}:${port}`, address)) return new Response('Authentication failed', { status: 403 })
       return server.upgrade(req, { data: { isOpened: false, address: address ?? apiKey } }) ? undefined : new Response("Upgrade failed", { status: 500 })
     },
     websocket: {
