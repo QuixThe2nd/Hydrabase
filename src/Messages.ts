@@ -7,7 +7,7 @@ export const MessageSchemas = {
     query: z.string()
   }),
   response: z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)]),
-  peer: z.object({
+  announce: z.object({
     address: z.string().startsWith('ws://').transform((val) => val as `ws://${string}`)
   })
 };
@@ -20,4 +20,4 @@ interface MessageMap {
 
 export type Response<T extends keyof MessageMap = keyof MessageMap> = MessageMap[T];
 export type Request = z.infer<(typeof MessageSchemas)['request']>;
-export type AnnouncePeer = z.infer<(typeof MessageSchemas)['peer']>;
+export type Announce = z.infer<(typeof MessageSchemas)['announce']>;
