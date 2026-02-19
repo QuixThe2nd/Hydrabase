@@ -21,19 +21,6 @@ export default class Node {
   constructor(serverPort: number, dhtPort: number, dhtRoom: string, private readonly crypto: Crypto) {
     startServer(serverPort, peer => this.addPeer(peer), crypto)
     discoverPeers(serverPort, dhtPort, dhtRoom, peer => this.addPeer(peer), this.crypto)
-
-    WebSocketClient.init(`ws://${bootstrapNode}:3000`, crypto).then(client => {
-      if (client !== false) this.addPeer(client)
-    })
-    WebSocketClient.init(`ws://${bootstrapNode}:3001`, crypto).then(client => {
-      if (client !== false) this.addPeer(client)
-    })
-    WebSocketClient.init(`ws://${bootstrapNode}:6000`, crypto).then(client => {
-      if (client !== false) this.addPeer(client)
-    })
-    WebSocketClient.init(`ws://${bootstrapNode}:6001`, crypto).then(client => {
-      if (client !== false) this.addPeer(client)
-    })
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
