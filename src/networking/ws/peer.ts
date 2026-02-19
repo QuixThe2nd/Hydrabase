@@ -1,4 +1,5 @@
 import { metadataManager } from "../..";
+import { CONFIG } from "../../config";
 import { Crypto } from "../../crypto";
 import { MessageSchemas, type AnnouncePeer, type Request, type Response } from "../../Messages";
 import WebSocketClient from "./client";
@@ -15,7 +16,7 @@ export class Peer {
   private _events = 0; // Number of events that triggered a point change
   private pendingRequests = new Map<number, PendingRequest>()
 
-  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto) {
+  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, serverPort: number) {
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onMessage(async message => {
       const { nonce, ...result } = JSON.parse(message)
@@ -31,7 +32,7 @@ export class Peer {
         this.pendingRequests.delete(nonce)
       } else if (type === 'peer') {
         console.log('LOG:', `Discovered peer through ${socket.address}`)
-        const peer = await WebSocketClient.init(MessageSchemas.peer.parse(result.peer).address, crypto)
+        const peer = await WebSocketClient.init(MessageSchemas.peer.parse(result.peer).address, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
         if (peer) addPeer(peer)
       } else console.warn('WARN:', 'Unexpected message', `- ${message}`)
     })
@@ -54,7 +55,7 @@ export class Peer {
 
   public async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
     if (!this.socket.isOpened) {
-      console.warn('WARN:', `Not connected to peer ${this.socket.address}`)
+      console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
       return []
     }
     this.nonce++;
@@ -66,10 +67,8 @@ export class Peer {
   }
 
   public async announcePeer(announce: AnnouncePeer) {
-    if (!this.socket.isOpened) {
-      console.warn('WARN:', `Not connected to peer ${this.socket.address}`)
-      return []
-    }
+    if (this.socket.hostname === announce.address) return // console.log('LOG:', "Won't announce peer to itself")
+    if (!this.socket.isOpened) return console.warn('WARN:', `Cannot send announce to unconnected peer ${this.socket.address}`)
     this.socket.send(JSON.stringify({ announce }))
   }
 }
