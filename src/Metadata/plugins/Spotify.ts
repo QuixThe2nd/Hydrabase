@@ -134,6 +134,7 @@ export default class Spotify implements MetadataPlugin {
       external_urls: track.external_urls,
       image_url: track.album.images[0]?.url ?? "",
       plugin_id: this.id,
+      confidence: Infinity
     }));
   }
 
@@ -165,6 +166,7 @@ export default class Spotify implements MetadataPlugin {
       image_url: artist.images[0]?.url ?? '',
       external_urls: artist.external_urls,
       plugin_id: this.id,
+      confidence: Infinity
     }));
   }
 
@@ -197,6 +199,7 @@ export default class Spotify implements MetadataPlugin {
       image_url: album.images[0]?.url ?? "",
       external_urls: album.external_urls,
       plugin_id: this.id,
+      confidence: Infinity
     }));
   }
 }

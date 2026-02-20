@@ -58,17 +58,17 @@ export class Peer {
 
   public readonly searchTrack = async (query: string): Promise<Response<'track'>> => {
     const results = await this.sendRequest({ type: 'track', query })
-    for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address, confidence: 0 }).onConflictDoNothing().run() // TODO: log the peer's confidence in the result - NOT SELFS CONFIDENCE IN PEER
+    for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
     return results;
   }
   public readonly searchArtist = async (query: string): Promise<Response<'artist'>> => {
     const results = await this.sendRequest({ type: 'artist', query })
-    for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address, confidence: 0 }).onConflictDoNothing().run()
+    for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
     return results;
   }
   public readonly searchAlbum = async (query: string): Promise<Response<'album'>> => {
     const results = await this.sendRequest({ type: 'album', query })
-    for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address, confidence: 0 }).onConflictDoNothing().run()
+    for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
     return results;
   }
 
