@@ -43,3 +43,6 @@ export const votes = sqliteTable('votes', {
   address: text('address').notNull(),
   confidence: integer('confidence').notNull(),
 }, table => [uniqueIndex('idx_vote').on(table.type, table.plugin_id, table.id, table.address)])
+
+// bunx drizzle-kit generate --dialect sqlite --schema ./src/schema.ts
+// bun run migrate.ts
