@@ -25,18 +25,21 @@ export class Peer {
       const { nonce, ...result } = JSON.parse(message)
       const type = 'request' in result ? 'request' as const : 'response' in result ? 'response' as const : 'announce' in result ? 'announce' : null;
       if (type === 'request') {
-        const request = MessageSchemas.request.parse(result.request)
+        const request = MessageSchemas.request.safeParse(result.request).data
         if (!request) return console.warn('WARN:', 'Unexpected request', `- ${message}`)
         socket.send(JSON.stringify({ response: await metadataManager.handleRequest(request), nonce }))
       } else if (type === 'response') {
         const pending = this.pendingRequests.get(nonce)
         if (!pending) return console.warn('WARN:', `Unexpected response with nonce ${nonce}`, `- ${message}`)
-        pending.resolve(MessageSchemas.response.parse(result.response))
+        pending.resolve(MessageSchemas.response.safeParse(result.response).data)
         this.pendingRequests.delete(nonce)
       } else if (type === 'announce') {
         console.log('LOG:', `Discovered peer through ${socket.address}`)
-        const peer = await WebSocketClient.init(MessageSchemas.announce.parse(result.announce).address, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
-        if (peer) addPeer(peer)
+        const announce = MessageSchemas.announce.safeParse(result.announce).data
+        if (announce) {
+          const peer = await WebSocketClient.init(announce.address, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
+          if (peer) addPeer(peer)
+        }
       } else console.warn('WARN:', 'Unexpected message', `- ${message}`)
     })
   }
