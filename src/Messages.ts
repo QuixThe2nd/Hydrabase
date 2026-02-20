@@ -12,6 +12,12 @@ export const MessageSchemas = {
   })
 };
 
+export interface MetadataMap {
+  track: z.infer<typeof TrackSearchResultSchema>;
+  artist: z.infer<typeof ArtistSearchResultSchema>;
+  album: z.infer<typeof AlbumSearchResultSchema>;
+}
+
 interface MessageMap {
   track: z.infer<typeof TrackSearchResultSchema>[];
   artist: z.infer<typeof ArtistSearchResultSchema>[];
@@ -20,4 +26,4 @@ interface MessageMap {
 
 export type Response<T extends keyof MessageMap = keyof MessageMap> = MessageMap[T];
 export type Request = z.infer<(typeof MessageSchemas)['request']>;
-export type Announce = z.infer<(typeof MessageSchemas)['announce']>;
+export type Announce = z.infer<(typeof MessageSchemas)['announce']>
