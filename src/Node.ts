@@ -50,6 +50,7 @@ export default class Node {
       const peerResults = request.type === 'track' ? await peer.searchTrack(request.query) :
                           request.type === 'artist' ? await peer.searchArtist(request.query) : 
                           request.type === 'album' ? await peer.searchAlbum(request.query) : [];
+      console.log('LOG:', `Received ${peerResults.length} results from ${address}`)
 
       // Compare Results
       const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}

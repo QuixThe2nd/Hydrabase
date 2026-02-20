@@ -8,7 +8,7 @@ import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
 type PendingRequest = {
-  resolve: (value: any) => void
+  resolve: <T extends Request['type']>(value: Response<T>) => void
   reject: (reason?: any) => void
 }
 
@@ -25,18 +25,23 @@ export class Peer {
       const { nonce, ...result } = JSON.parse(message)
       const type = 'request' in result ? 'request' as const : 'response' in result ? 'response' as const : 'announce' in result ? 'announce' : null;
       if (type === 'request') {
-        const request = MessageSchemas.request.parse(result.request)
+        const request = MessageSchemas.request.safeParse(result.request).data
         if (!request) return console.warn('WARN:', 'Unexpected request', `- ${message}`)
         socket.send(JSON.stringify({ response: await metadataManager.handleRequest(request), nonce }))
       } else if (type === 'response') {
         const pending = this.pendingRequests.get(nonce)
         if (!pending) return console.warn('WARN:', `Unexpected response with nonce ${nonce}`, `- ${message}`)
-        pending.resolve(MessageSchemas.response.parse(result.response))
+        const response = MessageSchemas.response.safeParse(result.response)
+        if (response.error) return console.warn('WARN:', 'Received bad response', response.error)
+        else pending.resolve(response.data)
         this.pendingRequests.delete(nonce)
       } else if (type === 'announce') {
         console.log('LOG:', `Discovered peer through ${socket.address}`)
-        const peer = await WebSocketClient.init(MessageSchemas.announce.parse(result.announce).address, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
-        if (peer) addPeer(peer)
+        const announce = MessageSchemas.announce.safeParse(result.announce).data
+        if (announce) {
+          const peer = await WebSocketClient.init(announce.address, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
+          if (peer) addPeer(peer)
+        }
       } else console.warn('WARN:', 'Unexpected message', `- ${message}`)
     })
   }
@@ -87,11 +92,11 @@ export class Peer {
       }, 15_000)
 
       this.pendingRequests.set(nonce, {
-        resolve: (response: Response<T>) => {
+        resolve: response => {
           clearTimeout(timeout)
-          resolve(response)
+          resolve(response as Response<T>)
         },
-        reject: (err: unknown) => {
+        reject: err => {
           clearTimeout(timeout)
           reject(err)
         }
