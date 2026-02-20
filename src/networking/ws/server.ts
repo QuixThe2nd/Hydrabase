@@ -12,6 +12,7 @@ interface WebSocketData {
 
 export class WebSocketServerConnection {
   private messageHandler?: (message: string) => void
+  private closeHandler?: () => void
 
   constructor(private readonly socket: Bun.ServerWebSocket<WebSocketData>) {}
 
@@ -32,8 +33,14 @@ export class WebSocketServerConnection {
   public onMessage(handler: (message: string) => void) {
     this.messageHandler = handler;
   }
+  public onClose(handler: () => void) {
+    this.closeHandler = handler;
+  }
   _handleMessage(message: string) {
     this.messageHandler?.(message);
+  }
+  _handleClose() {
+    this.closeHandler?.();
   }
 }
 
@@ -84,6 +91,7 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
       },
       close(ws) {
         ws.data = { ...ws.data, isOpened: false }
+        ws.data.conn?._handleClose()
       },
       message: async (ws, message) => {
         if (typeof message !== 'string') return;

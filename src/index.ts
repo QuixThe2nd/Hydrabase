@@ -12,7 +12,6 @@ process.on('uncaughtException', (err) => {
   console.error('ERROR:', 'Uncaught exception', err)
 })
 
-
 declare global {
   interface Console {
     error(level: 'ERROR:', message: string, context?: `- ${string}` | Record<string, any>): void;
