@@ -9,7 +9,7 @@ Hydrabase is web-of-trust inspired consensus-less distributed relational databas
 ```yml
 services:
   hydrabase:
-    image: ghcr.io/quixthe2nd/hydrabase:latest
+    image: ghcr.io/quixthe2nd/hydrabase
     container_name: hydrabase
     restart: always
     ports:
@@ -45,10 +45,6 @@ To run:
 ```bash
 bun src
 ```
-
-### Updates
-
-Hydrabase is automatically updated on launch.
 
 ## API Documentation
 
