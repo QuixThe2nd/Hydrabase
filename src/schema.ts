@@ -35,3 +35,11 @@ export const albums = sqliteTable('albums', {
   image_url: text('image_url'),
   external_urls: text('external_urls'),
 }, table => [uniqueIndex('idx_plugin_album').on(table.plugin_id, table.id)])
+
+export const votes = sqliteTable('votes', {
+  type: text('type').notNull(),
+  id: text('id').notNull(),
+  plugin_id: text('plugin_id').notNull(),
+  address: text('address').notNull(),
+  confidence: integer('confidence').notNull(),
+}, table => [uniqueIndex('idx_vote').on(table.type, table.plugin_id, table.id, table.address)])
