@@ -8,7 +8,7 @@ import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
 type PendingRequest = {
-  resolve: (value: any) => void
+  resolve: <T extends Request['type']>(value: Response<T>) => void
   reject: (reason?: any) => void
 }
 
@@ -31,7 +31,9 @@ export class Peer {
       } else if (type === 'response') {
         const pending = this.pendingRequests.get(nonce)
         if (!pending) return console.warn('WARN:', `Unexpected response with nonce ${nonce}`, `- ${message}`)
-        pending.resolve(MessageSchemas.response.safeParse(result.response).data)
+        const response = MessageSchemas.response.safeParse(result.response)
+        if (response.error) return console.warn('WARN:', 'Received bad response', response.error)
+        else pending.resolve(response.data)
         this.pendingRequests.delete(nonce)
       } else if (type === 'announce') {
         console.log('LOG:', `Discovered peer through ${socket.address}`)
@@ -90,11 +92,11 @@ export class Peer {
       }, 15_000)
 
       this.pendingRequests.set(nonce, {
-        resolve: (response: Response<T>) => {
+        resolve: response => {
           clearTimeout(timeout)
-          resolve(response)
+          resolve(response as Response<T>)
         },
-        reject: (err: unknown) => {
+        reject: err => {
           clearTimeout(timeout)
           reject(err)
         }
