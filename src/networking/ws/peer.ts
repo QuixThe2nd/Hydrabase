@@ -1,9 +1,10 @@
+import type z from "zod";
 import { metadataManager } from "../..";
 import { CONFIG } from "../../config";
 import { Crypto } from "../../crypto";
 import type { startDatabase } from "../../database";
-import { MessageSchemas, type Announce, type Request, type Response } from "../../Messages";
-import { tracks, albums, artists } from "../../schema";
+import { MessageSchemas, type Announce, type MetadataMap, type Request, type Response } from "../../Messages";
+import { schema } from "../../schema";
 import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
@@ -18,31 +19,96 @@ export class Peer {
   private _events = 0; // Number of events that triggered a point change
   private pendingRequests = new Map<number, PendingRequest>()
 
-  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, serverPort: number, onClose: () => void, private readonly db: ReturnType<typeof startDatabase>) {
+  private readonly handlers = {
+    request: async (request: z.infer<typeof MessageSchemas.request>, nonce: number) => {
+      console.log('LOG:', `Received request from ${this.socket.address}`)
+      this.send.response(await metadataManager.handleRequest(request), nonce)
+    },
+    response: (response: z.infer<typeof MessageSchemas.response>, nonce: number, message: string) => {
+      const pending = this.pendingRequests.get(nonce)
+      if (!pending) return console.warn('WARN:', `Unexpected response with nonce ${nonce} from ${this.socket.address}`, `- ${message}`)
+      else {
+        console.log('LOG:', `Received response from ${this.socket.address}`)
+        pending.resolve(response)
+        this.pendingRequests.delete(nonce)
+      }
+    },
+    announce: async (announce: z.infer<typeof MessageSchemas.announce>) => {
+      console.log('LOG:', `Discovered peer through ${this.socket.address}`)
+      const peer = await WebSocketClient.init(announce.address, this.crypto, `ws://${CONFIG.serverHostname}:${this.serverPort}`)
+      if (peer) this.addPeer(peer)
+    }
+  }
+
+  private readonly send = {
+    request: async <T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> => {
+      if (!this.socket.isOpened) {
+        console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
+        return []
+      }
+
+      const nonce = ++this.nonce
+
+      return new Promise<Response<T>>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          this.pendingRequests.delete(nonce)
+          reject(new Error(`Request ${nonce} timed out after 5s`))
+        }, 15_000)
+
+        this.pendingRequests.set(nonce, {
+          resolve: response => {
+            clearTimeout(timeout)
+            resolve(response as Response<T>)
+          },
+          reject: err => {
+            clearTimeout(timeout)
+            reject(err)
+          }
+        })
+
+        this.socket.send(JSON.stringify({ nonce, request }))
+      })
+    },
+    response: async (response: z.infer<typeof MessageSchemas.response>, nonce: number) => {
+      this.socket.send(JSON.stringify({ response, nonce }))
+    },
+    announce: (announce: z.infer<typeof MessageSchemas.announce>) => {
+      if (this.socket.hostname === announce.address) return console.log('LOG:', "Won't announce peer to itself")
+      if (!this.socket.isOpened) return console.warn('WARN:', `Cannot send announce to unconnected peer ${this.socket.address}`)
+      this.socket.send(JSON.stringify({ announce }))
+    }
+  }
+
+  public async search<T extends Request['type']>(type: T, query: string): Promise<Response<T>> {
+    const results = await this.send.request({ type, query })
+    for (const _result of results) {
+      if (type === 'track') {
+        const result = _result as MetadataMap['track']
+        this.db.insert(schema[type as 'track']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
+      } else if (type === 'album') {
+        const result = _result as MetadataMap['album']
+        this.db.insert(schema[type as 'album']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
+      } else if (type === 'artist') {
+        const result = _result as MetadataMap['artist']
+        this.db.insert(schema[type as 'artist']).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
+      }
+    }
+    return results;
+  }
+
+  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, private readonly addPeer: (peer: WebSocketClient) => void, private readonly crypto: Crypto, private readonly serverPort: number, onClose: () => void, private readonly db: ReturnType<typeof startDatabase>) {
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onClose(onClose)
     this.socket.onMessage(async message => {
       const { nonce, ...result } = JSON.parse(message)
+
       const type = 'request' in result ? 'request' as const : 'response' in result ? 'response' as const : 'announce' in result ? 'announce' : null;
-      if (type === 'request') {
-        const request = MessageSchemas.request.safeParse(result.request).data
-        if (!request) return console.warn('WARN:', 'Unexpected request', `- ${message}`)
-        socket.send(JSON.stringify({ response: await metadataManager.handleRequest(request), nonce }))
-      } else if (type === 'response') {
-        const pending = this.pendingRequests.get(nonce)
-        if (!pending) return console.warn('WARN:', `Unexpected response with nonce ${nonce}`, `- ${message}`)
-        const response = MessageSchemas.response.safeParse(result.response)
-        if (response.error) return console.warn('WARN:', 'Received bad response', response.error)
-        else pending.resolve(response.data)
-        this.pendingRequests.delete(nonce)
-      } else if (type === 'announce') {
-        console.log('LOG:', `Discovered peer through ${socket.address}`)
-        const announce = MessageSchemas.announce.safeParse(result.announce).data
-        if (announce) {
-          const peer = await WebSocketClient.init(announce.address, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
-          if (peer) addPeer(peer)
-        }
-      } else console.warn('WARN:', 'Unexpected message', `- ${message}`)
+      if (type === null) return console.warn('WARN:', 'Unexpected message', `- ${message}`)
+
+      const data = MessageSchemas[type].safeParse(result[type]).data
+      if (!data) return console.warn('WARN:', `Unexpected ${type}`, `- ${message}`)
+
+      await this.handlers[type](data, nonce, message)
     })
   }
 
@@ -61,54 +127,5 @@ export class Peer {
     this._events++
   }
 
-  public readonly searchTrack = async (query: string): Promise<Response<'track'>> => {
-    const results = await this.sendRequest({ type: 'track', query })
-    for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
-    return results;
-  }
-  public readonly searchArtist = async (query: string): Promise<Response<'artist'>> => {
-    const results = await this.sendRequest({ type: 'artist', query })
-    for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
-    return results;
-  }
-  public readonly searchAlbum = async (query: string): Promise<Response<'album'>> => {
-    const results = await this.sendRequest({ type: 'album', query })
-    for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
-    return results;
-  }
-
-  private async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
-    if (!this.socket.isOpened) {
-      console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
-      return []
-    }
-
-    const nonce = ++this.nonce
-
-    return new Promise<Response<T>>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(nonce)
-        reject(new Error(`Request ${nonce} timed out after 5s`))
-      }, 15_000)
-
-      this.pendingRequests.set(nonce, {
-        resolve: response => {
-          clearTimeout(timeout)
-          resolve(response as Response<T>)
-        },
-        reject: err => {
-          clearTimeout(timeout)
-          reject(err)
-        }
-      })
-
-      this.socket.send(JSON.stringify({ nonce, request }))
-    })
-  }
-
-  public async announcePeer(announce: Announce) {
-    if (this.socket.hostname === announce.address) return // console.log('LOG:', "Won't announce peer to itself")
-    if (!this.socket.isOpened) return console.warn('WARN:', `Cannot send announce to unconnected peer ${this.socket.address}`)
-    this.socket.send(JSON.stringify({ announce }))
-  }
+  public readonly announcePeer = (peer: Announce) => this.send.announce(peer)
 }

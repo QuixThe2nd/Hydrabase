@@ -47,9 +47,7 @@ export default class Node {
       }
 
       console.log('LOG:', `Sending request to peer ${address}`)
-      const peerResults = request.type === 'track' ? await peer.searchTrack(request.query) :
-                          request.type === 'artist' ? await peer.searchArtist(request.query) : 
-                          request.type === 'album' ? await peer.searchAlbum(request.query) : [];
+      const peerResults = await peer.search(request.type, request.query)
       console.log('LOG:', `Received ${peerResults.length} results from ${address}`)
 
       // Compare Results
