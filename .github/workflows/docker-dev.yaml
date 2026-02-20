@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: quixthe2nd/hydrabase
+  IMAGE_NAME: quixthe2nd/hydrabase-dev
 
 jobs:
   build:
