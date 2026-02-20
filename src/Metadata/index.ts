@@ -15,7 +15,8 @@ export const TrackSearchResultSchema = z.object({
   preview_url: z.string(),
   external_urls: z.record(z.string(), z.url()),
   image_url: z.url(),
-  plugin_id: z.string()
+  plugin_id: z.string(),
+  confidence: z.number()
 })
 
 export type TrackSearchResult = z.infer<typeof TrackSearchResultSchema>
@@ -32,7 +33,8 @@ export const ArtistSearchResultSchema = z.object({
     spotify: z.url()
   }).partial(),
   image_url: z.string(),
-  plugin_id: z.string()
+  plugin_id: z.string(),
+  confidence: z.number()
 })
 export type ArtistSearchResult = z.infer<typeof ArtistSearchResultSchema>
 
@@ -49,7 +51,8 @@ export const AlbumSearchResultSchema = z.object({
     itunes: z.url(),
     spotify: z.url()
   }).partial(),
-  plugin_id: z.string()
+  plugin_id: z.string(),
+  confidence: z.number()
 })
 export type AlbumSearchResult = z.infer<typeof AlbumSearchResultSchema>
 

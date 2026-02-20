@@ -79,7 +79,8 @@ export default class ITunes implements MetadataPlugin {
       preview_url: result.previewUrl ?? '',
       external_urls: { itunes: result.trackViewUrl },
       image_url: result.artworkUrl100.replace('100x100', '600x600'),
-      plugin_id: this.id
+      plugin_id: this.id,
+      confidence: Infinity,
     }));
   }
 
@@ -106,7 +107,8 @@ export default class ITunes implements MetadataPlugin {
       followers: 0,
       image_url: result.artworkUrl100?.replace('100x100', '600x600') ?? '',
       external_urls: result.artistViewUrl ? { itunes: result.artistViewUrl } : {},
-      plugin_id: this.id
+      plugin_id: this.id,
+      confidence: Infinity,
     }));
   }
 
@@ -142,6 +144,7 @@ export default class ITunes implements MetadataPlugin {
         image_url: result.artworkUrl100?.replace('100x100', '600x600') ?? '',
         external_urls: result.collectionViewUrl ? { itunes: result.collectionViewUrl } : {},
         plugin_id: this.id,
+        confidence: Infinity,
       };
     });
   }
