@@ -16,8 +16,9 @@ export class Peer {
   private _events = 0; // Number of events that triggered a point change
   private pendingRequests = new Map<number, PendingRequest>()
 
-  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, serverPort: number) {
+  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, serverPort: number, onClose: () => void) {
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
+    this.socket.onClose(onClose)
     this.socket.onMessage(async message => {
       const { nonce, ...result } = JSON.parse(message)
       const type = 'request' in result ? 'request' as const : 'response' in result ? 'response' as const : 'announce' in result ? 'announce' : null;
@@ -54,33 +55,33 @@ export class Peer {
   }
 
   public async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
-  if (!this.socket.isOpened) {
-    console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
-    return []
-  }
+    if (!this.socket.isOpened) {
+      console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
+      return []
+    }
 
-  const nonce = ++this.nonce
+    const nonce = ++this.nonce
 
-  return new Promise<Response<T>>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      this.pendingRequests.delete(nonce)
-      reject(new Error(`Request ${nonce} timed out after 5s`))
-    }, 15_000)
+    return new Promise<Response<T>>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(nonce)
+        reject(new Error(`Request ${nonce} timed out after 5s`))
+      }, 15_000)
 
-    this.pendingRequests.set(nonce, {
-      resolve: (response: Response<T>) => {
-        clearTimeout(timeout)
-        resolve(response)
-      },
-      reject: (err: unknown) => {
-        clearTimeout(timeout)
-        reject(err)
-      }
+      this.pendingRequests.set(nonce, {
+        resolve: (response: Response<T>) => {
+          clearTimeout(timeout)
+          resolve(response)
+        },
+        reject: (err: unknown) => {
+          clearTimeout(timeout)
+          reject(err)
+        }
+      })
+
+      this.socket.send(JSON.stringify({ nonce, request }))
     })
-
-    this.socket.send(JSON.stringify({ nonce, request }))
-  })
-}
+  }
 
   public async announcePeer(announce: Announce) {
     if (this.socket.hostname === announce.address) return // console.log('LOG:', "Won't announce peer to itself")

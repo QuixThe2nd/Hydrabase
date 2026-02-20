@@ -10,6 +10,7 @@ export default class WebSocketClient {
   private readonly socket: WebSocket
   private _isOpened = false
   private messageHandler?: (message: string) => void
+  private closeHandler?: () => void
 
   private constructor(public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) {
     console.log('LOG:', `Connecting to peer ${hostname}`)
@@ -27,10 +28,12 @@ export default class WebSocketClient {
     this.socket.addEventListener('close', ev => {
       console.log('LOG:', `Connection closed with peer ${address}`, `- ${ev.reason}`)
       this._isOpened = false
+      this.closeHandler?.()
     })
     this.socket.addEventListener('error', err => {
       console.warn('WARN:', `Connection failed with ${address}`, err)
       this._isOpened = false
+      this.closeHandler?.()
     })
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));
   }
@@ -59,5 +62,8 @@ export default class WebSocketClient {
 
   public onMessage(handler: (message: string) => void) {
     this.messageHandler = (msg) => handler(msg)
+  }
+  public onClose(handler: () => void) {
+    this.closeHandler = () => handler()
   }
 }
