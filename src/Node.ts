@@ -8,6 +8,7 @@ import { startServer, type WebSocketServerConnection } from './networking/ws/ser
 import { CONFIG } from './config'
 import { Crypto } from './crypto'
 import { resolve4 } from "dns/promises";
+import type { startDatabase } from './database'
 
 export type ExtendedSearchResult<T extends Request['type']> = SearchResult[T] & { confidences: number[] }
 
@@ -18,14 +19,14 @@ export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
-  constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto) {
+  constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly db: ReturnType<typeof startDatabase>) {
     startServer(serverPort, peer => this.addPeer(peer), crypto)
     discoverPeers(serverPort, dhtPort, peer => this.addPeer(peer), this.crypto)
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
     if (peer.address in this.peers && this.peers[peer.address]?.isOpened) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] })
+    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this.db)
     this.announcePeer(peer)
   }
 
@@ -46,7 +47,9 @@ export default class Node {
       }
 
       console.log('LOG:', `Sending request to peer ${address}`)
-      const peerResults = await peer.sendRequest<T>(request)
+      const peerResults = request.type === 'track' ? await peer.searchTrack(request.query) :
+                          request.type === 'artist' ? await peer.searchArtist(request.query) : 
+                          request.type === 'album' ? await peer.searchAlbum(request.query) : [];
 
       // Compare Results
       const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}

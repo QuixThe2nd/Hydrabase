@@ -11,7 +11,9 @@ export const tracks = sqliteTable('tracks', {
   preview_url: text('preview_url').notNull(),
   external_urls: text('external_urls').notNull(),
   image_url: text('image_url').notNull(),
-}, table => [uniqueIndex('idx_plugin_track').on(table.plugin_id, table.id)])
+  address: text('address').notNull(),
+  confidence: integer('confidence').notNull(),
+}, table => [uniqueIndex('idx_plugin_track').on(table.plugin_id, table.id, table.address)])
 
 export const artists = sqliteTable('artists', {
   id: text('id').notNull(),
@@ -22,7 +24,9 @@ export const artists = sqliteTable('artists', {
   followers: integer('followers').notNull(),
   external_urls: text('external_urls').notNull(),
   image_url: text('image_url').notNull(),
-}, table => [uniqueIndex('idx_plugin_artist').on(table.plugin_id, table.id)])
+  address: text('address').notNull(),
+  confidence: integer('confidence').notNull(),
+}, table => [uniqueIndex('idx_plugin_artist').on(table.plugin_id, table.id, table.address)])
 
 export const albums = sqliteTable('albums', {
   id: text('id').notNull(),
@@ -34,15 +38,8 @@ export const albums = sqliteTable('albums', {
   album_type: text('album_type'),
   image_url: text('image_url'),
   external_urls: text('external_urls'),
-}, table => [uniqueIndex('idx_plugin_album').on(table.plugin_id, table.id)])
-
-export const votes = sqliteTable('votes', {
-  type: text('type').notNull(),
-  id: text('id').notNull(),
-  plugin_id: text('plugin_id').notNull(),
   address: text('address').notNull(),
   confidence: integer('confidence').notNull(),
-}, table => [uniqueIndex('idx_vote').on(table.type, table.plugin_id, table.id, table.address)])
+}, table => [uniqueIndex('idx_plugin_album').on(table.plugin_id, table.id, table.address)])
 
 // bunx drizzle-kit generate --dialect sqlite --schema ./src/schema.ts
-// bun run migrate.ts

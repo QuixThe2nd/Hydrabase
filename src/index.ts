@@ -4,6 +4,7 @@ import Node from './Node'
 import { CONFIG } from './config';
 import Spotify from './Metadata/plugins/Spotify';
 import { Crypto, getPrivateKey } from './crypto';
+import { startDatabase } from './database';
 
 process.on('unhandledRejection', (err) => {
   console.error('ERROR:', 'Unhandled rejection', err)
@@ -44,16 +45,20 @@ export const search = async (node: Node, type: 'track' | 'artist' | 'album', que
 
   return [...peerResults.values()]
 }
+// TODO: Merge duplicate artists from diff plugins
+// TODO: search db cache
 
 const SPOTIFY_CLIENT_ID = process.env['SPOTIFY_CLIENT_ID']
 const SPOTIFY_CLIENT_SECRET = process.env['SPOTIFY_CLIENT_SECRET']
 
-export const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)] : []])
+const db = startDatabase()
+
+export const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)] : []], db)
 
 // Start Dummy Nodes
 for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
   console.log('LOG:', `Starting dummy node ${i}`)
-  const node = new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, new Crypto(await getPrivateKey(i)))
+  const node = new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, new Crypto(await getPrivateKey(i)), db)
   await new Promise(res => setTimeout(res, 5_000))
   await search(node, 'track', 'dont stop me now')
   await search(node, 'artist', 'jay z')
@@ -61,7 +66,7 @@ for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
 }
 
 // Start Node
-const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, new Crypto(await getPrivateKey()))
+const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, new Crypto(await getPrivateKey()), db)
 
 await new Promise(res => setTimeout(res, 10_000))
 

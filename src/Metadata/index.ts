@@ -1,8 +1,8 @@
 import z from 'zod';
 import type { Request } from '../Messages'
 import { startDatabase } from '../database';
-import { tracks, artists, albums, votes } from '../schema';
 import { CONFIG } from '../config';
+import { tracks, artists, albums } from '../schema';
 
 export const TrackSearchResultSchema = z.object({
   soul_id: z.string(),
@@ -68,41 +68,30 @@ export interface MetadataPlugin {
 
 export default class MetadataManager implements MetadataPlugin {
   public readonly id = 'Hydrabase'
-  private readonly db = startDatabase();
-  constructor(private readonly plugins: MetadataPlugin[]) {}
+  constructor(private readonly plugins: MetadataPlugin[], private readonly db: ReturnType<typeof startDatabase>) {}
 
-  async searchTrack(query: string): Promise<TrackSearchResult[]> { // TODO: Merge duplicate artists from diff plugins
+  async searchTrack(query: string): Promise<TrackSearchResult[]> {
     const results: TrackSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
-    for (const result of results) {
-      this.db.insert(votes).values({ id: result.id, plugin_id: result.plugin_id, address: '0x0', type: 'track', confidence: 1 }).onConflictDoNothing().run()
-      this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
-    }
+    for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Infinity }).onConflictDoNothing().run()
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchArtist(query: string): Promise<ArtistSearchResult[]> {
     const results: ArtistSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
-    for (const result of results) {
-      this.db.insert(votes).values({ id: result.id, plugin_id: result.plugin_id, address: '0x0', type: 'artist', confidence: 1 }).onConflictDoNothing().run()
-      this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
-    }
+    for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Infinity }).onConflictDoNothing().run()
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
     const results: AlbumSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
-    for (const result of results) {
-      this.db.insert(votes).values({ id: result.id, plugin_id: result.plugin_id, address: '0x0', type: 'album', confidence: 1 }).onConflictDoNothing().run()
-      this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls) }).onConflictDoNothing().run()
-    }
+    for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Infinity }).onConflictDoNothing().run()
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   public async handleRequest<T extends Request['type']>(request: Request & { type: T }) {
-    // TODO: search db cache
     if (request.type === 'track') return await this.searchTrack(request.query)
     if (request.type === 'artist') return await this.searchArtist(request.query)
     if (request.type === 'album') return await this.searchAlbum(request.query)
@@ -112,5 +101,3 @@ export default class MetadataManager implements MetadataPlugin {
     }
   }
 }
-
-// TODO: Save peer responses to db

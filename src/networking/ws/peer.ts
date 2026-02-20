@@ -1,7 +1,9 @@
 import { metadataManager } from "../..";
 import { CONFIG } from "../../config";
 import { Crypto } from "../../crypto";
+import type { startDatabase } from "../../database";
 import { MessageSchemas, type Announce, type Request, type Response } from "../../Messages";
+import { tracks, albums, artists } from "../../schema";
 import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 
@@ -16,7 +18,7 @@ export class Peer {
   private _events = 0; // Number of events that triggered a point change
   private pendingRequests = new Map<number, PendingRequest>()
 
-  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, serverPort: number, onClose: () => void) {
+  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, serverPort: number, onClose: () => void, private readonly db: ReturnType<typeof startDatabase>) {
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onClose(onClose)
     this.socket.onMessage(async message => {
@@ -49,12 +51,28 @@ export class Peer {
   get events() {
     return this._events
   }
-  set points(points: number) { // TODO: store on disk
+  set points(points: number) { // TODO: Use db to calculate trust
     this._points += points
     this._events++
   }
 
-  public async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
+  public readonly searchTrack = async (query: string): Promise<Response<'track'>> => {
+    const results = await this.sendRequest({ type: 'track', query })
+    for (const result of results) this.db.insert(tracks).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address, confidence: 0 }).onConflictDoNothing().run() // TODO: log the peer's confidence in the result - NOT SELFS CONFIDENCE IN PEER
+    return results;
+  }
+  public readonly searchArtist = async (query: string): Promise<Response<'artist'>> => {
+    const results = await this.sendRequest({ type: 'artist', query })
+    for (const result of results) this.db.insert(artists).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address, confidence: 0 }).onConflictDoNothing().run()
+    return results;
+  }
+  public readonly searchAlbum = async (query: string): Promise<Response<'album'>> => {
+    const results = await this.sendRequest({ type: 'album', query })
+    for (const result of results) this.db.insert(albums).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address, confidence: 0 }).onConflictDoNothing().run()
+    return results;
+  }
+
+  private async sendRequest<T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> {
     if (!this.socket.isOpened) {
       console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
       return []

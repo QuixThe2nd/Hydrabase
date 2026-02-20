@@ -8,6 +8,34 @@
       "when": 1771590147051,
       "tag": "0000_absurd_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771591623616,
+      "tag": "0001_true_pretty_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1771594283677,
+      "tag": "0002_steep_stephen_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1771594337321,
+      "tag": "0003_slow_captain_midlands",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1771595543933,
+      "tag": "0004_dapper_purifiers",
+      "breakpoints": true
     }
   ]
 }
