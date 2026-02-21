@@ -1,14 +1,15 @@
 import { Parser } from 'expr-eval'
-import type { Request } from './Messages'
+import type { Request } from './utils/Messages'
 import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import { CONFIG } from './config'
-import { Crypto } from './crypto'
+import { Crypto } from './utils/crypto'
 import { resolve4 } from "dns/promises";
-import type { startDatabase } from './database'
+import type { startDatabase } from './utils/database'
+import { metadataManager } from '.'
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
@@ -24,7 +25,7 @@ export default class Node {
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
     if (peer.address in this.peers && this.peers[peer.address]?.isOpened) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this.db)
+    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this.db, this)
     this.announcePeer(peer)
   }
 
@@ -32,7 +33,7 @@ export default class Node {
     for (const address in this.peers) this.peers[address as `0x${string}`]!.announcePeer({ address: peer.hostname })
   }
 
-  public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
+  private async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
     const results = new Map<bigint, SearchResult[T]>()
     console.log('LOG:', `Sending request to ${Object.keys(this.peers).length} peers`)
     for (const _address in this.peers) {
@@ -74,5 +75,28 @@ export default class Node {
     }
 
     return results
+  }
+
+  public async search<T extends Request['type']>(type: T, query: string) {
+    console.log('LOG:', 'Searching locally')
+    const results = await metadataManager.handleRequest({ type, query })
+    const hashes = new Set<bigint>()
+    const plugins = new Set<string>()
+    for (const result of results) {
+      hashes.add(BigInt(Bun.hash(JSON.stringify(result))))
+      plugins.add(result.plugin_id)
+    }
+
+    console.log('LOG:', 'Searching peers')
+    const peerResults = await this.requestAll({ type, query }, hashes, plugins)
+
+    // Inject local results
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]!;
+      const hash = [...hashes.values()][i]!;
+      peerResults.set(hash, result)
+    }
+
+    return [...peerResults.values()]
   }
 }

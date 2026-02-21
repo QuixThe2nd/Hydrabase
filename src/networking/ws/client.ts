@@ -1,5 +1,5 @@
 import z from 'zod'
-import { Crypto, Signature } from "../../crypto"
+import { Crypto, Signature } from "../../utils/crypto"
 
 export const AuthSchema = z.object({
   signature: z.string(),

@@ -1,5 +1,5 @@
 import { CONFIG } from '../../config'
-import { Crypto, Signature } from '../../crypto'
+import { Crypto, Signature } from '../../utils/crypto'
 import { portForward } from '../upnp'
 import { AuthSchema } from './client'
 
@@ -99,5 +99,5 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
       }
     }
   })
-  console.log(`Server listening at ${server.url}`)
+  console.log('LOG:', `Server listening at ${server.url}`)
 }
