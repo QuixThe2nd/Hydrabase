@@ -15,14 +15,12 @@ type PendingRequest = {
 
 export class Peer {
   private nonce = -1;
-  private _points = 0; // Sum of past confidence confidence scores
-  private _events = 0; // Number of events that triggered a point change
   private pendingRequests = new Map<number, PendingRequest>()
 
   private readonly handlers = {
     request: async (request: z.infer<typeof MessageSchemas.request>, nonce: number) => {
       console.log('LOG:', `Received request from ${this.socket.address}`)
-      this.send.response(await metadataManager.handleRequest(request), nonce)
+      this.send.response(await metadataManager.handleRequest(request), nonce) // TODO: Search peers
     },
     response: (response: z.infer<typeof MessageSchemas.response>, nonce: number, message: string) => {
       const pending = this.pendingRequests.get(nonce)
@@ -112,17 +110,6 @@ export class Peer {
 
   get isOpened() {
     return this.socket.isOpened
-  }
-
-  get points() {
-    return this._points
-  }
-  get events() {
-    return this._events
-  }
-  set points(points: number) { // TODO: Use db to calculate trust
-    this._points += points
-    this._events++
   }
 
   public readonly announcePeer = (peer: Announce) => this.send.announce(peer)

@@ -40,7 +40,7 @@ export const search = async (node: Node, type: 'track' | 'artist' | 'album', que
   for (let i = 0; i < results.length; i++) {
     const result = results[i]!;
     const hash = [...hashes.values()][i]!;
-    peerResults.set(hash, { ...result, confidences: [...peerResults.get(hash)?.confidences ?? [], Infinity] })
+    peerResults.set(hash, result)
   }
 
   return [...peerResults.values()]
