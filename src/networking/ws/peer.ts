@@ -69,9 +69,7 @@ export class Peer {
         this.socket.send(JSON.stringify({ nonce, request }))
       })
     },
-    response: async (response: z.infer<typeof MessageSchemas.response>, nonce: number) => {
-      this.socket.send(JSON.stringify({ response, nonce }))
-    },
+    response: async (response: z.infer<typeof MessageSchemas.response>, nonce: number) => this.socket.send(JSON.stringify({ response, nonce })),
     announce: (announce: z.infer<typeof MessageSchemas.announce>) => {
       if (this.socket.hostname === announce.address) return console.log('LOG:', "Won't announce peer to itself")
       if (!this.socket.isOpened) return console.warn('WARN:', `Cannot send announce to unconnected peer ${this.socket.address}`)
