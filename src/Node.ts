@@ -39,6 +39,7 @@ export default class Node {
     console.log('LOG:', `Sending request to ${Object.keys(this.peers).length} peers`)
     for (const _address in this.peers) {
       const address = _address as `0x${string}`
+      if (address === '0x0') continue
       const peer = this.peers[address]!
       if (!peer.isOpened) {
         console.warn('WARN:', 'Skipping request, connection not open')
