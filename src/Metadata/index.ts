@@ -76,21 +76,21 @@ export default class MetadataManager implements MetadataPlugin {
   async searchTrack(query: string): Promise<TrackSearchResult[]> {
     const results: TrackSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
-    for (const result of results) this.db.insert(schema['track']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Infinity }).onConflictDoNothing().run()
+    for (const result of results) this.db.insert(schema['track']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Number.MAX_SAFE_INTEGER }).onConflictDoNothing().run()
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchArtist(query: string): Promise<ArtistSearchResult[]> {
     const results: ArtistSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
-    for (const result of results) this.db.insert(schema['artist']).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Infinity }).onConflictDoNothing().run()
+    for (const result of results) this.db.insert(schema['artist']).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Number.MAX_SAFE_INTEGER }).onConflictDoNothing().run()
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
     const results: AlbumSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
-    for (const result of results) this.db.insert(schema['album']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Infinity }).onConflictDoNothing().run()
+    for (const result of results) this.db.insert(schema['album']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Number.MAX_SAFE_INTEGER }).onConflictDoNothing().run()
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
