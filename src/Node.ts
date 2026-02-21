@@ -34,7 +34,7 @@ export default class Node {
   }
 
   private async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
-    const results = new Map<bigint, SearchResult[T]>()
+    const results = new Map<bigint, Exclude<SearchResult[T], 'confidence'> & { confidences: number[] }>()
     console.log('LOG:', `Sending request to ${Object.keys(this.peers).length} peers`)
     for (const _address in this.peers) {
       const address = _address as `0x${string}`
@@ -70,11 +70,11 @@ export default class Node {
         const peerClaimedConfidence = result.confidence
         const finalConfidence = Parser.evaluate(CONFIG.finalConfidence, { x: peerConfidence, y: peerClaimedConfidence })
         // TODO: take into account historic accuracy
-        results.set(hash, { ...result as SearchResult[T], confidence: finalConfidence })
+        results.set(hash, { ...result as Exclude<SearchResult[T], 'confidence'>, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
       }
     }
 
-    return results
+    return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
   public async search<T extends Request['type']>(type: T, query: string) {
