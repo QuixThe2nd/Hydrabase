@@ -12,7 +12,6 @@ export const CONFIG = {
   upnpTTL: 3600, // Seconds
   upnpReannounce: 1800, // Seconds
   pluginConfidence: 'x / (x + y)',
-  historicConfidence: 'x * y',
   finalConfidence: 'x * y',
   listenAddress: '0.0.0.0', // Listen address
   serverHostname: ip,

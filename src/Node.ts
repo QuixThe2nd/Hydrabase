@@ -10,8 +10,6 @@ import { Crypto } from './crypto'
 import { resolve4 } from "dns/promises";
 import type { startDatabase } from './database'
 
-export type ExtendedSearchResult<T extends Request['type']> = SearchResult[T] & { confidences: number[] }
-
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
 export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
@@ -35,7 +33,7 @@ export default class Node {
   }
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
-    const results = new Map<bigint, ExtendedSearchResult<T>>()
+    const results = new Map<bigint, SearchResult[T]>()
     console.log('LOG:', `Sending request to ${Object.keys(this.peers).length} peers`)
     for (const _address in this.peers) {
       const address = _address as `0x${string}`
@@ -60,21 +58,18 @@ export default class Node {
         // if (pluginId in hashes) responseMatches[pluginId as P] = hashes[pluginId as P] === hash;
       }
 
-      const confidence = avg(
+      const peerConfidence = avg(
         Object.entries(pluginMatches)
           .filter(([pluginId]) => installedPlugins.has(pluginId))
           .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
       )
 
-      const historicConfidence = Parser.evaluate(CONFIG.historicConfidence, { x: peer.points, y: peer.events })
-
-      const finalConfidence = Parser.evaluate(CONFIG.finalConfidence, { x: confidence, y: historicConfidence })
-
-      peer.points += confidence;
-
       for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        results.set(hash, { ...result as SearchResult[T], confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
+        const peerClaimedConfidence = result.confidence
+        const finalConfidence = Parser.evaluate(CONFIG.finalConfidence, { x: peerConfidence, y: peerClaimedConfidence })
+        // TODO: take into account historic accuracy
+        results.set(hash, { ...result as SearchResult[T], confidence: finalConfidence })
       }
     }
 
