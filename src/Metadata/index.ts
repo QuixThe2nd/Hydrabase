@@ -1,6 +1,6 @@
 import z from 'zod';
-import type { Request } from '../Messages'
-import { startDatabase } from '../database';
+import type { Request } from '../utils/Messages'
+import { startDatabase } from '../utils/database';
 import { CONFIG } from '../config';
 import { schema } from '../schema';
 

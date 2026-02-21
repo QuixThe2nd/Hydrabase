@@ -1,5 +1,5 @@
 import z from 'zod';
-import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from './Metadata';
+import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from '../Metadata';
 
 export const MessageSchemas = {
   request: z.object({

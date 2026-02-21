@@ -3,8 +3,8 @@ import MetadataManager from './Metadata'
 import Node from './Node'
 import { CONFIG } from './config';
 import Spotify from './Metadata/plugins/Spotify';
-import { Crypto, getPrivateKey } from './crypto';
-import { startDatabase } from './database';
+import { Crypto, getPrivateKey } from './utils/crypto';
+import { startDatabase } from './utils/database';
 
 process.on('unhandledRejection', (err) => {
   console.error('ERROR:', 'Unhandled rejection', err)
@@ -21,30 +21,6 @@ declare global {
   }
 }
 
-export const search = async (node: Node, type: 'track' | 'artist' | 'album', query: string) => {
-  const request = { type, query } as const;
-
-  console.log('LOG:', 'Searching locally')
-  const results = await metadataManager.handleRequest(request)
-  const hashes = new Set<bigint>()
-  const plugins = new Set<string>()
-  for (const result of results) {
-    hashes.add(BigInt(Bun.hash(JSON.stringify(result))))
-    plugins.add(result.plugin_id)
-  }
-
-  console.log('LOG:', 'Searching peers')
-  const peerResults = await node.requestAll(request, hashes, plugins)
-
-  // Inject local results
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i]!;
-    const hash = [...hashes.values()][i]!;
-    peerResults.set(hash, result)
-  }
-
-  return [...peerResults.values()]
-}
 // TODO: Merge duplicate artists from diff plugins
 // TODO: search db cache
 
@@ -60,16 +36,16 @@ for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
   console.log('LOG:', `Starting dummy node ${i}`)
   const node = new Node(CONFIG.serverPort+i, CONFIG.dhtPort+i, new Crypto(await getPrivateKey(i)), db)
   await new Promise(res => setTimeout(res, 5_000))
-  await search(node, 'track', 'dont stop me now')
-  await search(node, 'artist', 'jay z')
-  await search(node, 'album', 'made in england')
+  await node.search('track', 'dont stop me now')
+  await node.search('artist', 'jay z')
+  await node.search('album', 'made in england')
 }
 
 // Start Node
 const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, new Crypto(await getPrivateKey()), db)
 
-await new Promise(res => setTimeout(res, 10_000))
+await new Promise(res => setTimeout(res, 30_000))
 
-console.log('LOG:', 'Track results:', await search(node, 'track', 'dont stop me now'));
-console.log('LOG:', 'Artist results:', await search(node, 'artist', 'jay z'));
-console.log('LOG:', 'Album results:', await search(node, 'album', 'made in england'));
+console.log('LOG:', 'Track results:', await node.search('track', 'dont stop me now'));
+console.log('LOG:', 'Artist results:', await node.search('artist', 'jay z'));
+console.log('LOG:', 'Album results:', await node.search('album', 'made in england'));

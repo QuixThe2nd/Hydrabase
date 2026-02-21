@@ -2,7 +2,7 @@ import DHT from 'bittorrent-dht'
 import krpc from 'k-rpc'
 import { portForward } from './upnp'
 import WebSocketClient from './ws/client';
-import type { Crypto } from '../crypto';
+import type { Crypto } from '../utils/crypto';
 import { CONFIG } from '../config';
 
 const knownPeers = new Set<`${string}:${number}`>();

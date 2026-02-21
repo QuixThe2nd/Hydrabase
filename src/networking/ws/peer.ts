@@ -1,12 +1,12 @@
 import type z from "zod";
-import { metadataManager } from "../..";
 import { CONFIG } from "../../config";
-import { Crypto } from "../../crypto";
-import type { startDatabase } from "../../database";
-import { MessageSchemas, type Announce, type MetadataMap, type Request, type Response } from "../../Messages";
+import { Crypto } from "../../utils/crypto";
+import type { startDatabase } from "../../utils/database";
+import { MessageSchemas, type Announce, type MetadataMap, type Request, type Response } from "../../utils/Messages";
 import { schema } from "../../schema";
 import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
+import type Node from "../../Node";
 
 type PendingRequest = {
   resolve: <T extends Request['type']>(value: Response<T>) => void
@@ -18,9 +18,9 @@ export class Peer {
   private pendingRequests = new Map<number, PendingRequest>()
 
   private readonly handlers = {
-    request: async (request: z.infer<typeof MessageSchemas.request>, nonce: number) => {
+    request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => {
       console.log('LOG:', `Received request from ${this.socket.address}`)
-      this.send.response(await metadataManager.handleRequest(request), nonce) // TODO: Search peers
+      this.send.response(await this.node.search(request.type, request.query) as Response<T>, nonce)
     },
     response: (response: z.infer<typeof MessageSchemas.response>, nonce: number, message: string) => {
       const pending = this.pendingRequests.get(nonce)
@@ -40,7 +40,7 @@ export class Peer {
 
   private readonly send = {
     request: async <T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> => {
-      if (!this.socket.isOpened) {
+      if (!this.isOpened) {
         console.warn('WARN:', `Cannot send request to unconnected peer ${this.socket.address}`)
         return []
       }
@@ -69,8 +69,8 @@ export class Peer {
     },
     response: async (response: z.infer<typeof MessageSchemas.response>, nonce: number) => this.socket.send(JSON.stringify({ response, nonce })),
     announce: (announce: z.infer<typeof MessageSchemas.announce>) => {
-      if (this.socket.hostname === announce.address) return console.log('LOG:', "Won't announce peer to itself")
-      if (!this.socket.isOpened) return console.warn('WARN:', `Cannot send announce to unconnected peer ${this.socket.address}`)
+      if (this.socket.hostname === announce.address) return // console.log('LOG:', "Won't announce peer to itself")
+      if (!this.isOpened) return console.warn('WARN:', `Cannot send announce to unconnected peer ${this.socket.address}`)
       this.socket.send(JSON.stringify({ announce }))
     }
   }
@@ -92,7 +92,7 @@ export class Peer {
     return results;
   }
 
-  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, private readonly addPeer: (peer: WebSocketClient) => void, private readonly crypto: Crypto, private readonly serverPort: number, onClose: () => void, private readonly db: ReturnType<typeof startDatabase>) {
+  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, private readonly addPeer: (peer: WebSocketClient) => void, private readonly crypto: Crypto, private readonly serverPort: number, onClose: () => void, private readonly db: ReturnType<typeof startDatabase>, private readonly node: Node) {
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onClose(onClose)
     this.socket.onMessage(async message => {
