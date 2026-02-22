@@ -3,7 +3,7 @@ import MetadataManager from './Metadata'
 import Node from './Node'
 import { CONFIG } from './config';
 import Spotify from './Metadata/plugins/Spotify';
-import { Crypto, getPrivateKey } from './utils/crypto';
+import { Crypto, getPrivateKey } from './Crypto';
 import { startDatabase } from './db';
 
 process.on('unhandledRejection', (err) => {

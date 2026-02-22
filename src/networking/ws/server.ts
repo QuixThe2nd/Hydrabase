@@ -1,6 +1,6 @@
 import { CONFIG } from '../../config'
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
-import { Crypto } from '../../utils/crypto'
+import { Crypto } from '../../Crypto'
 import { portForward } from '../upnp'
 
 interface WebSocketData {

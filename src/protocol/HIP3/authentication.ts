@@ -1,6 +1,6 @@
 import { CONFIG } from "../../config";
 import { AuthSchema } from "../../networking/ws/client";
-import { Crypto, Signature } from "../../utils/crypto";
+import { Crypto, Signature } from "../../Crypto";
 
 type Auth =
   | { apiKey: string; signature?: undefined }
