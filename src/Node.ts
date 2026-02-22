@@ -8,8 +8,8 @@ import { startServer, type WebSocketServerConnection } from './networking/ws/ser
 import { CONFIG } from './config'
 import { Crypto } from './utils/crypto'
 import { resolve4 } from "dns/promises";
-import type { startDatabase } from './utils/database'
-import { metadataManager } from '.'
+import type MetadataManager from './Metadata'
+import type { Repositories } from './db'
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
@@ -18,14 +18,14 @@ export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
-  constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly db: ReturnType<typeof startDatabase>) {
+  constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly metadataManager: MetadataManager, private readonly db: Repositories) {
     startServer(serverPort, peer => this.addPeer(peer), crypto)
     discoverPeers(serverPort, dhtPort, peer => this.addPeer(peer), this.crypto)
   }
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
     if (peer.address in this.peers && this.peers[peer.address]?.isOpened) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this.db, this)
+    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this, this.db)
     this.announcePeer(peer)
   }
 
@@ -79,7 +79,7 @@ export default class Node {
 
   public async search<T extends Request['type']>(type: T, query: string) {
     console.log('LOG:', 'Searching locally')
-    const results = await metadataManager.handleRequest({ type, query })
+    const results = await this.metadataManager.handleRequest({ type, query })
     const hashes = new Set<bigint>()
     const plugins = new Set<string>()
     for (const result of results) {
@@ -92,9 +92,8 @@ export default class Node {
 
     // Inject local results
     for (let i = 0; i < results.length; i++) {
-      const result = results[i]!;
       const hash = [...hashes.values()][i]!;
-      peerResults.set(hash, result)
+      peerResults.set(hash, results[i]!)
     }
 
     return [...peerResults.values()]

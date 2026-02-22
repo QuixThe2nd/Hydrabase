@@ -1,8 +1,7 @@
 import z from 'zod';
 import type { Request } from '../utils/Messages'
-import { startDatabase } from '../utils/database';
 import { CONFIG } from '../config';
-import { schema } from '../schema';
+import type { Repositories } from '../db';
 
 export const TrackSearchResultSchema = z.object({
   soul_id: z.string(),
@@ -71,26 +70,26 @@ export interface MetadataPlugin {
 
 export default class MetadataManager implements MetadataPlugin {
   public readonly id = 'Hydrabase'
-  constructor(private readonly plugins: MetadataPlugin[], private readonly db: ReturnType<typeof startDatabase>) {}
+  constructor(private readonly plugins: MetadataPlugin[], private readonly db: Repositories) {}
 
   async searchTrack(query: string): Promise<TrackSearchResult[]> {
     const results: TrackSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
-    for (const result of results) this.db.insert(schema['track']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Number.MAX_SAFE_INTEGER }).onConflictDoNothing().run()
+    for (const result of results) this.db.track.upsertFromPlugin(result)
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchArtist(query: string): Promise<ArtistSearchResult[]> {
     const results: ArtistSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
-    for (const result of results) this.db.insert(schema['artist']).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Number.MAX_SAFE_INTEGER }).onConflictDoNothing().run()
+    for (const result of results) this.db.artist.upsertFromPlugin(result)
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
     const results: AlbumSearchResult[] = [];
     for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
-    for (const result of results) this.db.insert(schema['album']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: '0x0', confidence: Number.MAX_SAFE_INTEGER }).onConflictDoNothing().run()
+    for (const result of results) this.db.album.upsertFromPlugin(result)
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 

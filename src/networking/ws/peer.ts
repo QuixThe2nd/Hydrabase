@@ -1,12 +1,11 @@
 import type z from "zod";
 import { CONFIG } from "../../config";
 import { Crypto } from "../../utils/crypto";
-import type { startDatabase } from "../../utils/database";
 import { MessageSchemas, type Announce, type MetadataMap, type Request, type Response } from "../../utils/Messages";
-import { schema } from "../../schema";
 import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 import type Node from "../../Node";
+import type { Repositories } from "../../db";
 
 type PendingRequest = {
   resolve: <T extends Request['type']>(value: Response<T>) => void
@@ -78,21 +77,14 @@ export class Peer {
   public async search<T extends Request['type']>(type: T, query: string): Promise<Response<T>> {
     const results = await this.send.request({ type, query })
     for (const _result of results) {
-      if (type === 'track') {
-        const result = _result as MetadataMap['track']
-        this.db.insert(schema[type as 'track']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
-      } else if (type === 'album') {
-        const result = _result as MetadataMap['album']
-        this.db.insert(schema[type as 'album']).values({ ...result, artists: result.artists.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
-      } else if (type === 'artist') {
-        const result = _result as MetadataMap['artist']
-        this.db.insert(schema[type as 'artist']).values({ ...result, genres: result.genres.join(','), external_urls: JSON.stringify(result.external_urls), address: this.socket.address }).onConflictDoNothing().run()
-      }
+      if (type === 'track') this.db.track.upsertFromPeer(_result as MetadataMap['track'], this.socket.address)
+      else if (type === 'album') this.db.album.upsertFromPeer(_result as MetadataMap['album'], this.socket.address)
+      else if (type === 'artist') this.db.artist.upsertFromPeer(_result as MetadataMap['artist'], this.socket.address)
     }
     return results;
   }
 
-  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, private readonly addPeer: (peer: WebSocketClient) => void, private readonly crypto: Crypto, private readonly serverPort: number, onClose: () => void, private readonly db: ReturnType<typeof startDatabase>, private readonly node: Node) {
+  constructor(private readonly socket: WebSocketClient | WebSocketServerConnection, private readonly addPeer: (peer: WebSocketClient) => void, private readonly crypto: Crypto, private readonly serverPort: number, onClose: () => void, private readonly node: Node, private readonly db: Repositories) {
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onClose(onClose)
     this.socket.onMessage(async message => {
