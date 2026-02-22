@@ -13,7 +13,7 @@ import type { Request } from './RequestManager'
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 
 export default class Node {
-  private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
+  private readonly peers: { [address: `0x${string}`]: Peer } = {}
 
   constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly metadataManager: MetadataManager, private readonly db: Repositories) {
     startServer(crypto, serverPort, peer => this.addPeer(peer))
@@ -65,7 +65,6 @@ export default class Node {
       for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
         const peerClaimedConfidence = result.confidence
-        console.log(peerConfidence, peerClaimedConfidence)
         const finalConfidence = Parser.evaluate(CONFIG.finalConfidence, { x: peerConfidence, y: peerClaimedConfidence })
         // TODO: take into account historic accuracy
         results.set(hash, { ...result as Exclude<SearchResult[T], 'confidence'>, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
