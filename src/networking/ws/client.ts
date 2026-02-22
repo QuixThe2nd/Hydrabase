@@ -1,5 +1,5 @@
 import z from 'zod'
-import { Crypto } from "../../utils/crypto"
+import { Crypto } from "../../Crypto"
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 
 export const AuthSchema = z.object({

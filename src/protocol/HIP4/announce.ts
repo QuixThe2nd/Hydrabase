@@ -1,6 +1,6 @@
 import z from 'zod'
 import WebSocketClient from '../../networking/ws/client'
-import type { Crypto } from '../../utils/crypto'
+import type { Crypto } from '../../Crypto'
 import type { Peer } from '../../networking/ws/peer'
 
 export const AnnounceSchema = z.object({ hostname: z.string().startsWith('ws://').transform((val) => val as `ws://${string}`) })

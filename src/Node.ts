@@ -4,7 +4,7 @@ import { discoverPeers } from './networking/dht'
 import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
-import { Crypto } from './utils/crypto'
+import { Crypto } from './Crypto'
 import type { SearchResult } from './Metadata'
 import type MetadataManager from './Metadata'
 import type { Repositories } from './db'
@@ -65,6 +65,7 @@ export default class Node {
       for (const result of peerResults) {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
         const peerClaimedConfidence = result.confidence
+        console.log(peerConfidence, peerClaimedConfidence)
         const finalConfidence = Parser.evaluate(CONFIG.finalConfidence, { x: peerConfidence, y: peerClaimedConfidence })
         // TODO: take into account historic accuracy
         results.set(hash, { ...result as Exclude<SearchResult[T], 'confidence'>, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })

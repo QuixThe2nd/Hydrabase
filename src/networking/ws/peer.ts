@@ -1,7 +1,7 @@
 import { HIP1_Conn_Capabilities } from "../../protocol/HIP1/capabilities";
 import { RequestManager, type Album, type Artist, type Request, type Response, type Track } from "../../RequestManager";
 import { HIP4_Conn_Announce, type Announce } from "../../protocol/HIP4/announce";
-import { Crypto } from "../../utils/crypto";
+import { Crypto } from "../../Crypto";
 import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 import type Node from "../../Node";
