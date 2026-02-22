@@ -1,5 +1,5 @@
 import { CONFIG } from '../../config'
-import { prove, verify } from '../../protocol/HIP3/authentication'
+import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 import { Crypto } from '../../utils/crypto'
 import { portForward } from '../upnp'
 
@@ -29,6 +29,7 @@ export class WebSocketServerConnection {
   }
 
   public readonly send = (message: string) => this.socket.send(message)
+  public readonly close = () => this.socket.close()
 
   public onMessage(handler: (message: string) => void) {
     this.messageHandler = handler;
@@ -44,17 +45,17 @@ export class WebSocketServerConnection {
   }
 }
 
-export const startServer = (port: number, addPeer: (conn: WebSocketServerConnection) => void, crypto: Crypto) => {
+export const startServer = (crypto: Crypto, port: number, addPeer: (conn: WebSocketServerConnection) => void) => {
   portForward(port, 'Hydrabase (TCP)', 'TCP');
   const server = Bun.serve({
     port,
     hostname: CONFIG.listenAddress,
-    routes: { '/auth': () => prove.address.fromServer(crypto, port) },
+    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerAddress(crypto, port) },
     fetch: async (req, server) =>  {
       const headers = Object.fromEntries(req.headers.entries())
-      const address = await verify.address.fromServer(headers, port)
+      const address = await HIP3_CONN_Authentication.verifyServerAddress(headers, port)
       if (address instanceof Response) return address
-      const hostname = await verify.hostname.fromServer(headers, address)
+      const hostname = await HIP3_CONN_Authentication.verifyServerHostname(headers, address)
       if (hostname instanceof Response) return hostname
       return server.upgrade(req, { data: { isOpened: false, address, hostname } }) ? undefined : new Response("Upgrade failed", { status: 500 })
     },

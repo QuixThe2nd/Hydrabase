@@ -39,7 +39,7 @@ export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (pee
     if (knownPeers.has(`${peer.host}:${peer.port}`)) return
     knownPeers.add(`${peer.host}:${peer.port}`)
     console.log('LOG:', `Discovered peer via DHT ${peer.host}:${peer.port}`)
-    const client = await WebSocketClient.init(`ws://${peer.host}:${peer.port}`, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
+    const client = await WebSocketClient.init(crypto, `ws://${peer.host}:${peer.port}`, `ws://${CONFIG.serverHostname}:${serverPort}`)
     if (client !== false) addPeer(client)
   })
   dht.on('announce', async (peer, _infoHash) => {
@@ -48,7 +48,7 @@ export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (pee
     if (infoHash === getRoomId()) {
       console.log('LOG:', `Received announce from ${peer.host}:${peer.port}`)
       knownPeers.add(`${peer.host}:${peer.port}`)
-      const client = await WebSocketClient.init(`ws://${peer.host}:${peer.port}`, crypto, `ws://${CONFIG.serverHostname}:${serverPort}`)
+      const client = await WebSocketClient.init(crypto, `ws://${peer.host}:${peer.port}`, `ws://${CONFIG.serverHostname}:${serverPort}`)
       if (client !== false) addPeer(client)
     }
   })

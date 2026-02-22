@@ -1,5 +1,5 @@
 import z from 'zod';
-import type { Request } from '../protocol/HIP2/requests'
+import type { Request } from '../RequestManager'
 import { CONFIG } from '../config';
 import type { Repositories } from '../db';
 

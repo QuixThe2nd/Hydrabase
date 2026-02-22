@@ -1,36 +1,33 @@
 import { Parser } from 'expr-eval'
-import type { Request } from './protocol/Messages'
-import type { SearchResult } from './Metadata'
+import { CONFIG } from './config'
 import { discoverPeers } from './networking/dht'
+import { startServer, type WebSocketServerConnection } from './networking/ws/server'
 import WebSocketClient from './networking/ws/client'
 import { Peer } from './networking/ws/peer'
-import { startServer, type WebSocketServerConnection } from './networking/ws/server'
-import { CONFIG } from './config'
 import { Crypto } from './utils/crypto'
-import { resolve4 } from "dns/promises";
+import type { SearchResult } from './Metadata'
 import type MetadataManager from './Metadata'
 import type { Repositories } from './db'
+import type { Request } from './RequestManager'
 
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
-
-export const bootstrapNode = (await resolve4("ddns.yazdani.au"))[0];
 
 export default class Node {
   private readonly peers: { [address: `${'0x' | 'ws://'}${string}`]: Peer } = {}
 
   constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly metadataManager: MetadataManager, private readonly db: Repositories) {
-    startServer(serverPort, peer => this.addPeer(peer), crypto)
+    startServer(crypto, serverPort, peer => this.addPeer(peer))
     discoverPeers(serverPort, dhtPort, peer => this.addPeer(peer), this.crypto)
   }
 
-  public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
-    if (peer.address in this.peers && this.peers[peer.address]?.isOpened) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this, this.db, this.metadataManager.installedPlugins)
-    this.announcePeer(peer)
+  public addPeer(socket: WebSocketClient | WebSocketServerConnection) {
+    if (socket.address in this.peers && this.peers[socket.address]?.isOpened) return console.warn('WARN:', 'Already connected to peer')
+    this.peers[socket.address] = new Peer(socket, peer => this.addPeer(peer), this.crypto, () => { delete this.peers[socket.address] }, this, this.db, this.metadataManager.installedPlugins)
+    this.announcePeer(socket)
   }
 
   private announcePeer(peer: WebSocketClient | WebSocketServerConnection) {
-    for (const address in this.peers) this.peers[address as `0x${string}`]!.announcePeer({ address: peer.hostname })
+    for (const address in this.peers) this.peers[address as `0x${string}`]!.announcePeer({ hostname: peer.hostname })
   }
 
   private async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
@@ -79,7 +76,7 @@ export default class Node {
 
   public async search<T extends Request['type']>(type: T, query: string) {
     console.log('LOG:', 'Searching locally')
-    const results = await this.metadataManager.handleRequest({ type, query })
+    const results = await this.metadataManager.handleRequest({ type, query }) as SearchResult[T][]
     const hashes = new Set<bigint>()
     const plugins = new Set<string>()
     for (const result of results) {
