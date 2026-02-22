@@ -23,8 +23,4 @@ export class AlbumRepository {
       address: peerAddress,
     }).onConflictDoNothing().run()
   }
-
-  findByQuery(query: string): AlbumSearchResult[] {
-    return []
-  }
 }

@@ -23,8 +23,4 @@ export class ArtistRepository {
       address: peerAddress,
     }).onConflictDoNothing().run()
   }
-
-  findByQuery(query: string): ArtistSearchResult[] {
-    return []
-  }
 }

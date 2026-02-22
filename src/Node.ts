@@ -1,5 +1,5 @@
 import { Parser } from 'expr-eval'
-import type { Request } from './utils/Messages'
+import type { Request } from './protocol/Messages'
 import type { SearchResult } from './Metadata'
 import { discoverPeers } from './networking/dht'
 import WebSocketClient from './networking/ws/client'
@@ -25,7 +25,7 @@ export default class Node {
 
   public addPeer(peer: WebSocketClient | WebSocketServerConnection) {
     if (peer.address in this.peers && this.peers[peer.address]?.isOpened) return console.warn('WARN:', 'Already connected to peer')
-    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this, this.db)
+    this.peers[peer.address] = new Peer(peer, peer => this.addPeer(peer), this.crypto, this.serverPort, () => { delete this.peers[peer.address] }, this, this.db, this.metadataManager.installedPlugins)
     this.announcePeer(peer)
   }
 

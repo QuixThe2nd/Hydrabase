@@ -23,8 +23,4 @@ export class TrackRepository {
       address: peerAddress,
     }).onConflictDoNothing().run()
   }
-
-  findByQuery(query: string): TrackSearchResult[] {
-    return []
-  }
 }

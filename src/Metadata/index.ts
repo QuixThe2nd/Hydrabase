@@ -102,4 +102,6 @@ export default class MetadataManager implements MetadataPlugin {
       return []
     }
   }
+
+  public get installedPlugins(): MetadataPlugin[] { return this.plugins }
 }
