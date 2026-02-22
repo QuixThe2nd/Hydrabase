@@ -50,7 +50,9 @@ export default class WebSocketClient {
     return this._isOpened
   }
 
-  public readonly send = (data: string) => this.socket.send(data)
+  public readonly send = (data: string) => {
+    if (this.isOpened) this.socket.send(data)
+  }
 
   public onMessage(handler: (message: string) => void) {
     this.messageHandler = (msg) => handler(msg)
