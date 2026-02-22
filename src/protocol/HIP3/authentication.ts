@@ -7,13 +7,15 @@ type Auth =
   | { apiKey?: undefined; signature: Signature }
   | { apiKey: string; signature: Signature }
 
-export const prove = {
-  address: {
-    fromServer: (crypto: Crypto, listenPort: number) => new Response(JSON.stringify({
-      signature: crypto.sign(`I am ws://${CONFIG.serverHostname}:${listenPort}`).toString(),
+const prove = {
+  server: {
+    address: (crypto: Crypto, port: number) => new Response(JSON.stringify({
+      signature: crypto.sign(`I am ws://${CONFIG.serverHostname}:${port}`).toString(),
       address: crypto.address
-    })),
-    fromClient: (crypto: Crypto, peerHostname: `ws://${string}`, selfHostname: string) => ({
+    }))
+  },
+  client: {
+    address: (crypto: Crypto, peerHostname: `ws://${string}`, selfHostname: `ws://${string}`) => ({
       'x-signature': crypto.sign(`I am connecting to ${peerHostname}`).toString(),
       'x-address': crypto.address,
       "x-hostname": selfHostname
@@ -21,9 +23,22 @@ export const prove = {
   }
 }
 
-export const verify = {
-  address: {
-    fromServer: async (headers: { [k: string]: string }, listenPort: number): Promise<`0x${string}` | Response> => {
+const verify = {
+  client: {
+    address: async (hostname: `ws://${string}`) => {
+      const res = await fetch(hostname.replace('ws://', 'http://') + '/auth')
+      const data = await res.text()
+      const auth = AuthSchema.parse(JSON.parse(data))
+      const signature = Signature.fromString(auth.signature)
+      if (!signature.verify(`I am ${hostname}`, auth.address)) {
+        console.warn('WARN:', 'Invalid authentication from server')
+        return false
+      }
+      return auth.address
+    }
+  },
+  server: {
+    address: async (headers: { [k: string]: string }, listenPort: number): Promise<`0x${string}` | Response> => {
       const {
         'x-api-key': apiKey,
         'x-signature': _signature,
@@ -41,20 +56,7 @@ export const verify = {
 
       return address as `0x${string}`
     },
-    fromClient: async (hostname: `ws://${string}`) => {
-      const res = await fetch(hostname.replace('ws://', 'http://') + '/auth')
-      const data = await res.text()
-      const auth = AuthSchema.parse(JSON.parse(data))
-      const signature = Signature.fromString(auth.signature)
-      if (!signature.verify(`I am ${hostname}`, auth.address)) {
-        console.warn('WARN:', 'Invalid authentication from server')
-        return false
-      }
-      return auth.address
-    }
-  },
-  hostname: {
-    fromServer: async (headers: { [k: string]: string }, address: `0x${string}`): Promise<Response | `ws://${string}`> => {
+    hostname: async (headers: { [k: string]: string }, address: `0x${string}`): Promise<Response | `ws://${string}`> => {
       const hostname = headers['x-hostname']
       if (!hostname) return new Response('Missing hostname header', { status: 400 })
       const data = await (await fetch(hostname.replace('ws://', 'http://') + '/auth')).text()
@@ -62,4 +64,12 @@ export const verify = {
       return hostname as `ws://${string}`
     }
   }
+}
+
+export class HIP3_CONN_Authentication {
+  static proveServerAddress = (crypto: Crypto, listenPort: number) => prove.server.address(crypto, listenPort)
+  static proveClientAddress = (crypto: Crypto, peerHostname: `ws://${string}`, selfHostname: `ws://${string}`) => prove.client.address(crypto, peerHostname, selfHostname)
+  static verifyClientAddress = (peerHostname: `ws://${string}`) => verify.client.address(peerHostname)
+  static verifyServerAddress = (headers: { [k: string]: string }, listenPort: number) => verify.server.address(headers, listenPort)
+  static verifyServerHostname = (headers: { [k: string]: string }, peerAddress: `0x${string}`) => verify.server.hostname(headers, peerAddress)
 }

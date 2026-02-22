@@ -1,6 +1,6 @@
 import z from 'zod'
 import { Crypto } from "../../utils/crypto"
-import { prove, verify } from '../../protocol/HIP3/authentication'
+import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 
 export const AuthSchema = z.object({
   signature: z.string(),
@@ -13,11 +13,12 @@ export default class WebSocketClient {
   private messageHandler?: (message: string) => void
   private closeHandler?: () => void
 
-  private constructor(public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) {
+  private constructor(crypto: Crypto, public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, selfHostname: `ws://${string}`) {
+    const headers = HIP3_CONN_Authentication.proveClientAddress(crypto, hostname, selfHostname)
     console.log('LOG:', `Connecting to peer ${hostname}`)
-    this.socket = new WebSocket(hostname, { headers: prove.address.fromClient(crypto, hostname, selfHostname) })
+    this.socket = new WebSocket(hostname, { headers })
     this.socket.addEventListener('open', () => {
-      console.log('LOG:', `Connected to peer ${address} ${this.hostname}`)
+      console.log('LOG:', `Connected to peer ${hostname} ${address}`)
       this._isOpened = true
     })
     this.socket.addEventListener('close', ev => {
@@ -33,15 +34,17 @@ export default class WebSocketClient {
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));
   }
 
-  static readonly init = async (hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) => {
-    const address = await verify.address.fromClient(hostname)
+  static readonly init = async (crypto: Crypto, hostname: `ws://${string}`, selfHostname: `ws://${string}`) => {
+    const address = await HIP3_CONN_Authentication.verifyClientAddress(hostname)
     if (!address) return false
     if (address === crypto.address) {
       console.warn('WARN:', `Not connecting to self`)
       return false
     }
-    return new WebSocketClient(address, hostname, crypto, selfHostname)
+    return new WebSocketClient(crypto, address, hostname, selfHostname)
   }
+
+  public readonly close = () => this.socket.close()
 
   get isOpened() {
     return this._isOpened

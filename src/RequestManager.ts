@@ -1,13 +1,16 @@
-import { validateCapability, type Capability } from '../HIP1/capabilities'
-import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from '../../Metadata';
+import { HIP1_Conn_Capabilities, type Capability } from './protocol/HIP1/capabilities'
 import z from 'zod'
+import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from './Metadata';
 
 export const RequestSchema = z.object({
   type: z.union([z.literal('track'), z.literal('artist'), z.literal('album')]),
   query: z.string()
 })
-
 export const ResponseSchema = z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)])
+
+export type Track = z.infer<typeof TrackSearchResultSchema>
+export type Artist = z.infer<typeof ArtistSearchResultSchema>
+export type Album = z.infer<typeof AlbumSearchResultSchema>
 
 interface MessageMap {
   track: z.infer<typeof TrackSearchResultSchema>[];
@@ -43,7 +46,7 @@ export class RequestManager {
   }
 
   public receiveCapability(raw: unknown): boolean {
-    const result = validateCapability(raw)
+    const result = HIP1_Conn_Capabilities.validateCapability(raw)
 
     if (!result.ok) {
       clearTimeout(this._handshakeTimeout)
