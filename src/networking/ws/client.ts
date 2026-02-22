@@ -1,5 +1,6 @@
 import z from 'zod'
-import { Crypto, Signature } from "../../utils/crypto"
+import { Crypto } from "../../utils/crypto"
+import { prove, verify } from '../../protocol/HIP3/authentication'
 
 export const AuthSchema = z.object({
   signature: z.string(),
@@ -14,13 +15,7 @@ export default class WebSocketClient {
 
   private constructor(public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) {
     console.log('LOG:', `Connecting to peer ${hostname}`)
-    this.socket = new WebSocket(hostname, {
-      headers: {
-        'x-signature': crypto.sign(`I am connecting to ${hostname}`).toString(),
-        'x-address': crypto.address,
-        "x-hostname": selfHostname
-      }
-    })
+    this.socket = new WebSocket(hostname, { headers: prove.address.fromClient(crypto, hostname, selfHostname) })
     this.socket.addEventListener('open', () => {
       console.log('LOG:', `Connected to peer ${address} ${this.hostname}`)
       this._isOpened = true
@@ -39,19 +34,13 @@ export default class WebSocketClient {
   }
 
   static readonly init = async (hostname: `ws://${string}`, crypto: Crypto, selfHostname: `ws://${string}`) => {
-    const res = await fetch(hostname.replace('ws://', 'http://') + '/auth')
-    const data = await res.text()
-    const auth = AuthSchema.parse(JSON.parse(data))
-    const signature = Signature.fromString(auth.signature)
-    if (!signature.verify(`I am ${hostname}`, auth.address)) {
-      console.warn('WARN:', 'Invalid authentication from server')
-      return false
-    }
-    if (auth.address === crypto.address) {
+    const address = await verify.address.fromClient(hostname)
+    if (!address) return false
+    if (address === crypto.address) {
       console.warn('WARN:', `Not connecting to self`)
       return false
     }
-    return new WebSocketClient(auth.address, hostname, crypto, selfHostname)
+    return new WebSocketClient(address, hostname, crypto, selfHostname)
   }
 
   get isOpened() {

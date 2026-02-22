@@ -1,7 +1,7 @@
 import { CONFIG } from '../../config'
-import { Crypto, Signature } from '../../utils/crypto'
+import { prove, verify } from '../../protocol/HIP3/authentication'
+import { Crypto } from '../../utils/crypto'
 import { portForward } from '../upnp'
-import { AuthSchema } from './client'
 
 interface WebSocketData {
   isOpened: boolean
@@ -49,38 +49,14 @@ export const startServer = (port: number, addPeer: (conn: WebSocketServerConnect
   const server = Bun.serve({
     port,
     hostname: CONFIG.listenAddress,
-    routes: {
-      '/auth': () => {
-        return new Response(JSON.stringify({
-          signature: crypto.sign(`I am ws://${CONFIG.serverHostname}:${port}`).toString(),
-          address: crypto.address
-        }))
-      }
-    },
+    routes: { '/auth': () => prove.address.fromServer(crypto, port) },
     fetch: async (req, server) =>  {
       const headers = Object.fromEntries(req.headers.entries())
-      const address = req.headers.get("x-address") as `0x${string}` ?? '0x0'
-
-      type Auth =
-        | { apiKey: string; signature?: undefined }
-        | { apiKey?: undefined; signature: Signature }
-        | { apiKey: string; signature: Signature }
-
-      const apiKey = headers['x-api-key']
-      const hostname = headers['x-hostname']
-      const signature = headers['x-signature'] ? Signature.fromString(headers['x-signature']) : undefined
-
-      const auth = apiKey !== undefined || signature !== undefined ? { apiKey, signature } as Auth : undefined
-
-      if (!auth) return new Response('Missing authentication', { status: 400 })
-      if (auth.apiKey && auth.apiKey !== CONFIG.apiKey) return new Response('Invalid API key', { status: 401 })
-      else if (auth.signature) {
-        if (!hostname) return new Response('Missing hostname header', { status: 400 })
-        if (!auth.signature.verify(`I am connecting to ws://${CONFIG.serverHostname}:${port}`, address)) return new Response('Authentication failed', { status: 403 })
-        const data = await (await fetch(hostname.replace('ws://', 'http://') + '/auth')).text()
-        if (!Signature.fromString(AuthSchema.parse(JSON.parse(data)).signature).verify(`I am ${hostname}`, address)) return new Response('Invalid authentication from your server', { status: 401 })
-      }
-      return server.upgrade(req, { data: { isOpened: false, address: address ?? apiKey, hostname: hostname as 'ws://' ?? 'ws://' } }) ? undefined : new Response("Upgrade failed", { status: 500 })
+      const address = await verify.address.fromServer(headers, port)
+      if (address instanceof Response) return address
+      const hostname = await verify.hostname.fromServer(headers, address)
+      if (hostname instanceof Response) return hostname
+      return server.upgrade(req, { data: { isOpened: false, address, hostname } }) ? undefined : new Response("Upgrade failed", { status: 500 })
     },
     websocket: {
       data: {} as WebSocketData,

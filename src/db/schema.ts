@@ -41,4 +41,4 @@ export const schema = {
     confidence: integer('confidence').notNull(),
   }, table => [uniqueIndex('idx_plugin_album').on(table.plugin_id, table.id, table.address)])
 } as const
-// bunx drizzle-kit generate --dialect sqlite --schema ./src/schema.ts
+// bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts
