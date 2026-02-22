@@ -28,7 +28,9 @@ export class WebSocketServerConnection {
     return this.socket.data.isOpened
   }
 
-  public readonly send = (message: string) => this.socket.send(message)
+  public readonly send = (message: string) => {
+    if (this.isOpened) this.socket.send(message)
+  }
   public readonly close = () => this.socket.close()
 
   public onMessage(handler: (message: string) => void) {
