@@ -4,10 +4,11 @@ import WebSocketClient from "./client";
 import type { WebSocketServerConnection } from "./server";
 import type Node from "../../Node";
 import type { Repositories } from "../../db";
-import { RequestManager } from "../../protocol/RequestManager";
-import { type Request, type Response, type Announce, type Album, type Artist, type Track, MessageSchemas } from "../../protocol/Messages";
+import { RequestManager } from "../../protocol/HIP2/requests";
+import { type Announce, type Album, type Artist, type Track, MessageSchemas } from "../../protocol/Messages";
 import { getCapabilities } from "../../protocol/HIP1/capabilities";
 import type { MetadataPlugin } from "../../Metadata";
+import type { Request, Response } from '../../protocol/HIP2/requests'
 
 export class Peer {
   private readonly requests = new RequestManager()

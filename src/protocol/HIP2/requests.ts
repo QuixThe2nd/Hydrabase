@@ -1,5 +1,22 @@
-import type { Request, Response } from './Messages'
-import { validateCapability, type Capability } from './HIP1/capabilities'
+import { validateCapability, type Capability } from '../HIP1/capabilities'
+import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSchema } from '../../Metadata';
+import z from 'zod'
+
+export const RequestSchema = z.object({
+  type: z.union([z.literal('track'), z.literal('artist'), z.literal('album')]),
+  query: z.string()
+})
+
+export const ResponseSchema = z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)])
+
+interface MessageMap {
+  track: z.infer<typeof TrackSearchResultSchema>[];
+  artist: z.infer<typeof ArtistSearchResultSchema>[];
+  album: z.infer<typeof AlbumSearchResultSchema>[];
+}
+
+export type Request = z.infer<typeof RequestSchema>
+export type Response<T extends keyof MessageMap = keyof MessageMap> = MessageMap[T]
 
 type PendingRequest<T extends Request['type']> = {
   resolve: (value: Response<T>) => void
@@ -10,7 +27,6 @@ type PendingRequest<T extends Request['type']> = {
 export class RequestManager {
   private nonce = -1
   private readonly pending = new Map<number, PendingRequest<Request['type']>>()
-
   private _peerCapability?: Capability
   private _handshakeComplete = false
   private _handshakeResolve?: () => void
