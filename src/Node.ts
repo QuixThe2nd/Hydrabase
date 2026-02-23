@@ -18,6 +18,7 @@ export default class Node {
   constructor(public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly metadataManager: MetadataManager, private readonly db: Repositories) {
     startServer(crypto, serverPort, peer => this.addPeer(peer))
     discoverPeers(serverPort, dhtPort, peer => this.addPeer(peer), this.crypto)
+    // WebSocketClient.init(crypto, 'ws://61.69.230.245:4544', 'ws://61.69.230.245:4545')
   }
 
   public addPeer(socket: WebSocketClient | WebSocketServerConnection) {

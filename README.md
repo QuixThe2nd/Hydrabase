@@ -13,8 +13,8 @@ services:
     container_name: hydrabase
     restart: always
     ports:
-      - 3000:3000/tcp
-      - 30000:30000/udp
+      - 4545:4545/tcp
+      - 45454:45454/udp
     # Uncomment for testing
     # volumes:
     #   - ./app:/app
@@ -23,8 +23,8 @@ services:
       # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
       # SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
       # Ports
-      DHT_PORT: 30000
-      SERVER_PORT: 3000
+      DHT_PORT: 45454
+      SERVER_PORT: 4545
       # Use `openssl rand -hex 16` to generate an api key
       # API_KEY: $API_KEY
       # Used for testing
@@ -48,7 +48,7 @@ bun src
 
 ## API Documentation
 
-To make an API request, you need to connect to a Hydrabase node via WebSocket. Connect to `ws://ip_address:3000` with the `x-api-key` header set.
+To make an API request, you need to connect to a Hydrabase node via WebSocket. Connect to `ws://ip_address:4545` with the `x-api-key` header set.
 
 ### Requests
 
@@ -108,8 +108,8 @@ This nonce can be any number, but should be unique to that request. That way whe
 
 Currently Hydrabase needs 2 ports forwarded:
 ```
-TCP: 3000 (WebSocket - Used to communicate with peers)
-UDP: 30000 (DHT - Used to discover peers)
+TCP: 4545 (WebSocket - Used to communicate with peers)
+UDP: 45454 (DHT - Used to discover peers)
 ```
 
 Hydrabase will automatically try to forward required ports using uPnP, but manual port forwarding is recommended. Hydrabase will not work without port forwarding enabled.

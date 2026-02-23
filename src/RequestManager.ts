@@ -35,26 +35,27 @@ export class RequestManager {
   private _handshakeResolve?: () => void
   private _handshakeReject?: (reason: Error) => void
   private readonly _handshakePromise: Promise<void>
-  private _handshakeTimeout: ReturnType<typeof setTimeout>
+  private killTimeout = false
 
-  constructor(private readonly timeoutMs: number = 15_000, handshakeTimeoutMs: number = 10_000) {
+  constructor(private readonly timeoutMs: number = 15_000, handshakeTimeoutMs: number = 30_000) {
     this._handshakePromise = new Promise<void>((resolve, reject) => {
       this._handshakeResolve = resolve
       this._handshakeReject = reject
     })
-    this._handshakeTimeout = setTimeout(() => this._handshakeReject?.(new Error('Capability handshake timed out')), handshakeTimeoutMs)
+    setTimeout(() => {
+      if (!this.killTimeout) this._handshakeReject?.(new Error('Capability handshake timed out'))
+    }, handshakeTimeoutMs)
   }
 
   public receiveCapability(raw: unknown): boolean {
     const result = HIP1_Conn_Capabilities.validateCapability(raw)
 
+    this.killTimeout = true
     if (!result.ok) {
-      clearTimeout(this._handshakeTimeout)
       this._handshakeReject?.(new Error(`Capability rejected: ${result.reason}`))
       return false
     }
 
-    clearTimeout(this._handshakeTimeout)
     this._peerCapability = result.capability
     this._handshakeComplete = true
     this._handshakeResolve?.()
@@ -75,9 +76,7 @@ export class RequestManager {
   }
 
   public register<T extends Request['type']>(): { nonce: number; promise: Promise<Response<T>> } {
-    if (!this._handshakeComplete) {
-      throw new Error('Cannot register request: capability handshake not yet complete')
-    }
+    if (!this._handshakeComplete) throw new Error('Cannot register request: capability handshake not yet complete')
 
     const nonce = ++this.nonce
 
@@ -108,7 +107,7 @@ export class RequestManager {
   }
 
   public close(reason: string = 'Connection closed'): void {
-    clearTimeout(this._handshakeTimeout)
+    this.killTimeout = true
 
     if (!this._handshakeComplete) this._handshakeReject?.(new Error(`${reason} before handshake completed`))
 
