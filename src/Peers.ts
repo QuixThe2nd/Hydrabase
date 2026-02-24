@@ -19,7 +19,7 @@ export default class Peers {
   constructor(private readonly node: Node, public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly metadataManager: MetadataManager, private readonly db: Repositories) {
     startServer(crypto, serverPort, peer => this.add(peer))
     discoverPeers(serverPort, dhtPort, peer => this.add(peer), this.crypto, this)
-    WebSocketClient.init(crypto, 'ws://61.69.230.245:4546', 'ws://61.69.230.245:4545', this).then(socket => {
+    WebSocketClient.init(crypto, 'ws://61.69.230.245:4544', 'ws://61.69.230.245:4545', this).then(socket => {
       if (socket) this.add(socket)
     })
   }
@@ -48,13 +48,6 @@ export default class Peers {
       if (address === '0x0') continue
       const peer = this.peers[address]!
 
-      // try {
-      //   await peer.ready
-      // } catch {
-      //   console.warn('WARN:', `Skipping peer ${address}: handshake failed`)
-      //   delete this.peers[address]
-      //   continue
-      // }
       if (!peer.isOpened) {
         console.warn('WARN:', `Skipping peer ${address}: connection not open`)
         delete this.peers[address]
@@ -71,7 +64,6 @@ export default class Peers {
         const hash = BigInt(Bun.hash(JSON.stringify(result)))
         if (!(result.plugin_id in pluginMatches)) pluginMatches[result.plugin_id] = { match: 0, mismatch: 0 }
         pluginMatches[result.plugin_id]![confirmedHashes.has(hash) ? 'match' : 'mismatch']++
-        // if (pluginId in hashes) responseMatches[pluginId as P] = hashes[pluginId as P] === hash;
       }
 
       const peerConfidence = avg(

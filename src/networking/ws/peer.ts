@@ -10,17 +10,12 @@ import type Peers from "../../Peers";
 import type Node from "../../Node";
 
 export class Peer {
-  // private readonly HIP1_Conn_Capabilities: HIP1_Conn_Capabilities
   private readonly requestManager: RequestManager
   private readonly HIP4_Conn_Announce: HIP4_Conn_Announce
-  // public readonly ready: Promise<void>
 
   constructor(private readonly node: Node, private readonly socket: WebSocketClient | WebSocketServerConnection, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, onClose: () => void, peers: Peers, private readonly db: Repositories, public readonly plugins: MetadataPlugin[]) {
-    // this.HIP1_Conn_Capabilities = new HIP1_Conn_Capabilities(this)
     this.requestManager = new RequestManager() // TODO: split into separate HIP2 class
     this.HIP4_Conn_Announce = new HIP4_Conn_Announce(crypto, this, addPeer, peers)
-    // this.ready = this.requestManager.handshake
-    // console.log('[HIP1] Handshake complete')
     // console.log('LOG:', `Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     this.socket.onClose(() => {
       this.requestManager.close()
@@ -32,31 +27,10 @@ export class Peer {
       const type = HIP2_Conn_Message.identifyType(result)
       if (type === null) return console.warn('WARN:', 'Unexpected message', `- ${message}`)
 
-      // if (type === 'capability') {
-      //   const ok = this.requestManager.receiveCapability(result.capability)
-      //   if (!ok) {
-      //     console.warn('WARN:', `Invalid capability from ${this.socket.address}, disconnecting`)
-      //     this.socket.close()
-      //   }
-      //   return
-      // }
-
-      // if (!this.requestManager.handshakeComplete) {
-      //   console.warn('WARN:', `Message from ${this.socket.address} before handshake, disconnecting`)
-      //   this.socket.close()
-      //   return
-      // }
-
       const data = HIP2_Conn_Message.parse(type, result)
       if (!data) return console.warn('WARN:', `Unexpected ${type}`, `- ${message}`)
       await this.handlers[type](data, nonce)
     })
-
-    // this.socket.send(JSON.stringify({ capability: this.HIP1_Conn_Capabilities.capabilities }))
-    // this.requestManager.handshake.catch(err => {
-    //   console.warn('WARN:', `Disconnecting ${this.socket.address}: ${err.message}`)
-    //   this.socket.close()
-    // })
   }
 
   get isOpened() {
