@@ -10,6 +10,7 @@ import { startServer, type WebSocketServerConnection } from './networking/ws/ser
 import { discoverPeers } from './networking/dht'
 import type { Request } from './RequestManager';
 import type Node from './Node';
+import { StatsReporter } from './StatsReporter';
 
 
 const parser = new Parser()
@@ -23,10 +24,9 @@ export default class Peers {
 
   constructor(private readonly node: Node, public readonly serverPort: number, dhtPort: number, private readonly crypto: Crypto, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB) {
     startServer(crypto, serverPort, peer => this.add(peer))
-    discoverPeers(serverPort, dhtPort, peer => this.add(peer), this.crypto, this)
-    WebSocketClient.init(crypto, 'ws://61.69.230.245:4544', 'ws://61.69.230.245:4545', this).then(socket => {
-      if (socket) this.add(socket)
-    })
+    discoverPeers(serverPort, dhtPort, peer => this.add(peer), crypto, this)
+    new StatsReporter(crypto.address, metadataManager.installedPlugins, () => this.peers, db)
+
   }
 
   public add(socket: WebSocketClient | WebSocketServerConnection) {

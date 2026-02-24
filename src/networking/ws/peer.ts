@@ -11,6 +11,7 @@ import type Node from "../../Node";
 import { sql } from 'drizzle-orm'
 import { Parser } from 'expr-eval'
 import { CONFIG } from "../../config";
+import type { NodeStats } from "../../StatsReporter";
 
 const avg = (numbers: number[]) => numbers.reduce((a, b) => a + b, 0) / numbers.length
 
@@ -92,6 +93,9 @@ export class Peer {
 
   get historicConfidence(): number {
     return getHistoricPeerConfidence(this.db, this.address, this.plugins)
+  }
+  public sendStats(stats: NodeStats): void {
+    this.socket.send(JSON.stringify({ stats }))
   }
 }
 
