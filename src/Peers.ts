@@ -49,39 +49,43 @@ export default class Peers {
     const results = new Map<bigint, Exclude<SearchResult[T], 'confidence'> & { confidences: number[] }>()
     console.log('LOG:', `Sending request to ${Object.keys(this.peers).length} peers`)
     for (const _address in this.peers) {
-      const address = _address as `0x${string}`
-      if (address === '0x0') continue
-      const peer = this.peers[address]!
+      try {
+        const address = _address as `0x${string}`
+        if (address === '0x0') continue
+        const peer = this.peers[address]!
 
-      if (!peer.isOpened) {
-        console.warn('WARN:', `Skipping peer ${address}: connection not open`)
-        delete this.peers[address]
-        continue
-      }
+        if (!peer.isOpened) {
+          console.warn('WARN:', `Skipping peer ${address}: connection not open`)
+          delete this.peers[address]
+          continue
+        }
 
-      console.log('LOG:', `Sending request to peer ${address}`)
-      const peerResults = await peer.search(request.type, request.query)
-      console.log('LOG:', `Received ${peerResults.length} results from ${address}`)
+        console.log('LOG:', `Sending request to peer ${address}`)
+        const peerResults = await peer.search(request.type, request.query)
+        console.log('LOG:', `Received ${peerResults.length} results from ${address}`)
 
-      // Compare Results
-      const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}
-      for (const result of peerResults) {
-        const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        if (!(result.plugin_id in pluginMatches)) pluginMatches[result.plugin_id] = { match: 0, mismatch: 0 }
-        pluginMatches[result.plugin_id]![confirmedHashes.has(hash) ? 'match' : 'mismatch']++
-      }
+        // Compare Results
+        const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}
+        for (const result of peerResults) {
+          const hash = BigInt(Bun.hash(JSON.stringify(result)))
+          if (!(result.plugin_id in pluginMatches)) pluginMatches[result.plugin_id] = { match: 0, mismatch: 0 }
+          pluginMatches[result.plugin_id]![confirmedHashes.has(hash) ? 'match' : 'mismatch']++
+        }
 
-      const peerConfidence = avg(
-        Object.entries(pluginMatches)
-          .filter(([pluginId]) => installedPlugins.has(pluginId))
-          .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
-      ) // 0-1
+        const peerConfidence = avg(
+          Object.entries(pluginMatches)
+            .filter(([pluginId]) => installedPlugins.has(pluginId))
+            .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
+        ) // 0-1
 
-      for (const result of peerResults) {
-        const hash = BigInt(Bun.hash(JSON.stringify(result)))
-        const peerClaimedConfidence = result.confidence
-        const finalConfidence = parser.evaluate(CONFIG.finalConfidence, { x: peerConfidence, y: peerClaimedConfidence, z: peer.historicConfidence })
-        results.set(hash, { ...result as Exclude<SearchResult[T], 'confidence'>, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
+        for (const result of peerResults) {
+          const hash = BigInt(Bun.hash(JSON.stringify(result)))
+          const peerClaimedConfidence = result.confidence
+          const finalConfidence = parser.evaluate(CONFIG.finalConfidence, { x: peerConfidence, y: peerClaimedConfidence, z: peer.historicConfidence })
+          results.set(hash, { ...result as Exclude<SearchResult[T], 'confidence'>, confidences: [...results.get(hash)?.confidences ?? [], finalConfidence] })
+        }
+      } catch(e) {
+        console.error('ERROR:', e)
       }
     }
 
