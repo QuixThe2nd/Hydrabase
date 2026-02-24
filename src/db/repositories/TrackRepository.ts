@@ -11,7 +11,7 @@ export class TrackRepository {
       artists: result.artists.join(','),
       external_urls: JSON.stringify(result.external_urls),
       address: '0x0',
-      confidence: Number.MAX_SAFE_INTEGER,
+      confidence: 1,
     }).onConflictDoNothing().run()
   }
 

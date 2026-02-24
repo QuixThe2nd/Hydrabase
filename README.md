@@ -28,7 +28,7 @@ services:
       # Use `openssl rand -hex 16` to generate an api key
       # API_KEY: $API_KEY
       # Used for testing
-      DUMMY_NODES: 0
+      # DUMMY_NODES: 0
 ```
 
 ### Manual
@@ -64,7 +64,7 @@ Once connected to a node, you can trigger searches by sending a message structur
 
 The Hydrabase node will respond with results.
 
-You can (and should) optionally set a nonce like so:
+You can optionally (and should) set a nonce like so:
 ```json
 {
   "request": {
@@ -137,10 +137,10 @@ Hydrabase nodes can run plugins. For now, only iTunes & Spotify plugins exist. T
 Hydrabase nodes can query their peers to lookup metadata for them. This will trigger a local lookup on the peer's end with the results relayed.
 
 ### Confidence Scoring
-A score is calculated that represents your confidence/trust in a peer's response. This aims to represent the odds that a peer is lying to you. Currently, this is calculated by comparing the results for plugins you and your peer share in common. A confidence score of 1 means that for all information you can verify, they always told the truth. While 0 means that all the results they gave you were inconsistent with what you can verify with a local lookup.
+A score is calculated that represents your confidence/trust in a peer's response. This aims to represent the odds that a peer is lying to you. Currently, this is calculated by comparing the results for plugins you and your peer share in common. By default, a confidence score of 1 means that for all information you can verify, you have no reason to believe they're lying. While 0 means that all the results they gave you were inconsistent with what you can verify with a local lookup.
 
 ### Peer Reputation
-Historic confidence scores of each peers' responses are kept track of. This will be used in the future to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
+Historic peer responses are kept track of, like a ledger of votes. This is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
 
 ### Identities
 Each Hydrabase has it's own public key used to identify itself. This is currently used to de-duplicate peers and to avoid connecting to self. In the future identities will be used to permanently keep track of peer reputation.
