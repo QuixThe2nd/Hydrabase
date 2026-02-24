@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm'
-import { lookup } from 'ip-location-api'
 import type { DB } from './db'
 import type { MetadataPlugin } from './Metadata'
 import type { Peer } from './networking/ws/peer'
@@ -14,7 +13,6 @@ export interface ApiPeer {
   uptime: number
   rxTotal: number
   txTotal: number
-  country: string
   plugins: string[]
 }
 
@@ -26,10 +24,7 @@ export interface NodeStats {
   knownPeers: `0x${string}`[]
   connectedPeers: number
   peers: ApiPeer[]
-  dhtNodes: {
-    host: string
-    country: string
-  }[]
+  dhtNodes: string[]
   votes: {
     tracks: number
     artists: number
@@ -40,18 +35,6 @@ export interface NodeStats {
     artists: number
     albums: number
   }
-}
-
-const ipMap = new Map<string, string>()
-
-const getCountry = async (ip: string): Promise<string> => {
-  const knownCountry = ipMap.get(ip)
-  if (knownCountry) return knownCountry
-  const result = lookup(ip)
-  if (!result || !('country' in result) || !result['country']) return 'N/A'
-  const country = result['country']
-  ipMap.set(ip, country)
-  return country
 }
 
 const COUNT_VOTES_SQL = (table: 'tracks' | 'artists' | 'albums') => sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '0x0'`)
@@ -85,16 +68,15 @@ export class StatsReporter {
       connectedPeers: Object.keys(peers).filter(a => a !== '0x0').length,
       peers: await Promise.all(Object.entries(peers)
         .filter(([address]) => address !== '0x0')
-        .map(async ([, { address, hostname, historicConfidence, averageLatencyMs, uptimeMs, rxTotal, txTotal, isOpened, plugins }]) => {
-          const country = await getCountry((new URL(hostname)).host)
-          return { address, hostname, confidence: historicConfidence, latency: averageLatencyMs, uptime: uptimeMs, rxTotal, txTotal, country, status: isOpened ? 'connected' : 'disconnected', plugins: plugins.map(({id}) => id) }
-        })),
+        .map(async ([, { address, hostname, historicConfidence, averageLatencyMs, uptimeMs, rxTotal, txTotal, isOpened, plugins }]) => (
+          { address, hostname, confidence: historicConfidence, latency: averageLatencyMs, uptime: uptimeMs, rxTotal, txTotal, status: isOpened ? 'connected' : 'disconnected', plugins: plugins.map(({id}) => id) }
+        ))),
       votes: {
         tracks:  countRow(COUNT_VOTES_SQL('tracks')),
         artists: countRow(COUNT_VOTES_SQL('artists')),
         albums:  countRow(COUNT_VOTES_SQL('albums')),
       },
-      dhtNodes: await Promise.all(this.dht.getNodes().map(async ({host,port}) => ({ host: `${host}:${port}`, country: await getCountry(host) }))),
+      dhtNodes: this.dht.getNodes().map(({host,port}) => `${host}:${port}`),
       peerData: {
         tracks:  countRow(COUNT_PEER_SQL('tracks')),
         artists: countRow(COUNT_PEER_SQL('artists')),

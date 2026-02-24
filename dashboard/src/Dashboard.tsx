@@ -1,10 +1,23 @@
 import { useState, useEffect, useRef, useCallback, type JSX } from "react";
 import type { ApiPeer, NodeStats } from "../../src/StatsReporter"
+import IpLookup from '@iplookup/country'
 import { countryCodeEmoji } from 'country-code-emoji';
 
 declare const VERSION: string;
 
 const toEmoji = (country: string) => country === 'N/A' ? '🌐' : countryCodeEmoji(country)
+
+const ipMap = new Map<string, string>()
+
+const getCountry = async (ip: string): Promise<string> => {
+  const knownCountry = ipMap.get(ip)
+  if (knownCountry) return knownCountry
+  const result = await IpLookup(ip)
+  if (!result || !('country' in result) || !result['country']) return 'N/A'
+  const country = result['country']
+  ipMap.set(ip, country)
+  return country
+}
 
 // Types
 type WsState = "connecting" | "open" | "closed" | "error";
@@ -23,10 +36,10 @@ const parseWsHost = (wsUrl: string): { hostname: string; port: number } => {
   return { hostname: url.host, port: Number(url.port) }
 };
 
-const enrichPeers = (apiPeers: ApiPeer[] = [], knownPeers: `0x${string}`[] = []): ApiPeer[] => {
+const enrichPeers = (apiPeers: ApiPeer[] = [], knownPeers: `0x${string}`[] = []): Promise<(ApiPeer & { country: string })[]> => {
   const allAddrs = Array.from(new Set([...apiPeers.map<`0x${string}`>(p => p.address), ...knownPeers]));
 
-  return allAddrs.map(address => {
+  return Promise.all(allAddrs.map(async address => {
     const apiPeer = apiPeers.find(p => p.address === address);
     const { hostname, port } = apiPeer ? parseWsHost(apiPeer.hostname ?? "") : { hostname: "unknown", port: 4544 };
     return {
@@ -40,9 +53,9 @@ const enrichPeers = (apiPeers: ApiPeer[] = [], knownPeers: `0x${string}`[] = [])
       rxTotal: apiPeer ? apiPeer.rxTotal : 0,
       txTotal: apiPeer ? apiPeer.txTotal : 0,
       plugins: apiPeer ? apiPeer.plugins : [],
-      country: apiPeer ? apiPeer.country : 'N/A'
+      country: apiPeer ? await getCountry(hostname) : 'N/A'
     };
-  });
+  }))
 };
 
 const SDot = ({ status }: { status: ApiPeer['status'] }) => <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: SC[status] ?? "#888", boxShadow: status === "connected" ? `0 0 6px ${SC.connected}` : "none", marginRight: 5, flexShrink: 0 }} />;
@@ -149,7 +162,7 @@ function ApiKeyGate({ onSubmit }: { onSubmit: (socket: string, key: string) => v
 function Dashboard({ socket, apiKey }: { socket: string, apiKey: string }) {
   const [wsState, setWsState] = useState<WsState>("connecting");
   const [lastPoll, setLastPoll] = useState<Date | null>(null);
-  const [peers, setPeers] = useState<ApiPeer[]>([]);
+  const [peers, setPeers] = useState<(ApiPeer & { country: string })[]>([]);
   const [selfAddr, setSelfAddr] = useState<string>("—");
   const [votes, setVotes] = useState<VoteCounts>({ tracks: 0, artists: 0, albums: 0 });
   const [peerData, setPeerData] = useState<VoteCounts>({ tracks: 0, artists: 0, albums: 0 });
@@ -172,13 +185,12 @@ function Dashboard({ socket, apiKey }: { socket: string, apiKey: string }) {
     setSelfAddr(stats.address);
     setVotes(stats.votes);
     setPeerData(stats.peerData);
-    setDhtNodes(stats.dhtNodes);
+    Promise.all(stats.dhtNodes.map(async host => ({ host, country: await getCountry(host.split(':')[0]!)}))).then(nodes => setDhtNodes(nodes))
     setInstalledPlugins(stats.installedPlugins);
     setKnownPlugins(stats.knownPlugins);
-    console.log(stats.dhtNodes?.length)
     setDhtNodeCounts(prev => [...prev, stats.dhtNodes?.length ?? 0])
 
-    setPeers(enrichPeers(stats.peers ?? [], stats.knownPeers));
+    enrichPeers(stats.peers ?? [], stats.knownPeers).then(peers => setPeers(peers));
 
     addLog("INFO", `Stats received — ${stats.connectedPeers} connected, ${(stats.dhtNodes??[]).length} DHT nodes`);
   }, [addLog]);
@@ -212,7 +224,7 @@ function Dashboard({ socket, apiKey }: { socket: string, apiKey: string }) {
         }
       };
 
-      ws.onerror = (_ev?: Event) => {
+      ws.onerror = () => {
         if (destroyed) return;
         setWsState("error");
         addLog("ERROR", "WebSocket error");

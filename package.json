@@ -23,12 +23,12 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@iplookup/country": "^1.0.20260223",
     "bittorrent-dht": "^11.0.11",
     "country-code-emoji": "^2.3.0",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "expr-eval": "^2.0.2",
-    "ip-location-api": "^4.0.4",
     "js-sha3": "^0.9.3",
     "nat-upnp": "^1.1.1",
     "react": "^19.2.4",

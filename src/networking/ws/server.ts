@@ -61,7 +61,9 @@ export class WebSocketServerConnection {
 await Bun.build({
   entrypoints: ["./dashboard/src/main.tsx"],
   outdir: "./dist",
-  define: { VERSION: JSON.stringify(version) },
+  define: { VERSION: JSON.stringify(version), __CDN_URL__: 'https://cdn.jsdelivr.net/npm/@iplookup/country/' },
+  target: "browser",
+  conditions: ["browser", "module", "import"],
 });
 
 export const startServer = (crypto: Crypto, port: number, addPeer: (conn: WebSocketServerConnection) => void) => {
