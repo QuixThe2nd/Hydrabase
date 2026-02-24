@@ -1,7 +1,7 @@
 import z from 'zod'
 import { Crypto } from "../../Crypto"
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
-import type Node from '../../Node'
+import type Peers from '../../Peers'
 
 export const AuthSchema = z.object({
   signature: z.string(),
@@ -35,10 +35,10 @@ export default class WebSocketClient {
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data));
   }
 
-  static readonly init = async (crypto: Crypto, hostname: `ws://${string}`, selfHostname: `ws://${string}`, node: Node) => {
+  static readonly init = async (crypto: Crypto, hostname: `ws://${string}`, selfHostname: `ws://${string}`, peers: Peers) => {
     const address = await HIP3_CONN_Authentication.verifyClientAddress(hostname)
     if (!address) return false
-    if (node.hasPeer(address)) {
+    if (peers.has(address)) {
       console.warn('WARN:', 'Already connected/connecting to peer')
       return false
     }

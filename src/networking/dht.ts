@@ -4,7 +4,7 @@ import { portForward } from './upnp'
 import WebSocketClient from './ws/client';
 import type { Crypto } from '../Crypto';
 import { CONFIG } from '../config';
-import type Node from '../Node';
+import type Peers from '../Peers';
 
 const knownPeers = new Set<`${string}:${number}`>();
 
@@ -16,13 +16,13 @@ const announce = (dht: DHT, port: number) => {
   dht.lookup(room, err => { if (err) console.error('ERROR:', 'DHT threw an error during lookup', err) })
 }
 
-export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, node: Node) => {
+export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (peer: WebSocketClient) => void, crypto: Crypto, peers: Peers) => {
   portForward(dhtPort, 'Hydrabase (UDP)', 'UDP');
   const dht = new DHT({
     krpc: krpc(),
     bootstrap: ['router.bittorrent.com:6881', 'router.utorrent.com:6881', 'dht.transmissionbt.com:6881']
   })
-  dht.listen(dhtPort, '0.0.0.0', () => console.log('LOG:', `DHT Listening on port ${dhtPort}`))
+  dht.listen(dhtPort, '0.0.0.0', () => console.log('LOG:', `DHT listening on port ${dhtPort}`))
   dht.on('error', err => console.error('ERROR:', 'DHT the an error', err))
   // dht.on('warning', warning => console.warn('WARN:', 'DHT threw a warning', warning))
   dht.on('ready', () => {
@@ -36,20 +36,20 @@ export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (pee
   })
   // dht.on('node', node => console.log('LOG:', `Discovered DHT node ${node.host}:${node.port}`))
   dht.on('peer', async peer => {
-    if (knownPeers.has(`${peer.host}:${peer.port}`) || CONFIG.blacklistedIPs.includes(peer.host)) return
     if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.serverHostname}:${serverPort}`) return
-    console.log('LOG:', `Discovered peer dht://${peer.host}:${peer.port}`)
-    const client = await WebSocketClient.init(crypto, `ws://${peer.host}:${peer.port}`, `ws://${CONFIG.serverHostname}:${serverPort}`, node)
+    if (knownPeers.has(`${peer.host}:${peer.port}`) || CONFIG.blacklistedIPs.includes(peer.host)) return
+    knownPeers.add(`${peer.host}:${peer.port}`)
+    console.log('LOG:', `Discovered peer ws://${peer.host}:${peer.port}`)
+    const client = await WebSocketClient.init(crypto, `ws://${peer.host}:${peer.port}`, `ws://${CONFIG.serverHostname}:${serverPort}`, peers)
     if (client === false) return
     addPeer(client)
-    knownPeers.add(`${peer.host}:${peer.port}`)
   })
   dht.on('announce', async (peer, _infoHash) => {
     if (_infoHash.toString('hex') !== getRoomId()) return
     if (knownPeers.has(`${peer.host}:${peer.port}`) || CONFIG.blacklistedIPs.includes(peer.host)) return
     if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.serverHostname}:${serverPort}`) return
     console.log('LOG:', `Received announce from dht://${peer.host}:${peer.port}`)
-    const client = await WebSocketClient.init(crypto, `ws://${peer.host}:${peer.port}`, `ws://${CONFIG.serverHostname}:${serverPort}`, node)
+    const client = await WebSocketClient.init(crypto, `ws://${peer.host}:${peer.port}`, `ws://${CONFIG.serverHostname}:${serverPort}`, peers)
     if (client === false) return
     addPeer(client)
     knownPeers.add(`${peer.host}:${peer.port}`)

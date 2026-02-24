@@ -9,8 +9,8 @@ export const MessageSchemas = {
 };
 
 export class HIP2_Conn_Message {
-  static identifyType = (result: any): keyof typeof MessageSchemas | null => 'capability' in result ? 'capability'
-    : 'request' in result ? 'request'
+  static identifyType = (result: any): keyof typeof MessageSchemas | null => // 'capability' in result ? 'capability' :
+    'request' in result ? 'request'
     : 'response' in result ? 'response'
     : 'announce' in result ? 'announce'
     : null

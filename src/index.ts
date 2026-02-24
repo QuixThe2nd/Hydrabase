@@ -22,7 +22,6 @@ declare global {
 }
 
 // TODO: Merge duplicate artists from diff plugins
-// TODO: search db cache
 
 const SPOTIFY_CLIENT_ID = process.env['SPOTIFY_CLIENT_ID']
 const SPOTIFY_CLIENT_SECRET = process.env['SPOTIFY_CLIENT_SECRET']
@@ -44,7 +43,7 @@ for (let i = 1; i < 1+CONFIG.dummyNodes; i++) {
 // Start Node
 const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, new Crypto(await getPrivateKey()), metadataManager, db)
 
-await new Promise(res => setTimeout(res, 30_000))
+await new Promise(res => setTimeout(res, 10_000))
 
 console.log('LOG:', 'Track results:', await node.search('track', 'dont stop me now'));
 console.log('LOG:', 'Artist results:', await node.search('artist', 'jay z'));
