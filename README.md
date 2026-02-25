@@ -16,8 +16,8 @@ services:
       - 4545:4545/tcp
       - 45454:45454/udp
     # Uncomment for testing
-    # volumes:
-    #   - ./app:/app
+    volumes:
+      - ./data:/app/data
     environment:
       # Uncomment to enable Spotify plugin:
       # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
