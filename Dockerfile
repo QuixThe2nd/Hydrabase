@@ -1,6 +1,6 @@
 # Base Image
 FROM oven/bun AS base
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Install Dependencies
 FROM base AS install
@@ -15,8 +15,8 @@ COPY . .
 
 # Copy Dependencies & Code into final image
 FROM base AS release
-COPY --from=prerelease /usr/src/app/src/index.ts .
-COPY --from=prerelease /usr/src/app/package.json .
+COPY --from=prerelease /app/src/index.ts .
+COPY --from=prerelease /app/package.json .
 
 ENV NODE_ENV=production
 
