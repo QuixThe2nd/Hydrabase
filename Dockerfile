@@ -15,7 +15,7 @@ COPY . .
 
 # Copy Dependencies & Code into final image
 FROM base AS release
-COPY --from=prerelease /usr/src/app/index.ts .
+COPY --from=prerelease /usr/src/app/src/index.ts .
 COPY --from=prerelease /usr/src/app/package.json .
 
 ENV NODE_ENV=production
