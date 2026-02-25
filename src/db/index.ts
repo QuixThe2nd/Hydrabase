@@ -7,7 +7,7 @@ import { ArtistRepository } from './repositories/ArtistRepository';
 import { TrackRepository } from './repositories/TrackRepository';
 import fs from 'fs';
 
-if (!await Bun.file('data').exists()) fs.mkdirSync('data')
+if (!(await Bun.file('data').exists())) fs.mkdirSync('data', { recursive: true })
 const sqlite = new Database('data/db.sqlite')
 
 export type DB = BunSQLiteDatabase<typeof schema>
