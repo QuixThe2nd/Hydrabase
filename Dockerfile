@@ -1,13 +1,27 @@
-FROM oven/bun
-
-RUN apt-get update && apt-get install -y git gosu && rm -rf /var/lib/apt/lists/*
-
+# Base Image
+FROM oven/bun AS base
 WORKDIR /app
-RUN git clone https://github.com/QuixThe2nd/Hydrabase .
-RUN bun install
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Install Dependencies
+FROM base AS install
+RUN mkdir -p /temp/build
+COPY package.json bun.lock /temp/build/
+RUN cd /temp/build && bun install --frozen-lockfile
 
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["bun", "src"]
+# Import Dependencies & Code
+FROM base AS prerelease
+COPY --from=install /temp/build/node_modules node_modules
+COPY . .
+
+# Copy Dependencies & Code into final image
+FROM base AS release
+COPY --from=prerelease /app/src/index.ts .
+COPY --from=prerelease /app/package.json .
+
+ENV NODE_ENV=production
+
+# Start Hydrabase
+USER bun
+EXPOSE 4545/tcp
+EXPOSE 45454/udp
+CMD git pull; bun install; bun src

@@ -12,14 +12,13 @@ services:
     image: ghcr.io/quixthe2nd/hydrabase
     container_name: hydrabase
     restart: always
+    user: 1000:1000 # 99:100 on unraid
     ports:
       - 4545:4545/tcp
       - 45454:45454/udp
     volumes:
       - ./data:/app/data
     environment:
-      - PUID=1000
-      - PGID=1000
       # Uncomment to enable Spotify plugin:
       # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
       # SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
