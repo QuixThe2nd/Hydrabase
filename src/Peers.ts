@@ -31,7 +31,7 @@ export default class Peers {
   public add(socket: WebSocketClient | WebSocketServerConnection) {
     if (socket.address in this.peers) {
       socket.close()
-      return console.warn('WARN:', '[PEERS] Already connected/connecting to peer')
+      return console.warn('WARN:', `[PEERS] Already connected/connecting to peer - ${socket.address}`)
     }
     const peer = new Peer(this.node, socket, peer => this.add(peer), this.crypto, () => { delete this.peers[socket.address] }, this, this.repos, this.db, this.metadataManager.installedPlugins)
     this.peers[socket.address] = peer

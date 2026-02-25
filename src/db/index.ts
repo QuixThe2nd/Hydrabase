@@ -5,8 +5,10 @@ import { schema } from './schema';
 import { AlbumRepository } from './repositories/AlbumRepository';
 import { ArtistRepository } from './repositories/ArtistRepository';
 import { TrackRepository } from './repositories/TrackRepository';
+import fs from 'fs';
 
-const sqlite = new Database('db.sqlite')
+if (!(await Bun.file('data').exists())) fs.mkdirSync('data', { recursive: true })
+const sqlite = new Database('data/db.sqlite')
 
 export type DB = BunSQLiteDatabase<typeof schema>
 export interface Repositories {

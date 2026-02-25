@@ -16,6 +16,7 @@ export default class WebSocketClient {
   private openHandler?: () => void
 
   private constructor(crypto: Crypto, public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, selfHostname: `ws://${string}`) {
+    // TODO: retry queue
     const headers = HIP3_CONN_Authentication.proveClientAddress(crypto, hostname, selfHostname)
     console.log('LOG:', `[CLIENT] Connecting to peer ${hostname}`)
     this.socket = new WebSocket(hostname, { headers })

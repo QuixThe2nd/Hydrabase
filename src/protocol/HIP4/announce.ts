@@ -10,8 +10,8 @@ export type Announce = z.infer<typeof AnnounceSchema>
 export class HIP4_Conn_Announce {
   constructor(private readonly crypto: Crypto, private readonly peer: Peer, private readonly addPeer: (peer: WebSocketClient) => void, private readonly peers: Peers) {}
 
-  sendAnnounce(announce: Announce): void {
-    if (this.peer.hostname === announce.hostname) return
+  sendAnnounce(announce: Announce, address: `0x${string}`): void {
+    if (this.peer.hostname === announce.hostname || this.peer.address === address) return
     this.peer.send(JSON.stringify({ announce }))
   }
 

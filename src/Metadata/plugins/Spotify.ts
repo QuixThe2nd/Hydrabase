@@ -75,7 +75,7 @@ export default class Spotify implements MetadataPlugin {
     private clientId: string,
     private clientSecret: string,
     private market: string = "US",
-    private limit: number = 3
+    private limit: number = 50
   ) {
     if (limit > 50) throw new Error("Maximum limit is 50");
   }

@@ -70,7 +70,7 @@ export class Peer {
     return this._tx
   }
 
-  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce)
+  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce, this.address)
 
   private readonly handlers = {
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => this.HIP2_Conn_Message.send.response(await this.node.search(request.type, request.query, this.address === '0x0') as Response<T>, nonce),
