@@ -24,4 +24,4 @@ ENV NODE_ENV=production
 USER bun
 EXPOSE 4545/tcp
 EXPOSE 45454/udp
-CMD git pull; bun install; bun src
+CMD bun src
