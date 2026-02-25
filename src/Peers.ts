@@ -36,6 +36,14 @@ export default class Peers {
     const peer = new Peer(this.node, socket, peer => this.add(peer), this.crypto, () => { delete this.peers[socket.address] }, this, this.repos, this.db, this.metadataManager.installedPlugins)
     this.peers[socket.address] = peer
     this.announce(peer)
+
+    let peerCount = 0
+    setInterval(() => {
+      if (peerCount !== this.count) {
+        peerCount = this.count
+        console.log('LOG:', `[PEERS] Connected to ${this.count} peers`)
+      }
+    }, 1_000)
   }
 
   private announce(peer: Peer) {
@@ -46,7 +54,7 @@ export default class Peers {
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
     const results = new Map<bigint, Exclude<SearchResult[T], 'confidence'> & { confidences: number[] }>()
-    console.log('LOG:', `[PEERS] Searching ${Object.keys(this.peers).length} peers for ${request.type}: ${request.query}`)
+    console.log('LOG:', `[PEERS] Searching ${Object.keys(this.peers).filter(address => address !== '0x0').length} peers for ${request.type}: ${request.query}`)
     for (const _address in this.peers) {
       try {
         const address = _address as `0x${string}`
@@ -90,4 +98,8 @@ export default class Peers {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
+  public get count() {
+    
+    return Object.keys(this.peers).filter(address => address !== '0x0')?.length ?? 0
+  }
 }

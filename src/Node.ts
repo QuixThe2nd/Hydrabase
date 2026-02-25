@@ -24,7 +24,6 @@ export default class Node {
 
     if (!searchPeers) return results
 
-    console.log('LOG:', '[NODE] Searching peers')
     const peerResults = await this.peers.requestAll({ type, query }, hashes, plugins)
 
     // Inject local results
@@ -34,5 +33,9 @@ export default class Node {
     }
 
     return [...peerResults.values()]
+  }
+
+  get peerCount() {
+    return this.peers.count
   }
 }
