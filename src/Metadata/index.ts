@@ -59,6 +59,7 @@ export interface SearchResult {
   track: TrackSearchResult
   artist: ArtistSearchResult
   album: AlbumSearchResult
+  discog: AlbumSearchResult
 }
 
 export interface MetadataPlugin {
@@ -73,22 +74,32 @@ export default class MetadataManager implements MetadataPlugin {
   constructor(private readonly plugins: MetadataPlugin[], private readonly db: Repositories) {}
 
   async searchTrack(query: string): Promise<TrackSearchResult[]> {
-    const results: TrackSearchResult[] = [];
+    const results: TrackSearchResult[] = []; // TODO: search db
     for (const plugin of this.plugins) results.push(...await plugin.searchTrack(query))
     for (const result of results) this.db.track.upsertFromPlugin(result)
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchArtist(query: string): Promise<ArtistSearchResult[]> {
-    const results: ArtistSearchResult[] = [];
+    const results: ArtistSearchResult[] = []; // TODO: search db
     for (const plugin of this.plugins) results.push(...await plugin.searchArtist(query))
     for (const result of results) this.db.artist.upsertFromPlugin(result)
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
 
   async searchAlbum(query: string): Promise<AlbumSearchResult[]> {
-    const results: AlbumSearchResult[] = [];
+    const results: AlbumSearchResult[] = []; // TODO: search db
     for (const plugin of this.plugins) results.push(...await plugin.searchAlbum(query))
+    for (const result of results) this.db.album.upsertFromPlugin(result)
+    return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
+  }
+
+  async searchDiscog(artistSoulId: string): Promise<AlbumSearchResult[]> {
+    const results: AlbumSearchResult[] = [];
+    for (const plugin of this.plugins) {
+      const artist = this.db.artist.selectBySoulId(artistSoulId)
+      if (id) results.push(...await plugin.searchDiscog(id))
+    }
     for (const result of results) this.db.album.upsertFromPlugin(result)
     return results.map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }));
   }
@@ -98,6 +109,7 @@ export default class MetadataManager implements MetadataPlugin {
     if (request.type === 'track') return await this.searchTrack(request.query)
     if (request.type === 'artist') return await this.searchArtist(request.query)
     if (request.type === 'album') return await this.searchAlbum(request.query)
+    if (request.type === 'discog') return await this.searchDiscog(request.query)
     else {
       console.warn('WARN:', 'Invalid request')
       return []
