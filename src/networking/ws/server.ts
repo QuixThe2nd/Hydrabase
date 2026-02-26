@@ -77,12 +77,16 @@ export const startServer = (crypto: Crypto, port: number, addPeer: (conn: WebSoc
       if (url.pathname === "/src/main.tsx") return new Response(Bun.file(`./dist/main.js`));
       if (url.pathname === "/dashboard/") return new Response(Bun.file(`./dashboard/index.html`));
 
+      console.log('LOG:', `[SERVER] Connecting to client`)
       const headers = Object.fromEntries(req.headers.entries())
       const address = await HIP3_CONN_Authentication.verifyServerAddress(headers, port)
       if (address instanceof Response) return address
       const hostname = await HIP3_CONN_Authentication.verifyServerHostname(headers, address)
       if (hostname instanceof Response) return hostname
-      return server.upgrade(req, { data: { isOpened: false, address, hostname } }) ? undefined : new Response("Upgrade failed", { status: 500 })
+      const upgrade = server.upgrade(req, { data: { isOpened: false, address, hostname } })
+      if (upgrade) console.log('LOG:', `[SERVER] Connected to client ${address} ${hostname}`)
+      else console.warn('LOG:', `[SERVER] Failed to connect to client ${address} ${hostname}`)
+      return upgrade ? undefined : new Response("Upgrade failed", { status: 500 })
     },
     websocket: {
       data: {} as WebSocketData,

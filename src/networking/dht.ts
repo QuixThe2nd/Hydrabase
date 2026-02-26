@@ -31,8 +31,8 @@ export const discoverPeers = (serverPort: number, dhtPort: number, addPeer: (pee
     announce(dht, serverPort)
     setInterval(() => announce(dht, serverPort), CONFIG.dhtReannounce)
 
-    dht.addNode({ host: 'ddns.yazdani.au', port: 45454 })
-    dht.addNode({ host: 'ddns.yazdani.au', port: 45455 })
+    // dht.addNode({ host: 'ddns.yazdani.au', port: 45454 })
+    // dht.addNode({ host: 'ddns.yazdani.au', port: 45455 })
   })
   let lastNodes = 0
   dht.on('node', () => {

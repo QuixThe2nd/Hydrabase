@@ -45,17 +45,13 @@ const node = new Node(CONFIG.serverPort, CONFIG.dhtPort, new Crypto(await getPri
 
 await new Promise(res => setTimeout(res, 10_000))
 
-console.log('Waiting for connections')
 const id = setInterval(async () => {
-  if (node.peerCount !== 0) {
-    clearInterval(id)
-    console.log('LOG:', 'Track results:', await node.search('track', 'dont stop me now'));
-    console.log('LOG:', 'Artist results:', await node.search('artist', 'jay z'));
-    console.log('LOG:', 'Album results:', await node.search('album', 'made in england'));
+  if (node.peerCount === 0) {
+    console.warn('WARN:', 'Waiting for connections')
+    return
   }
+  clearInterval(id)
+  /*console.log('LOG:', 'Track results:', */await node.search('track', 'dont stop me now')//);
+  /*console.log('LOG:', 'Artist results:', */await node.search('artist', 'jay z')//);
+  /*console.log('LOG:', 'Album results:', */await node.search('album', 'made in england')//);
 }, 500)
-
-console.log('LOG:', 'Track results:', await node.search('track', 'dont stop me now'));
-console.log('LOG:', 'Artist results:', await node.search('artist', 'jay z'));
-console.log('LOG:', 'Album results:', await node.search('album', 'made in england'));
-

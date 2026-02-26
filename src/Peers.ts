@@ -26,24 +26,20 @@ export default class Peers {
     startServer(crypto, serverPort, peer => this.add(peer))
     const dht = discoverPeers(serverPort, dhtPort, peer => this.add(peer), crypto, this)
     new StatsReporter(crypto.address, metadataManager.installedPlugins, () => this.peers, db, dht)
+
+    let lastCount = 0
+    setInterval(() => {
+      if (lastCount === this.count) return
+      lastCount = this.count
+      console.log('LOG:', `[PEERS] Connected to ${this.count} peer${this.count === 1 ? '' : 's'}`)
+    }, 1_000)
   }
 
   public add(socket: WebSocketClient | WebSocketServerConnection) {
-    if (socket.address in this.peers) {
-      socket.close()
-      return console.warn('WARN:', `[PEERS] Already connected/connecting to peer - ${socket.address}`)
-    }
+    if (socket.address in this.peers) return socket.close()
     const peer = new Peer(this.node, socket, peer => this.add(peer), this.crypto, () => { delete this.peers[socket.address] }, this, this.repos, this.db, this.metadataManager.installedPlugins)
     this.peers[socket.address] = peer
     this.announce(peer)
-
-    let peerCount = 0
-    setInterval(() => {
-      if (peerCount !== this.count) {
-        peerCount = this.count
-        console.log('LOG:', `[PEERS] Connected to ${this.count} peers`)
-      }
-    }, 1_000)
   }
 
   private announce(peer: Peer) {
@@ -66,9 +62,7 @@ export default class Peers {
           continue
         }
 
-        console.log('LOG:', `[PEERS] Sending request to peer ${address}`)
         const peerResults = await peer.search(request.type, request.query)
-        console.log('LOG:', `[PEERS] Received ${peerResults.length} results from ${address}`)
 
         // Compare Results
         const pluginMatches: { [pluginId: string]: { match: number, mismatch: number } } = {}

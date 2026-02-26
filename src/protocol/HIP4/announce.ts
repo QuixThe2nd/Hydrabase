@@ -12,11 +12,12 @@ export class HIP4_Conn_Announce {
 
   sendAnnounce(announce: Announce, address: `0x${string}`): void {
     if (this.peer.hostname === announce.hostname || this.peer.address === address) return
+    console.log('LOG:', `[HIP4] Announcing server ${announce.hostname} ${address}`)
     this.peer.send(JSON.stringify({ announce }))
   }
 
   async handleAnnounce(announce: Announce): Promise<void> {
-    console.log('LOG:', `[HIP4] Discovered peer through ${this.peer.address}: ${announce.hostname}`)
+    console.log('LOG:', `[HIP4] Discovered server through ${this.peer.address}: ${announce.hostname}`)
     const peer = await WebSocketClient.init(this.crypto, announce.hostname, this.peer.hostname, this.peers)
     if (peer) this.addPeer(peer)
   }

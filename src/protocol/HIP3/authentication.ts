@@ -26,6 +26,7 @@ const prove = {
 const verify = {
   client: {
     address: async (hostname: `ws://${string}`) => {
+      console.log('LOG:', `[HIP3] Verifying server address ${hostname}`)
       const res = await fetch(hostname.replace('ws://', 'http://') + '/auth')
       const data = await res.text()
       const auth = AuthSchema.parse(JSON.parse(data))
@@ -39,6 +40,7 @@ const verify = {
   },
   server: {
     address: async (headers: { [k: string]: string }, listenPort: number): Promise<`0x${string}` | Response> => {
+      console.log('LOG:', `[HIP3] Verifying client address`)
       const {
         'x-api-key': _apiKey,
         'x-signature': _signature,
@@ -62,6 +64,7 @@ const verify = {
       return address as `0x${string}` ?? '0x0'
     },
     hostname: async (headers: { [k: string]: string }, address: `0x${string}`): Promise<Response | `ws://${string}`> => {
+      console.log('LOG:', `[HIP3] Verifying client hostname ${address}`)
       if (address === '0x0') return 'ws://'
       const hostname = headers['x-hostname']
       if (!hostname) return new Response('Missing hostname header', { status: 400 })
@@ -75,7 +78,14 @@ const verify = {
 export class HIP3_CONN_Authentication {
   static proveServerAddress = (crypto: Crypto, listenPort: number) => prove.server.address(crypto, listenPort)
   static proveClientAddress = (crypto: Crypto, peerHostname: `ws://${string}`, selfHostname: `ws://${string}`) => prove.client.address(crypto, peerHostname, selfHostname)
-  static verifyClientAddress = (peerHostname: `ws://${string}`) => verify.client.address(peerHostname)
+  static verifyClientAddress = async (peerHostname: `ws://${string}`): Promise<false | `0x${string}`> => {
+    try {
+      return await verify.client.address(peerHostname)
+    } catch (e) {
+      if ((e as { code: string }).code === 'ConnectionRefused') return false
+      throw e
+    }
+  }
   static verifyServerAddress = (headers: { [k: string]: string }, listenPort: number) => verify.server.address(headers, listenPort)
   static verifyServerHostname = (headers: { [k: string]: string }, peerAddress: `0x${string}`) => verify.server.hostname(headers, peerAddress)
 }
