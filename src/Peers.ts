@@ -92,8 +92,13 @@ export default class Peers {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
-  public get count() {
-    
+  public get count() { 
     return Object.keys(this.peers).filter(address => address !== '0x0')?.length ?? 0
+  }
+
+  public getConfidence(address: `0x${string}`): number {
+    const peer = this.peers[address]
+    if (!peer) return 0
+    return peer.historicConfidence
   }
 }
