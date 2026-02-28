@@ -28,7 +28,7 @@ export default class Peers {
 
     cacheFile.exists().then(exists => {
       if (!exists) return
-      cacheFile.json().then((hostnames: `ws://${string}`[]) => hostnames.forEach(hostname => WebSocketClient.init(crypto, hostname, `ws://${CONFIG.serverHostname}:${serverPort}`, this).then(socket => { if (socket) this.add(socket) })))
+      cacheFile.json().then((hostnames: `ws://${string}`[]) => hostnames.filter(hostname => hostname !== 'ws://').forEach(hostname => WebSocketClient.init(crypto, hostname, `ws://${CONFIG.serverHostname}:${serverPort}`, this).then(socket => { if (socket) this.add(socket) })))
     })
     
     let lastCount = 0
