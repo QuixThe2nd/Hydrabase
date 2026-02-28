@@ -109,4 +109,10 @@ export default class Peers {
     if (!peer) return 0
     return peer.historicConfidence
   }
+
+  public isConnectionOpened(address: `0x${string}`): boolean {
+    const peer = this.peers[address]
+    if (!peer) return false
+    return peer.isOpened
+  }
 }

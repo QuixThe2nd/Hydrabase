@@ -18,7 +18,7 @@ export default class WebSocketClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
 
-  private constructor(crypto: Crypto, public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, private readonly selfHostname: `ws://${string}`) {
+  private constructor(crypto: Crypto, public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, private readonly selfHostname: `ws://${string}`, private readonly peers: Peers) {
     this._connect(crypto)
   }
 
@@ -38,7 +38,7 @@ export default class WebSocketClient {
       console.log('LOG:', `[CLIENT] Connection closed with server ${this.hostname} ${this.address}`, `- ${ev.reason}`)
       this._isOpened = false
       this.closeHandler?.()
-      this._scheduleReconnect(crypto)
+      if (!this.peers.isConnectionOpened(this.address)) this._scheduleReconnect(crypto)
     })
 
     this.socket.addEventListener('error', err => {
@@ -61,7 +61,7 @@ export default class WebSocketClient {
       console.warn('WARN:', `[CLIENT] Not connecting to self`)
       return false
     }
-    return new WebSocketClient(crypto, address, hostname, selfHostname)
+    return new WebSocketClient(crypto, address, hostname, selfHostname, peers)
   }
 
   private _scheduleReconnect(crypto: Crypto) {
