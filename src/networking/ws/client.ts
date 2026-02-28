@@ -17,6 +17,7 @@ export default class WebSocketClient {
   private retryQueue: Array<() => void> = []
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
+  private dontReconnect = false
 
   private constructor(crypto: Crypto, public readonly address: `0x${string}`, public readonly hostname: `ws://${string}`, private readonly selfHostname: `ws://${string}`, private readonly peers: Peers) {
     this._connect(crypto)
@@ -65,11 +66,11 @@ export default class WebSocketClient {
   }
 
   private _scheduleReconnect(crypto: Crypto) {
-    console.log('Scheduling reconnect')
     if (this.reconnectTimer) return
+    console.log('Scheduling reconnect')
     console.log('LOG:', `[CLIENT] Reconnecting to ${this.address} ${this.hostname} in ${this.reconnectAttempts*5_000}ms...`)
     this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null
+      if (this.dontReconnect) return
       this._connect(crypto)
     }, this.reconnectAttempts*5_000)
     this.reconnectAttempts++
@@ -81,12 +82,9 @@ export default class WebSocketClient {
   }
 
   public readonly close = () => {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
-    }
     this.retryQueue = []
     this.socket.close()
+    this.dontReconnect = true
   }
 
   get isOpened() {
