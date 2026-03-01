@@ -14,8 +14,8 @@ interface Props {
 const Header = ({ peerData, votes }: { peerData: VoteCounts, votes: VoteCounts }) => {
   const rows = [
     ["Tracks",  votes.tracks,  peerData.tracks,  "#bc8cff"],
-    ["Artists", votes.artists, peerData.artists, "#ff9bce"],
     ["Albums",  votes.albums,  peerData.albums,  "#56d364"],
+    ["Artists", votes.artists, peerData.artists, "#ff9bce"],
   ] as const;
 
   return <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>

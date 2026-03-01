@@ -105,7 +105,7 @@ export const startServer = (account: Account, peers: Peers) => {
       const response = await handleConnection(server, req, peers)
       if (response === undefined) return response
       const {address, hostname, res} = response
-      warn('DEVWARN:', `[SERVER] Rejected connection with client ${[address,hostname].join(' ') ?? 'N/A'} for reason: ${res[1]}`)
+      warn('DEVWARN:', `[SERVER] Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
       return new Response(res[1], { status: res[0] })
     },
     hostname: CONFIG.listenAddress,

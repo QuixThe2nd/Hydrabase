@@ -59,7 +59,7 @@ export default class Node {
 
     // Inject local results
     for (let i = 0; i < results.length; i++) {
-      const hash = [...hashes.values()][i]; // TODO: better de-dupe, cols like confidence should be excluded
+      const hash = [...hashes.values()][i]
       const result = results[i]
       if (hash && result) peerResults.set(hash, result)
     }
