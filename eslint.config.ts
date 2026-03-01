@@ -43,6 +43,7 @@ export default tseslint.config(
       "dot-notation": "off",
       "id-length": "off",
       "max-params": "off",
+      "no-await-in-loop": "off",
       "no-console": "error",
       "no-continue": "off",
       "no-inline-comments": "off",

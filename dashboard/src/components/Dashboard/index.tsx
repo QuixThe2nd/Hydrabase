@@ -177,6 +177,6 @@ export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }
       {tab === "logs" && <LogsTab eventLog={eventLog} lastPoll={lastPoll} socket={socket} wsState={wsState} />}
       {tab === "search" && <SearchTab onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchType={setSearchType} />}
     </div>
-    <PeerDetail peer={sel} wsRef={wsRef} onClose={() => setSel(null)} />
+    <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
   </div>
 }

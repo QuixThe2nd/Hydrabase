@@ -57,12 +57,19 @@ const searchPeer = async <T extends Request['type']>(request: Request, peer: Pee
   return saveResults(peerResults, peerConfidence, results, peer)
 }
 
+const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer => peer ? true : warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
+const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
+
 export default class Peers {
   public get count() { 
     return Object.keys(this.peers).filter(address => address !== '0x0')?.length ?? 0
   }
 
+  get peerAddresses() {
+    return this.peers.keys().filter(address => address !== '0x0')
+  }
   private readonly peers = new Map<`0x${string}`, Peer>()
+
   private readonly statsReport: StatsReporter
 
   constructor(private readonly node: Node, private readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB) {
@@ -121,18 +128,12 @@ export default class Peers {
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
     const results = new Map<bigint, Exclude<SearchResult[T], 'confidence'> & { confidences: number[] }>()
-    const peerAddresses = this.peers.keys().filter(address => address !== '0x0')
-    log('LOG:', `[PEERS] Searching ${peerAddresses.length} peer${peerAddresses.length === 1 ? '' : 's'} for ${request.type}: ${request.query}`)
-    for (const address in peerAddresses) {
+    log('LOG:', `[PEERS] Searching ${this.peerAddresses.length} peer${this.peerAddresses.length === 1 ? '' : 's'} for ${request.type}: ${request.query}`)
+    for (const address in this.peerAddresses) {
+      if (!Object.hasOwn(this.peerAddresses, address)) continue
       const peer = this.peers.get(address as `0x${string}`)
-      if (!peer) {
-        warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
-        continue
-      }
-      if (!peer.isOpened) {
-        warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
-        continue
-      }
+      if (!isPeer(peer, address as `0x${string}`)) continue
+      if (!isOpened(peer, address as `0x${string}`)) continue
       (await searchPeer(request, peer, results, installedPlugins, confirmedHashes)).entries().map(result => results.set(result[0], result[1]))
     }
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))

@@ -24,34 +24,33 @@ export interface PeerStats {
   votes: { albums: number; artists: number; tracks: number }
 }
 
+const countRow = (db: DB, table: 'albums' | 'artists' | 'tracks', address: `0x${string}`) => db.all<{ n: number }>(sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '${address}'`))[0]?.n ?? 0
+
 const collectPeerStats = (db: DB, address: `0x${string}`, installedPlugins: MetadataPlugin[]): PeerStats => {
   const installedPluginIds = new Set(installedPlugins.map(p => p.id))
-  const countRow = (table: 'albums' | 'artists' | 'tracks') => db.all<{ n: number }>(sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '${address}'`))[0]?.n ?? 0
   const peerPlugins = db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks WHERE address = '${address}'
     UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}'
     UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}'`)).map(r => r.plugin_id)
-  const sharedPlugins = peerPlugins.filter(pl => installedPluginIds.has(pl))
   let totalMatches = 0
   let totalMismatches = 0
   for (const table of ['tracks', 'artists', 'albums'] as const) {
-    const rows = db.all<{ match: number; mismatch: number; plugin_id: string }>(sql.raw(`SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch FROM ${table} peer
+    for (const { match, mismatch, plugin_id } of db.all<{ match: number; mismatch: number; plugin_id: string }>(sql.raw(`SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch FROM ${table} peer
       LEFT JOIN ${table} local ON local.id = peer.id AND local.plugin_id = peer.plugin_id AND local.address = '0x0'
-      WHERE peer.address = '${address}' GROUP BY peer.plugin_id`))
-    for (const { match, mismatch, plugin_id } of rows) {
-      if (!installedPluginIds.has(plugin_id)) continue
+      WHERE peer.address = '${address}' GROUP BY peer.plugin_id`))) {
+      if (installedPluginIds.has(plugin_id)) continue
       totalMatches += match
       totalMismatches += mismatch
     }
   }
   return {
     peerPlugins,
-    sharedPlugins,
+    sharedPlugins: peerPlugins.filter(pl => installedPluginIds.has(pl)),
     totalMatches,
     totalMismatches,
     votes: {
-      albums:  countRow('albums'),
-      artists: countRow('artists'),
-      tracks:  countRow('tracks'),
+      albums:  countRow(db, 'albums', address),
+      artists: countRow(db, 'artists', address),
+      tracks:  countRow(db, 'tracks', address),
     }
   }
 }
