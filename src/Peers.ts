@@ -129,20 +129,20 @@ export default class Peers {
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>) {
     const results = new Map<bigint, Exclude<SearchResult[T], 'confidence'> & { confidences: number[] }>()
     log('LOG:', `[PEERS] Searching ${this.peerAddresses.length} peer${this.peerAddresses.length === 1 ? '' : 's'} for ${request.type}: ${request.query}`)
-    for (const address in this.peerAddresses) {
+    for (const address of this.peerAddresses) {
       if (!Object.hasOwn(this.peerAddresses, address)) continue
-      const peer = this.peers.get(address as `0x${string}`)
-      if (!isPeer(peer, address as `0x${string}`)) continue
-      if (!isOpened(peer, address as `0x${string}`)) continue
+      const peer = this.peers.get(address)
+      if (!isPeer(peer, address)) continue
+      if (!isOpened(peer, address)) continue
       (await searchPeer(request, peer, results, installedPlugins, confirmedHashes)).entries().map(result => results.set(result[0], result[1]))
     }
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
   private announce({ hostname }: Peer) {
-    for (const peerAddress in this.peers) {
+    for (const peerAddress of this.peerAddresses) {
       if (Object.hasOwn(this.peers, peerAddress)) continue
-      const announceTo = this.peers.get(peerAddress as `0x${string}`)
+      const announceTo = this.peers.get(peerAddress)
       if (!announceTo) {
         warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
         continue
