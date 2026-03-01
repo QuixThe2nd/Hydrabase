@@ -1,4 +1,4 @@
-import type z from 'zod';
+import z from 'zod';
 
 import type { Peer } from '../../networking/ws/peer';
 
@@ -6,8 +6,11 @@ import { log, warn } from '../../log';
 import { type Request, RequestManager, RequestSchema, type Response, ResponseSchema } from '../../RequestManager';
 import { AnnounceSchema } from '../HIP4/announce';
 
+export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
+
 const MessageSchemas = {
   announce: AnnounceSchema,
+  peer_stats: PeerStatsRequestSchema,
   request: RequestSchema,
   response: ResponseSchema
 }
@@ -34,6 +37,7 @@ export class HIP2_Conn_Message {
     'request' in result ? 'request'
     : 'response' in result ? 'response'
     : 'announce' in result ? 'announce'
+    : 'peer_stats' in result ? 'peer_stats'
     : null
 
   parseMessage = (message: string): false | { data: Message, nonce: number; type: MessageType } => {

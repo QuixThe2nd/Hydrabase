@@ -16,10 +16,49 @@ import { type Announce, HIP4_Conn_Announce } from "../../protocol/HIP4/announce"
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "../../RequestManager";
 import WebSocketClient from "./client";
 
+export interface PeerStats {
+  peerPlugins: string[]
+  sharedPlugins: string[]
+  totalMatches: number
+  totalMismatches: number
+  votes: { albums: number; artists: number; tracks: number }
+}
+
+const collectPeerStats = (db: DB, address: `0x${string}`, installedPlugins: MetadataPlugin[]): PeerStats => {
+  const installedPluginIds = new Set(installedPlugins.map(p => p.id))
+  const countRow = (table: 'albums' | 'artists' | 'tracks') => db.all<{ n: number }>(sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '${address}'`))[0]?.n ?? 0
+  const peerPlugins = db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks WHERE address = '${address}'
+    UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}'
+    UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}'`)).map(r => r.plugin_id)
+  const sharedPlugins = peerPlugins.filter(pl => installedPluginIds.has(pl))
+  let totalMatches = 0
+  let totalMismatches = 0
+  for (const table of ['tracks', 'artists', 'albums'] as const) {
+    const rows = db.all<{ match: number; mismatch: number; plugin_id: string }>(sql.raw(`SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch FROM ${table} peer
+      LEFT JOIN ${table} local ON local.id = peer.id AND local.plugin_id = peer.plugin_id AND local.address = '0x0'
+      WHERE peer.address = '${address}' GROUP BY peer.plugin_id`))
+    for (const { match, mismatch, plugin_id } of rows) {
+      if (!installedPluginIds.has(plugin_id)) continue
+      totalMatches += match
+      totalMismatches += mismatch
+    }
+  }
+  return {
+    peerPlugins,
+    sharedPlugins,
+    totalMatches,
+    totalMismatches,
+    votes: {
+      albums:  countRow('albums'),
+      artists: countRow('artists'),
+      tracks:  countRow('tracks'),
+    }
+  }
+}
+
 const avg = (numbers: number[]) => numbers.reduce((a, b) => a + b, 0) / numbers.length
 
 interface PluginAccuracy { match: number; mismatch: number; plugin_id: string; }
-
 
 const queryTable = (table: 'albums' | 'artists' | 'tracks', db: DB, address: `0x${string}`) => db.all<PluginAccuracy>(sql`
   SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch
@@ -88,6 +127,11 @@ export class Peer {
 
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
+    peer_stats: (_data: { address: `0x${string}` }, nonce: number) => {
+      if (this.address !== '0x0') return
+      const stats = collectPeerStats(this.db, _data.address, this.plugins)
+      this.send(JSON.stringify({ nonce, peer_stats_response: stats }))
+    },
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => this.HIP2_Conn_Message.send.response(await this.node.search(request.type, request.query, this.address === '0x0') as Response<T>, nonce),
     response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) {warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.peer.address}`)} }
   }
