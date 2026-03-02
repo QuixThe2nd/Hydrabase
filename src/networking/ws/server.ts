@@ -99,8 +99,11 @@ export const startServer = (account: Account, peers: Peers) => {
   const server = Bun.serve({
     fetch: async (req, server) =>  {
       const url = new URL(req.url)
-      if (url.pathname === "/src/main.tsx") return new Response(Bun.file(`./dist/main.js`))
-      if (url.pathname === "/dashboard/") return new Response(Bun.file(`./dashboard/index.html`))
+      if (req.headers.get("upgrade") !== "websocket") {
+        if (url.pathname === "/src/main.tsx") return new Response(Bun.file(`./dist/main.js`))
+        if (url.pathname === "/") return new Response(Bun.file(`./dashboard/index.html`))
+        return new Response('Page not found', { status: 404 })
+      }
       const response = await handleConnection(server, req, peers)
       if (response === undefined) return response
       const {address, hostname, res} = response
