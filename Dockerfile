@@ -21,10 +21,15 @@ EXPOSE 45454/udp
 ENV PUID=99
 ENV PGID=100
 
-RUN groupadd -g ${PGID} hydrabasegroup \
- && useradd -u ${PUID} -g ${PGID} -m hydrabase \
- && chown -R hydrabase:hydrabasegroup /app
+RUN set -eux; \
+    if ! getent group ${PGID} >/dev/null; then \
+        groupadd -g ${PGID} hydrabasegroup; \
+    fi; \
+    if ! id -u ${PUID} >/dev/null 2>&1; then \
+        useradd -u ${PUID} -g ${PGID} -m hydrabase; \
+    fi; \
+    chown -R ${PUID}:${PGID} /app
 
-USER hydrabase
+USER ${PUID}:${PGID}
 
 CMD bun src; sleep 3600
