@@ -45,7 +45,7 @@ const sortPeers = (peers: PeerWithCountry[], filter: FilterState, sortD: number,
   const av = a[sortK] as unknown as number | string | undefined
   const bv = b[sortK] as unknown as number | string | undefined
   if (typeof av === "string" || typeof bv === "string") {return String(av ?? "").localeCompare(String(bv ?? "")) * sortD}
-  return (((av as number) ?? -Infinity) - ((bv as number) ?? -Infinity)) * sortD
+  return ((av ?? -Infinity) - (bv ?? -Infinity)) * sortD
 })
 
 export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
