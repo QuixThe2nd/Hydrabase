@@ -47,7 +47,7 @@ export class HIP2_Conn_Message {
     if (!type) return warn('DEVWARN:', `[HIP2] Unexpected message from ${this.peer.address}`, `- ${message}`)
 
     const {data,error} = MessageSchemas[type].safeParse(result[type])
-    if (!data) return warn('DEVWARN:', `[HIP2] Unexpected ${type} from ${this.peer.address}`, error ? {error, message} : {message})
+    if (!data) return warn('DEVWARN:', `[HIP2] Unexpected ${type} from ${this.peer.address}`, error ? {error:error.issues, message} : {message})
     
     log('LOG:', `[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.address}`)
 
