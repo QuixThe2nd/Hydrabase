@@ -21,8 +21,8 @@ EXPOSE 45454/udp
 ENV PUID=99
 ENV PGID=100
 
-RUN addgroup -g ${PGID} hydrabasegroup \
- && adduser -D -u ${PUID} -G hydrabasegroup hydrabase \
+RUN groupadd -g ${PGID} hydrabasegroup \
+ && useradd -u ${PUID} -g ${PGID} -m hydrabase \
  && chown -R hydrabase:hydrabasegroup /app
 
 USER hydrabase
