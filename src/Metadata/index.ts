@@ -59,13 +59,13 @@ export const AlbumSearchResultSchema = z.object({
 })
 
 export interface MetadataPlugin {
-  albumTracks: (id: string, peers: Peers) => Promise<Track[]>
-  artistAlbums: (id: string, peers: Peers) => Promise<Album[]>
-  artistTracks: (id: string, peers: Peers) => Promise<Track[]>
+  albumTracks: (id: string, peers: Peers) => Promise<Omit<Track, 'soul_id' | 'address'>[]>
+  artistAlbums: (id: string, peers: Peers) => Promise<Omit<Album, 'soul_id' | 'address'>[]>
+  artistTracks: (id: string, peers: Peers) => Promise<Omit<Track, 'soul_id' | 'address'>[]>
   id: string
-  searchAlbum: (query: string) => Promise<Album[]>
-  searchArtist: (query: string) => Promise<Artist[]>
-  searchTrack: (query: string) => Promise<Track[]>
+  searchAlbum: (query: string) => Promise<Omit<Album, 'soul_id' | 'address'>[]>
+  searchArtist: (query: string) => Promise<Omit<Artist, 'soul_id' | 'address'>[]>
+  searchTrack: (query: string) => Promise<Omit<Track, 'soul_id' | 'address'>[]>
 }
 
 const computeConfidence = (artistConfidences: number[], peerConfidences: number[], k = 1.0): number => {

@@ -88,7 +88,7 @@ export default class ITunes implements MetadataPlugin {
     if (limit > 200) {throw new Error('Maximum limit is 200')}
   }
 
-  async albumTracks(id: string): Promise<Track[]> {
+  async albumTracks(id: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'song',
@@ -104,7 +104,6 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 
     return parsed.data.results.map(result => ({
-      address: '0x0',
       album: result.collectionName ?? '',
       artists: [result.artistName],
       confidence: 1,
@@ -116,11 +115,10 @@ export default class ITunes implements MetadataPlugin {
       plugin_id: this.id,
       popularity: 0,
       preview_url: result.previewUrl ?? '',
-      soul_id: 'soul_', // Ignored
     }))
   }
 
-  async artistAlbums(id: string): Promise<Album[]> {
+  async artistAlbums(id: string): Promise<Omit<Album, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'album',
@@ -149,13 +147,12 @@ export default class ITunes implements MetadataPlugin {
         name: result.collectionName,
         plugin_id: this.id,
         release_date: result.releaseDate ?? '',
-        soul_id: 'soul_', // Ignored
         total_tracks: trackCount,
       };
     });
   }
 
-  async artistTracks(id: string): Promise<Track[]> {
+  async artistTracks(id: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'song',
@@ -171,7 +168,6 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 
     return parsed.data.results.map(result => ({
-      address: '0x0',
       album: result.collectionName ?? '',
       artists: [result.artistName],
       confidence: 1,
@@ -183,11 +179,10 @@ export default class ITunes implements MetadataPlugin {
       plugin_id: this.id,
       popularity: 0,
       preview_url: result.previewUrl ?? '',
-      soul_id: 'soul_', // Ignored
     }))
   }
 
-  async searchAlbum(term: string): Promise<Album[]> {
+  async searchAlbum(term: string): Promise<Omit<Album, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'album',
@@ -215,13 +210,12 @@ export default class ITunes implements MetadataPlugin {
         name: result.collectionName,
         plugin_id: this.id,
         release_date: result.releaseDate ?? '',
-        soul_id: 'soul_', // Ignored
         total_tracks: trackCount,
       };
     });
   }
 
-  async searchArtist(term: string): Promise<Artist[]> {
+  async searchArtist(term: string): Promise<Omit<Artist, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'musicArtist',
@@ -236,7 +230,6 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 
     return parsed.data.results.map(result => ({
-      address: '0x0',
       confidence: 1,
       external_urls: result.artistViewUrl ? { itunes: result.artistViewUrl } : {},
       followers: 0,
@@ -246,11 +239,10 @@ export default class ITunes implements MetadataPlugin {
       name: result.artistName,
       plugin_id: this.id,
       popularity: 0,
-      soul_id: 'soul_', // Ignored
     }));
   }
 
-  async searchTrack(term: string): Promise<Track[]> {
+  async searchTrack(term: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'musicTrack',
@@ -265,7 +257,6 @@ export default class ITunes implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 
     return parsed.data.results.map(result => ({
-      address: '0x0',
       album: result.collectionName ?? '',
       artists: [result.artistName],
       confidence: 1,
@@ -277,7 +268,6 @@ export default class ITunes implements MetadataPlugin {
       plugin_id: this.id,
       popularity: 0,
       preview_url: result.previewUrl ?? '',
-      soul_id: 'soul_', // Ignored
     }));
   }
 }

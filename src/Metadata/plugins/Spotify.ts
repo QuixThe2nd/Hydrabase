@@ -81,7 +81,7 @@ export default class Spotify implements MetadataPlugin {
     if (limit > 50) {throw new Error("Maximum limit is 50")}
   }
 
-  async albumTracks(id: string): Promise<Track[]> {
+  async albumTracks(id: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const token = await this.authenticate()
 
     const params = new URLSearchParams({
@@ -98,7 +98,6 @@ export default class Spotify implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid Spotify API response: ${parsed.error}`)}
 
     return parsed.data.tracks.items.map((track) => ({
-      address: '0x0',
       album: track.album.name,
       artists: track.artists.map((a) => a.name),
       confidence: 1,
@@ -110,11 +109,10 @@ export default class Spotify implements MetadataPlugin {
       plugin_id: this.id,
       popularity: track.popularity,
       preview_url: track.preview_url ?? "",
-      soul_id: 'soul_', // Ignored
     }))
   }
 
-  async artistAlbums(id: string): Promise<Album[]> {
+  async artistAlbums(id: string): Promise<Omit<Album, 'soul_id' | 'address'>[]> {
     const token = await this.authenticate()
 
     const params = new URLSearchParams({
@@ -131,7 +129,6 @@ export default class Spotify implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid Spotify API response: ${parsed.error}`)}
 
     return parsed.data.albums.items.map((album) => ({
-      address: '0x0',
       album_type: album.album_type,
       artists: album.artists.map((a) => a.name),
       confidence: 1,
@@ -141,12 +138,11 @@ export default class Spotify implements MetadataPlugin {
       name: album.name,
       plugin_id: this.id,
       release_date: album.release_date,
-      soul_id: 'soul_', // Ignored
       total_tracks: album.total_tracks,
     }))
   }
 
-  async artistTracks(id: string): Promise<Track[]> {
+  async artistTracks(id: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const token = await this.authenticate()
 
     const params = new URLSearchParams({
@@ -163,7 +159,6 @@ export default class Spotify implements MetadataPlugin {
     if (!parsed.success) {throw new Error(`Invalid Spotify API response: ${parsed.error}`)}
 
     return parsed.data.tracks.items.map((track) => ({
-      address: '0x0',
       album: track.album.name,
       artists: track.artists.map((a) => a.name),
       confidence: 1,
@@ -175,11 +170,10 @@ export default class Spotify implements MetadataPlugin {
       plugin_id: this.id,
       popularity: track.popularity,
       preview_url: track.preview_url ?? "",
-      soul_id: 'soul_', // Ignored
     }))
   }
 
-  async searchAlbum(term: string): Promise<Album[]> {
+  async searchAlbum(term: string): Promise<Omit<Album, 'soul_id' | 'address'>[]> {
     const token = await this.authenticate()
 
     const params = new URLSearchParams({
@@ -188,19 +182,14 @@ export default class Spotify implements MetadataPlugin {
       q: term,
       type: "album",
     })
-
-    const response = await fetch(`${this.baseUrl}search?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
+    const response = await fetch(`${this.baseUrl}search?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
     const data = await response.json()
     const parsed = spotifyAlbumSearchResponseSchema.safeParse(data)
     if (!parsed.success) {throw new Error(`Invalid Spotify API response: ${parsed.error}`)}
 
-    return parsed.data.albums.items.map((album) => ({
-      address: '0x0',
+    return parsed.data.albums.items.map(album => ({
       album_type: album.album_type,
-      artists: album.artists.map((a) => a.name),
+      artists: album.artists.map(a => a.name),
       confidence: 1,
       external_urls: album.external_urls,
       id: album.id,
@@ -208,12 +197,11 @@ export default class Spotify implements MetadataPlugin {
       name: album.name,
       plugin_id: this.id,
       release_date: album.release_date,
-      soul_id: 'soul_', // Ignored
       total_tracks: album.total_tracks,
     }))
   }
 
-  async searchArtist(term: string): Promise<Artist[]> {
+  async searchArtist(term: string): Promise<Omit<Artist, 'soul_id' | 'address'>[]> {
     const token = await this.authenticate()
 
     const params = new URLSearchParams({
@@ -229,10 +217,9 @@ export default class Spotify implements MetadataPlugin {
 
     const data = await response.json()
     const parsed = spotifyArtistSearchResponseSchema.safeParse(data)
-    if (!parsed.success) {throw new Error(`Invalid Spotify API response: ${parsed.error}`)}
+    if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`)
 
-    return parsed.data.artists.items.map((artist) => ({
-      address: '0x0',
+    return parsed.data.artists.items.map(artist => ({
       confidence: 1,
       external_urls: artist.external_urls,
       followers: artist.followers.total,
@@ -242,11 +229,10 @@ export default class Spotify implements MetadataPlugin {
       name: artist.name,
       plugin_id: this.id,
       popularity: artist.popularity,
-      soul_id: 'soul_', // Ignored
     }))
   }
 
-  async searchTrack(term: string): Promise<Track[]> {
+  async searchTrack(term: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const token = await this.authenticate()
 
     const params = new URLSearchParams({
@@ -260,12 +246,11 @@ export default class Spotify implements MetadataPlugin {
 
     const data = await response.json()
     const parsed = spotifySearchResponseSchema.safeParse(data)
-    if (!parsed.success) {throw new Error(`Invalid Spotify API response: ${parsed.error}`)}
+    if (!parsed.success) throw new Error(`Invalid Spotify API response: ${parsed.error}`)
 
-    return parsed.data.tracks.items.map((track) => ({
-      address: '0x0',
+    return parsed.data.tracks.items.map(track => ({
       album: track.album.name,
-      artists: track.artists.map((a) => a.name),
+      artists: track.artists.map(a => a.name),
       confidence: 1,
       duration_ms: track.duration_ms,
       external_urls: track.external_urls,
@@ -275,7 +260,6 @@ export default class Spotify implements MetadataPlugin {
       plugin_id: this.id,
       popularity: track.popularity,
       preview_url: track.preview_url ?? "",
-      soul_id: 'soul_', // Ignored
     }))
   }
 
