@@ -104,10 +104,7 @@ export default class Peers {
   public async init() {
     if (!(await cacheFile.exists())) return
     const hostnames: `ws://${string}`[] = await cacheFile.json()
-    for (const hostname of hostnames) {
-      if (hostname === 'ws://') continue
-      WebSocketClient.init(this, this.account, hostname).then(socket => { if (socket) this.add(socket) })
-    }
+    for (const hostname of hostnames) if (hostname && hostname !== 'ws://') WebSocketClient.init(this, this.account, hostname).then(socket => { if (socket) this.add(socket) })
   }
 
   public isConnectionOpened(address: `0x${string}`): boolean {

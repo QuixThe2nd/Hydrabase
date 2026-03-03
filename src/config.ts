@@ -3,6 +3,7 @@ const ip = (await (await fetch('https://icanhazip.com')).text()).trim()
 const serverPort = Number(process.env['SERVER_PORT'] ?? 4545)
 
 export const CONFIG = {
+  username: process.env['USERNAME'] ?? 'Anonymous',
   apiKey: process.env['API_KEY'] ?? false,
   blacklistedIPs: ['0.0.0.0'],
   dhtPort: Number(process.env['DHT_PORT'] ?? 45454),

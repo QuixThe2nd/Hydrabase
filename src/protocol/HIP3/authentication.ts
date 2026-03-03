@@ -19,8 +19,9 @@ const prove = {
     })
   },
   server: {
-    address: (account: Account, port: number) => new Response(JSON.stringify({
+    identity: (account: Account, port: number) => new Response(JSON.stringify({
       address: account.address,
+      username: CONFIG.username,
       signature: account.sign(`I am ws://${CONFIG.serverHostname}:${port}`).toString()
     }))
   }
@@ -38,12 +39,12 @@ const verifyAuth = (auth: Auth | undefined, address: string | undefined): [numbe
 
 const verify = {
   client: {
-    address: (hostname: `ws://${string}`) => new Promise<`0x${string}` | false>(resolve => {
+    identity: (hostname: `ws://${string}`) => new Promise<{ address: `0x${string}`, username: string } | false>(resolve => {
       log(`[HIP3] Verifying server address ${hostname}`)
       const authUrl = `${hostname.replace('ws://', 'http://')}/auth`
       fetch(authUrl).then(async response => {
         const auth = AuthSchema.parse(JSON.parse(await response.text()))
-        return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? auth.address : warn('DEVWARN:', "[HIP3] Invalid authentication from client's server"))
+        return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? { address: auth.address, username: auth.username } : warn('DEVWARN:', "[HIP3] Invalid authentication from client's server"))
       }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${authUrl}`, `- ${error.name} ${error.message}`)))
     })
   },
@@ -63,30 +64,30 @@ const verify = {
 
       return address as `0x${string}` ?? '0x0'
     },
-    hostname: async (headers: Record<string, string>, address: `0x${string}`): Promise<`ws://${string}` | Response> => {
+    hostname: async (headers: Record<string, string>, address: `0x${string}`): Promise<{ hostname: `ws://${string}`, username: string } | Response> => {
       log(`[HIP3] Verifying client hostname ${address}`)
-      if (address === '0x0') return 'ws://'
+      if (address === '0x0') return { hostname: 'ws://', username: CONFIG.username }
       const hostname = headers['x-hostname']
       if (!hostname) return new Response('Missing hostname header', { status: 400 })
       const authUrl = `${hostname.replace('ws://', 'http://')}/auth`
-      const data = await new Promise<`0x${string}` | false>(resolve => {
+      const data = await new Promise<{ address: `0x${string}`, username: string } | false>(resolve => {
         fetch(authUrl).then(async response => {
           const auth = AuthSchema.parse(JSON.parse(await response.text()))
-          return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? auth.address : warn('DEVWARN:', '[HIP3] Invalid authentication from server'))
+          return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? { address: auth.address, username: auth.username } : warn('DEVWARN:', '[HIP3] Invalid authentication from server'))
         }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${authUrl}`, `- ${error.name} ${error.message}`)))
       })
       if (!data) return new Response('Invalid authentication from your server', { status: 401 })
-      return hostname as `ws://${string}`
+      return { hostname: hostname as `ws://${string}`, username: data.username }
     }
   }
 }
 
 export const HIP3_CONN_Authentication =  {
   proveClientAddress: (account: Account, peerHostname: `ws://${string}`) => prove.client.address(account, peerHostname),
-  proveServerAddress: (account: Account, listenPort: number) => prove.server.address(account, listenPort),
-  verifyClientAddress: async (peerHostname: `ws://${string}`): Promise<`0x${string}` | false> => {
+  proveServerIdentity: (account: Account, listenPort: number) => prove.server.identity(account, listenPort),
+  verifyClientIdentity: async (peerHostname: `ws://${string}`): Promise<{ address: `0x${string}`, username: string } | false> => {
     try {
-      return await verify.client.address(peerHostname)
+      return await verify.client.identity(peerHostname)
     } catch (e) {
       if ((e as { code: string }).code === 'ConnectionRefused') {return false}
       throw e

@@ -118,6 +118,10 @@ export class Peer {
     return this.startTime ? Number(new Date()) - this.startTime : 0
   }
 
+  get username() {
+    return this.socket.peer.username
+  }
+
   private _rx = 0
 
   private _tx = 0

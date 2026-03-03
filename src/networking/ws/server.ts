@@ -13,6 +13,7 @@ interface WebSocketData {
   address: `0x${string}`
   conn?: WebSocketServerConnection
   hostname: `ws://${string}`
+  username: string
   isOpened: boolean
 }
 
@@ -26,7 +27,8 @@ export class WebSocketServerConnection {
   get peer() {
     return {
       address: this.socket.data.address,
-      hostname: this.socket.data.hostname
+      hostname: this.socket.data.hostname,
+      username: this.socket.data.username
     }
   }
 
@@ -70,10 +72,10 @@ const getAddress = async (headers: Record<string, string>, peers: Peers): Promis
   return address
 }
 
-const getHostname = async (headers: Record<string, string>, address: `0x${string}`): Promise<[number, string] | `ws://${string}`> => {
-  const hostname = await HIP3_CONN_Authentication.verifyServerHostname(headers, address)
-  if (hostname instanceof Response) return [hostname.status, await hostname.text()]
-  return hostname
+const getHostname = async (headers: Record<string, string>, address: `0x${string}`): Promise<[number, string] | { hostname: `ws://${string}`, username: string }> => {
+  const data = await HIP3_CONN_Authentication.verifyServerHostname(headers, address)
+  if (data instanceof Response) return [data.status, await data.text()]
+  return data
 }
 
 const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, peers: Peers): Promise<undefined | { address?: `0x${string}`, hostname?: `ws://${string}`; res: [number, string], }> => {
@@ -81,9 +83,10 @@ const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request,
   const headers = Object.fromEntries(req.headers.entries())
   const address = await getAddress(headers, peers)
   if (Array.isArray(address)) return { res: address }
-  const hostname = await getHostname(headers, address)
-  if (Array.isArray(hostname)) return { address, res: hostname }
-  return server.upgrade(req, { data: { address, hostname, isOpened: false } }) ? undefined : { address, hostname, res: [500, "Upgrade failed"] }
+  const res = await getHostname(headers, address)
+  if (Array.isArray(res)) return { address, res }
+  const { username, hostname } = res
+  return server.upgrade(req, { data: { address, username, hostname, isOpened: false } }) ? undefined : { address, hostname, res: [500, "Upgrade failed"] }
 }
 
 export const startServer = (account: Account, peers: Peers) => {
@@ -114,7 +117,7 @@ export const startServer = (account: Account, peers: Peers) => {
     },
     hostname: CONFIG.listenAddress,
     port: CONFIG.serverPort,
-    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerAddress(account, CONFIG.serverPort) },
+    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerIdentity(account, CONFIG.serverPort) },
     websocket: {
       close(ws) {
         ws.data = { ...ws.data, isOpened: false }

@@ -27,6 +27,7 @@ services:
       SERVER_PORT: 4545
       # Use `openssl rand -hex 16` to generate an api key
       # API_KEY: $API_KEY
+      USERNAME: Anonymous
 ```
 
 ### Manual

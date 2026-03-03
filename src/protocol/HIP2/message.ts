@@ -22,11 +22,11 @@ export class HIP2_Conn_Message {
   public readonly send = {
     request: async <T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> => {
       const { nonce, promise } = this.requestManager.register<T>()
-      log(`[HIP2] Sending request ${nonce} to peer ${this.peer.address}`)
+      log(`[HIP2] Sending request ${nonce} to peer ${this.peer.username} ${this.peer.address}`)
       this.peer.send(JSON.stringify({ nonce, request }))
       const results = await promise
       if (!results) return []
-      log(`[HIP2] Received ${results.length} results from ${this.peer.address}`)
+      log(`[HIP2] Received ${results.length} results from ${this.peer.username} ${this.peer.address}`)
       return results
     },
     response: <T extends Request['type']>(response: Response<T>, nonce: number) => this.peer.send(JSON.stringify({ nonce, response }))
@@ -45,12 +45,12 @@ export class HIP2_Conn_Message {
     const { nonce, ...result } = JSON.parse(message)
 
     const type = HIP2_Conn_Message.identifyType(result)
-    if (!type) return warn('DEVWARN:', `[HIP2] Unexpected message from ${this.peer.address}`, `- ${message}`)
+    if (!type) return warn('DEVWARN:', `[HIP2] Unexpected message from ${this.peer.username} ${this.peer.address}`, `- ${message}`)
 
     const {data,error} = MessageSchemas[type].safeParse(result[type])
-    if (!data) return warn('DEVWARN:', `[HIP2] Unexpected ${type} from ${this.peer.address}`, error ? {error:error.issues, message} : {message})
+    if (!data) return warn('DEVWARN:', `[HIP2] Unexpected ${type} from ${this.peer.username} ${this.peer.address}`, error ? {error:error.issues, message} : {message})
     
-    log(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.address}`)
+    log(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address}`)
 
     return { data, nonce, type }
   }
