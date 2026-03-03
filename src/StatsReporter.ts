@@ -76,7 +76,7 @@ export class StatsReporter {
       },
       peers: await Promise.all(this.peers.connectedPeers.entries().filter(([,peer]) => peer.address !== '0x0')
         .map(([, { address, averageLatencyMs, historicConfidence, hostname, isOpened, plugins, rxTotal, txTotal, uptimeMs }]) => (
-          { address, confidence: historicConfidence, hostname, latency: averageLatencyMs, plugins: plugins.map(({id}) => id), rxTotal, status: isOpened ? 'connected' as const : 'disconnected' as const, txTotal, uptime: uptimeMs }
+          { address, confidence: historicConfidence, hostname, latency: averageLatencyMs, plugins, rxTotal, status: isOpened ? 'connected' as const : 'disconnected' as const, txTotal, uptime: uptimeMs }
         ))),
       timestamp: new Date().toISOString(),
       votes: {

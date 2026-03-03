@@ -14,7 +14,7 @@ import { DhtTab } from "./tabs/dht"
 import { LogsTab } from "./tabs/Logs"
 import { OverviewTab } from "./tabs/Overview"
 import { PeersTab } from "./tabs/Peers"
-import { SearchTab } from "./tabs/search"
+import { SearchTab } from "./tabs/Search"
 import { VotesTab } from "./tabs/votes"
 
 declare const VERSION: string
@@ -137,9 +137,9 @@ export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }
       if (pendingSearches.current.has(nonce)) {
         pendingSearches.current.delete(nonce)
         setSearchLoading(false)
-        setSearchError("Search timed out after 15s")
+        setSearchError("Search timed out after 30s")
       }
-    }, 15_000)
+    }, 30_000)
     const result = await new Promise<unknown[]>(resolve => {
       pendingSearches.current.set(nonce, resolve)
       ws.send(JSON.stringify({ nonce, request: { query: q, type: searchType } }))
@@ -174,7 +174,7 @@ export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }
       {tab === "dht" && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} tLabels={tLabels} wsState={wsState} />}
       {tab === "votes" && <VotesTab installedPlugins={installedPlugins} knownPlugins={knownPlugins} peerData={peerData} peers={peers} votes={votes} />}
       {tab === "logs" && <LogsTab eventLog={eventLog} lastPoll={lastPoll} socket={socket} wsState={wsState} />}
-      {tab === "search" && <SearchTab onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchType={setSearchType} />}
+      {tab === "search" && <SearchTab onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} setSearchResults={setSearchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchType={setSearchType} />}
     </div>
     <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
   </div>

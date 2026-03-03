@@ -25,11 +25,13 @@ export interface PeerStats {
 
 const countRow = (db: DB, table: 'albums' | 'artists' | 'tracks', address: `0x${string}`) => db.all<{ n: number }>(sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '${address}'`))[0]?.n ?? 0
 
+const getPlugins = (db: DB, address: `0x${string}`) => db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks WHERE address = '${address}'
+  UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}'
+  UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}'`)).map(r => r.plugin_id)
+
 const collectPeerStats = (db: DB, address: `0x${string}`, installedPlugins: MetadataPlugin[]): PeerStats => {
   const installedPluginIds = new Set(installedPlugins.map(p => p.id))
-  const peerPlugins = db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks WHERE address = '${address}'
-    UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}'
-    UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}'`)).map(r => r.plugin_id)
+  const peerPlugins = getPlugins(db, address)
   let totalMatches = 0
   let totalMismatches = 0
   for (const table of ['tracks', 'artists', 'albums'] as const) {
@@ -93,7 +95,10 @@ export class Peer {
     return this.requestManager.averageLatencyMs
   }
   get historicConfidence(): number {
-    return getHistoricPeerConfidence(this.db, this.address, this.plugins)
+    return getHistoricPeerConfidence(this.db, this.address, this.ownPlugins)
+  }
+  get plugins(): string[] {
+    return getPlugins(this.db, this.address)
   }
   get hostname() {
     return this.socket.peer.hostname
@@ -127,7 +132,7 @@ export class Peer {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
     peer_stats: (_data: { address: `0x${string}` }, nonce: number) => {
       if (this.address !== '0x0') return
-      const stats = collectPeerStats(this.db, _data.address, this.plugins)
+      const stats = collectPeerStats(this.db, _data.address, this.ownPlugins)
       this.send(JSON.stringify({ nonce, peer_stats_response: stats }))
     },
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => this.HIP2_Conn_Message.send.response(await this.searchNode(request.type, request.query, this.address === '0x0'), nonce),
@@ -136,7 +141,7 @@ export class Peer {
 
   private startTime?: number
 
-  constructor(private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>, private readonly socket: WebSocketClient | WebSocketServerConnection, account: Account, peers: Peers, private readonly repos: Repositories, private readonly db: DB, public readonly plugins: MetadataPlugin[]) {
+  constructor(private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>, private readonly socket: WebSocketClient | WebSocketServerConnection, account: Account, peers: Peers, private readonly repos: Repositories, private readonly db: DB, private readonly ownPlugins: MetadataPlugin[]) {
     this.requestManager = new RequestManager()
     this.HIP2_Conn_Message = new HIP2_Conn_Message(this, this.requestManager)
     this.HIP4_Conn_Announce = new HIP4_Conn_Announce(account, this, peers)

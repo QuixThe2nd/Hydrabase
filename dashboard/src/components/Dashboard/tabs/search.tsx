@@ -5,11 +5,12 @@ import type { Album, Artist, Request, SearchResult, Track } from "../../../../..
 import { BORD, MUTED, panel, SURF, TEXT } from "../../../theme";
 
 type Props = SearchResultsProps & {
-  onSearch: () => void;
-  searchError: null | string;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
-  setSearchType: (t: Request['type']) => void;
+  onSearch: () => void
+  searchError: null | string
+  searchQuery: string
+  setSearchQuery: (q: string) => void
+  setSearchType: (t: Request['type']) => void
+  setSearchResults: (searchResults: null | unknown[]) => void
 }
 
 interface SearchResultsProps {
@@ -137,7 +138,7 @@ const SearchResults = ({ onTogglePlay, playingId, searchElapsed, searchLoading, 
   </>
 }
 
-export const SearchTab = ({ onSearch, onTogglePlay, playingId, searchElapsed, searchError, searchLoading, searchQuery, searchResults, searchType, setSearchQuery, setSearchType }: Props) => {
+export const SearchTab = ({ onSearch, onTogglePlay, playingId, searchElapsed, searchError, searchLoading, searchQuery, searchResults, setSearchResults, searchType, setSearchQuery, setSearchType }: Props) => {
   const [selected, setSelected] = useState<null | SearchResult[keyof SearchResult]>(null)
   const handleSearch = () => {
     setSelected(null)
@@ -146,7 +147,11 @@ export const SearchTab = ({ onSearch, onTogglePlay, playingId, searchElapsed, se
   return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
     <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 }}>
       <span style={{ color: MUTED, fontSize: 11 }}>Type:</span>
-      {(["track", "album", "artist", "artist.tracks", "artist.albums", "album.tracks"] as const).map(t => <button className={`fbtn${searchType === t ? " on" : ""}`} key={t} onClick={() => { setSelected(null); setSearchType(t) }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
+      {(["track", "album", "artist", "artist.tracks", "artist.albums", "album.tracks"] as const).map(t => <button className={`fbtn${searchType === t ? " on" : ""}`} key={t} onClick={() => {
+        setSelected(null)
+        setSearchType(t)
+        setSearchResults(null)
+      }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
     </div>
     <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
       <input onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Enter search query…" style={{ background: SURF, border: `1px solid ${BORD}`, borderRadius: 4, color: TEXT, flex: 1, fontFamily: "inherit", fontSize: 13, padding: "6px 10px" }} type="text" value={searchQuery} />
