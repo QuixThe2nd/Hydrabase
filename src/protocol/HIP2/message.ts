@@ -10,7 +10,6 @@ export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/
 
 const MessageSchemas = {
   announce: AnnounceSchema,
-  peer_stats: PeerStatsRequestSchema,
   request: RequestSchema,
   response: ResponseSchema
 }
@@ -38,7 +37,6 @@ export class HIP2_Conn_Message {
     'request' in result ? 'request'
     : 'response' in result ? 'response'
     : 'announce' in result ? 'announce'
-    : 'peer_stats' in result ? 'peer_stats'
     : null
 
   parseMessage = (message: string): false | { data: Message, nonce: number; type: MessageType } => {

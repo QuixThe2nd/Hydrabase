@@ -135,4 +135,14 @@ Metadata discovered via API lookups and other peers is stored in a database. Whe
 ### Future Plans
 While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism. The end goal is for peers running different plugins to benefit by exchanging api responses from different metadata providers.
 
+### Versioning
+#### Protocol Versioning
+A Hydrabase Improvement Proposals (HIP) defines hows peers communicate with each other, they're essentially API specifications/capabilities. Each new type of communication uses a new HIP number (HIP1, HIP2, etc). For example, HIP2 defines how request/response messages are structured, and HIP3 defines how peers authenticate each other. Currently, I am rapidly iterating on Hydrabase, so HIPs are changing, however, once ready for production, HIPs will be immutable. Once immutable, if the authentication protocol needs updating, HIP3v2 will be created.
+
+#### Application Versioning
+v**MAJOR.MINOR.PATCH**:
+- MAJOR = Protocol breaking (wire-incompatible, peers must upgrade)
+- MINOR = Protocol additive OR app breaking (with clear changelog)
+- PATCH = App-level fixes/updates
+
 ![Star History Chart](https://api.star-history.com/image?repos=QuixThe2nd/Hydrabase&type=date&legend=top-left)
