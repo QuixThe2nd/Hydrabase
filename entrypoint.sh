@@ -16,4 +16,5 @@ fi
 
 chown -R "$PUID:$PGID" /app/data
 
-exec su-exec "$PUID:$PGID" bun src/index.ts
+exec gosu "$PUID:$PGID" bun src/index.ts
+
