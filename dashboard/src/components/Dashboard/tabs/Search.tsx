@@ -22,9 +22,9 @@ interface SearchResultsProps {
   searchType: Request['type']
 }
 
-const isTrack  = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Track  => type === "track" || type === "artist.tracks" || type === 'album.tracks'
-const isAlbum  = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Album  => type === "album" || type === "artist.albums"
-const isArtist = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Artist => type === "artist"
+const isTrack  = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Track  => type === "tracks" || type === "artist.tracks" || type === 'album.tracks'
+const isAlbum  = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Album  => type === "albums" || type === "artist.albums"
+const isArtist = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Artist => type === "artists"
 
 const getSubtitle = (r: SearchResult[keyof SearchResult], type: Request['type']): string => {
   if (isTrack(r, type)) return `${r.artists.join(", ")} · ${r.album}`
@@ -45,7 +45,7 @@ const DetailPanel = ({ onClose, onTogglePlay, playingId, r, type }: { onClose: (
   const link = r.external_urls ? Object.values(r.external_urls)[0] as string : undefined;
   const isPlaying = playingId === r.id;
   const artStyle = isArtist(r, type) ? { borderRadius: "50%" } : { borderRadius: 6 };
-  const previewUrl = isTrack(r, type) ? r.preview_url : undefined;
+  const previewUrl = isTrack(r, type) ? r.preview_url : undefined; // TODO: Show text "280 results from 3 peers with average confidence of 0.78"
 
   return <div style={{ ...panel(), display: "flex", flexDirection: "column", gap: 12, padding: "16px 18px", position: "relative" }}>
     <div style={{ alignItems: "flex-start", display: "flex", gap: 14 }}>
@@ -69,9 +69,9 @@ const DetailPanel = ({ onClose, onTogglePlay, playingId, r, type }: { onClose: (
 }
 
 const getColumns = (type: Request['type']) => {
-  if (type === "track" || type === 'artist.tracks' || type === 'album.tracks') return ["", "Name", "Soul ID", "Confidence", "Plugin ID", "Track ID", "Artists", "Album", "Duration", "Popularity", ""]
-  if (type === "album" || type === "artist.albums") return ["", "Name", "Soul ID", "Confidence", "Plugin ID", "Album ID", "Artists", "Release Date", "Tracks", ""]
-  if (type === "artist") return ["", "Name", "Soul ID", "Confidence", "Plugin ID", "Artist ID", "Genres", "Followers", "Popularity", ""]
+  if (type === "tracks" || type === 'artist.tracks' || type === 'album.tracks') return ["", "Name", "Soul ID", "Confidence", "Plugin ID", "Track ID", "Artists", "Album", "Duration", "Popularity", ""]
+  if (type === "albums" || type === "artist.albums") return ["", "Name", "Soul ID", "Confidence", "Plugin ID", "Album ID", "Artists", "Release Date", "Tracks", ""]
+  if (type === "artists") return ["", "Name", "Soul ID", "Confidence", "Plugin ID", "Artist ID", "Genres", "Followers", "Popularity", ""]
   return ["", "Name", ""]
 }
 
@@ -147,7 +147,7 @@ export const SearchTab = ({ onSearch, onTogglePlay, playingId, searchElapsed, se
   return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
     <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 }}>
       <span style={{ color: MUTED, fontSize: 11 }}>Type:</span>
-      {(["track", "album", "artist", "artist.tracks", "artist.albums", "album.tracks"] as const).map(t => <button className={`fbtn${searchType === t ? " on" : ""}`} key={t} onClick={() => {
+      {(["tracks", "albums", "artists", "artist.tracks", "artist.albums", "album.tracks"] as const).map(t => <button className={`fbtn${searchType === t ? " on" : ""}`} key={t} onClick={() => {
         setSelected(null)
         setSearchType(t)
         setSearchResults(null)

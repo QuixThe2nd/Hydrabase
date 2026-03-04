@@ -1,22 +1,22 @@
-import type { WsState } from "../../../types";
+import type { WsState } from "../../../types"
 
-import { toEmoji } from "../../../geo";
-import { ACCENT, BORD, MUTED, panel } from "../../../theme";
-import { AreaChart } from "../../AreaChart";
-import { PanelHeader } from "../../PanelHeader";
-import { StatCard } from "../../StatCard";
-import { StatusDot } from "../../StatusDot";
+import { toEmoji } from "../../../geo"
+import { ACCENT, BORD, MUTED, panel } from "../../../theme"
+import { AreaChart } from "../../AreaChart"
+import { PanelHeader } from "../../PanelHeader"
+import { StatCard } from "../../StatCard"
+import { StatusDot } from "../../StatusDot"
 
 interface Props {
-  dhtNodeCounts: number[];
-  dhtNodes: { country: string; host: string; }[];
-  socket: string;
-  tLabels: string[];
-  wsState: WsState;
+  dhtNodeCounts: number[]
+  dhtNodes: { country: string; host: string; }[]
+  socket: string
+  tLabels: string[]
+  wsState: WsState
 }
 
 const Header = ({ dhtNodeCounts, dhtNodes, tLabels }: { dhtNodeCounts: number[], dhtNodes: { country: string; host: string; }[], tLabels: string[] }) => {
-  const countryMap = dhtNodes.reduce<Record<string, number>>((acc, { country }) => {
+  const countryMap = dhtNodes.reduce<Record<string, number>>((acc, {country}) => {
     acc[country] = (acc[country] ?? 0) + 1
     return acc
   }, {})
@@ -52,9 +52,7 @@ export const DhtTab = ({ dhtNodeCounts, dhtNodes, socket, tLabels, wsState }: Pr
     <StatCard color={ACCENT} label="Total Nodes" sub="in routing table" value={dhtNodes.length} />
     <StatCard color={wsState === "open" ? "#3fb950" : "#f85149"}   label="WS Status" sub={socket.replace("wss://", "")} value={wsState.toUpperCase()} />
   </div>
-
   <Header dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} tLabels={tLabels} />
-
   <div style={panel()}>
     <PanelHeader label="Routing Table" right={`${dhtNodes.length} nodes`} />
     <div style={{ overflowX: "auto" }}>

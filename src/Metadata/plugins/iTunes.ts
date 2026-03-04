@@ -182,7 +182,7 @@ export default class ITunes implements MetadataPlugin {
     }))
   }
 
-  async searchAlbum(term: string): Promise<Omit<Album, 'soul_id' | 'address'>[]> {
+  async searchAlbums(term: string): Promise<Omit<Album, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'album',
@@ -215,7 +215,7 @@ export default class ITunes implements MetadataPlugin {
     });
   }
 
-  async searchArtist(term: string): Promise<Omit<Artist, 'soul_id' | 'address'>[]> {
+  async searchArtists(term: string): Promise<Omit<Artist, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'musicArtist',
@@ -242,7 +242,7 @@ export default class ITunes implements MetadataPlugin {
     }));
   }
 
-  async searchTrack(term: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
+  async searchTracks(term: string): Promise<Omit<Track, 'soul_id' | 'address'>[]> {
     const params = new URLSearchParams({
       country: this.country,
       entity: 'musicTrack',

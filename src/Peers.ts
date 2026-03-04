@@ -28,7 +28,7 @@ const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHas
     pluginMatches[result.plugin_id][confirmedHashes.has(hash) ? 'match' : 'mismatch']++
   }
   return pluginMatches
-}
+} // TODO: show all ws requests/responses/announces/etc in event log
 
 const calculatePeerConfidence = (pluginMatches: Record<string, { match: number, mismatch: number }>, installedPlugins: Set<string>) => avg(
   Object.entries(pluginMatches)

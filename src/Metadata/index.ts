@@ -63,9 +63,9 @@ export interface MetadataPlugin {
   artistAlbums: (id: string, peers: Peers) => Promise<Omit<Album, 'soul_id' | 'address'>[]>
   artistTracks: (id: string, peers: Peers) => Promise<Omit<Track, 'soul_id' | 'address'>[]>
   id: string
-  searchAlbum: (query: string) => Promise<Omit<Album, 'soul_id' | 'address'>[]>
-  searchArtist: (query: string) => Promise<Omit<Artist, 'soul_id' | 'address'>[]>
-  searchTrack: (query: string) => Promise<Omit<Track, 'soul_id' | 'address'>[]>
+  searchAlbums: (query: string) => Promise<Omit<Album, 'soul_id' | 'address'>[]>
+  searchArtists: (query: string) => Promise<Omit<Artist, 'soul_id' | 'address'>[]>
+  searchTracks: (query: string) => Promise<Omit<Track, 'soul_id' | 'address'>[]>
 }
 
 const computeConfidence = (artistConfidences: number[], peerConfidences: number[], k = 1.0): number | null => {
@@ -190,9 +190,9 @@ export default class MetadataManager implements MetadataPlugin {
   public async handleRequest<T extends Request['type']>(request: Request & { type: T }, peers: Peers): Promise<Response<T>> {
     log(`[META] Searching for ${request.type}: ${request.query}`)
     const results: Response<T> = []
-    if (request.type === 'track') results.push(...await this.searchTrack(request.query) as Response<T>)
-    else if (request.type === 'artist') results.push(...await this.searchArtist(request.query) as Response<T>)
-    else if (request.type === 'album') results.push(...await this.searchAlbum(request.query) as Response<T>)
+    if (request.type === 'tracks') results.push(...await this.searchTracks(request.query) as Response<T>)
+    else if (request.type === 'artists') results.push(...await this.searchArtists(request.query) as Response<T>)
+    else if (request.type === 'albums') results.push(...await this.searchAlbums(request.query) as Response<T>)
     else if (request.type === 'artist.albums') results.push(...await this.artistAlbums(request.query, peers) as Response<T>)
     else if (request.type === 'artist.tracks') results.push(...await this.artistTracks(request.query, peers) as Response<T>)
     else if (request.type === 'album.tracks') results.push(...await this.albumTracks(request.query, peers) as Response<T>)
@@ -201,30 +201,30 @@ export default class MetadataManager implements MetadataPlugin {
     return results
   }
 
-  async searchAlbum(query: string): Promise<Response<'album'>> {
+  async searchAlbums(query: string): Promise<Response<'albums'>> {
     const [cached, ...pluginResults] = await Promise.all([
       this.db.album.searchByName(query),
-      ...this.plugins.map(async p => (await p.searchAlbum(query)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` })))
+      ...this.plugins.map(async p => (await p.searchAlbums(query)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` })))
     ])
     const results = pluginResults.flat().map(result => ({ ...result, address: '0x0' as const }))
     for (const result of results) this.db.album.upsertFromPlugin(result)
     return MetadataManager.merge(results, cached)
   }
 
-  async searchArtist(query: string): Promise<Response<'artist'>> {
+  async searchArtists(query: string): Promise<Response<'artists'>> {
     const [cached, ...pluginResults] = await Promise.all([
       this.db.artist.searchByName(query),
-      ...this.plugins.map(async p => (await p.searchArtist(query)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` })))
+      ...this.plugins.map(async p => (await p.searchArtists(query)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` })))
     ])
     const results = pluginResults.flat().map(result => ({ ...result, address: '0x0' as const }))
     for (const result of results) this.db.artist.upsertFromPlugin(result)
     return MetadataManager.merge(results, cached)
   }
 
-  async searchTrack(query: string): Promise<Response<'track'>> {
+  async searchTracks(query: string): Promise<Response<'tracks'>> {
     const [cached, ...pluginResults] = await Promise.all([
       this.db.track.searchByName(query),
-      ...this.plugins.map(async p => (await p.searchTrack(query)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` })))
+      ...this.plugins.map(async p => (await p.searchTracks(query)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` })))
     ])
     const results = pluginResults.flat().map(result => ({ ...result, address: '0x0' as const }))
     for (const result of results) this.db.track.upsertFromPlugin(result)

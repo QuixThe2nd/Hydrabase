@@ -37,7 +37,6 @@ export const AreaChart = ({ height = 110, labels, series, width=600 }: { height?
   const dataLen = series[0]?.data.length ?? 0;
   const px = (i: number) => PAD.l + (i / (dataLen - 1)) * iW;
   const py = (v: number) => PAD.t + iH - (v / maxV) * iH;
-
   return <svg
     height={H}
     onMouseLeave={() => setTip(null)}
@@ -54,12 +53,10 @@ export const AreaChart = ({ height = 110, labels, series, width=600 }: { height?
     width="100%"
   >
     <Line series={series} />
-
     {Array.from({ length: 5 }, (_, i) => maxV * (i / 4)).map((v, i) => <g key={i}>
       <line stroke="rgba(255,255,255,0.05)" strokeWidth="1" x1={PAD.l} x2={PAD.l + iW} y1={py(v)} y2={py(v)} />
       <text fill="rgba(255,255,255,0.28)" fontFamily="monospace" fontSize="8.5" textAnchor="end" x={PAD.l - 4} y={py(v) + 3}>{v > 999 ? `${(v / 1024).toFixed(0)}k` : Math.round(v)}</text>
     </g>)}
-
     <Axis H={H} iH={iH} labels={labels} px={px} py={py} series={series} />
     {tip && <>
       <line stroke="rgba(255,255,255,0.18)" strokeDasharray="3,3" strokeWidth="1" x1={tip.x} x2={tip.x} y1={PAD.t} y2={PAD.t + iH} />

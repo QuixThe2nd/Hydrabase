@@ -10,8 +10,7 @@ import { DHT_Node } from './networking/dht'
 import Peers from './Peers'
 import { StatsReporter } from './StatsReporter'
 
-const {SPOTIFY_CLIENT_ID} = process.env
-const {SPOTIFY_CLIENT_SECRET} = process.env
+const {SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET} = process.env
 
 const startWorkers = async (): Promise<{ metadataManager: MetadataManager, peers: Peers }> => {
   const account = new Account(await getPrivateKey())

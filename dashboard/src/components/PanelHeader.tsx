@@ -4,4 +4,3 @@ export const PanelHeader = ({ label, right }: { label: string; right?: string })
   <span style={{ color: MUTED, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</span>
   {right && <span style={{ color: MUTED, fontSize: 10 }}>{right}</span>}
 </div>
-

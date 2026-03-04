@@ -8,14 +8,11 @@ import { CONFIG } from '../../config'
 import { error, log, warn } from '../../log';
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 import { portForward } from '../upnp'
+import type { Peer } from "./client";
 
-interface WebSocketData {
-  address: `0x${string}`
+type WebSocketData = Peer & {
   conn?: WebSocketServerConnection
-  hostname: `ws://${string}`
-  username: string
   isOpened: boolean
-  userAgent: string
 }
 
 export const version = readFileSync(join(__dirname, "../../../VERSION"), "utf-8").trim();
@@ -25,7 +22,7 @@ export class WebSocketServerConnection {
     return this.socket.data.isOpened
   }
 
-  get peer() {
+  get peer(): Peer {
     return {
       address: this.socket.data.address,
       hostname: this.socket.data.hostname,

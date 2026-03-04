@@ -1,19 +1,22 @@
-import type { ApiPeer } from "../../src/StatsReporter";
+import type { ApiPeer } from "../../src/StatsReporter"
 
 export interface EventEntry {
-  lv: string;
-  m: string;
-  t: string;
+  lv: string
+  m: string
+  t: string
 }
 
-export type FilterState = "all" | "connected" | "connecting" | "disconnected";
+export type FilterState = "all" | "connected" | "connecting" | "disconnected"
 
-export type PeerWithCountry = ApiPeer & { country: string };
+export type PeerWithCountry = ApiPeer & {
+  country: string
+  activity: number[]
+};
 
 export interface VoteCounts {
-  albums: number;
-  artists: number;
-  tracks: number;
+  albums: number
+  artists: number
+  tracks: number
 }
 
-export type WsState = "closed" | "connecting" | "error" | "open";
+export type WsState = "closed" | "connecting" | "error" | "open"

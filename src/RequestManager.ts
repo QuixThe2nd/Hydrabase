@@ -5,7 +5,7 @@ import { AlbumSearchResultSchema, ArtistSearchResultSchema, TrackSearchResultSch
 
 export const RequestSchema = z.object({
   query: z.string(),
-  type: z.union([z.literal('track'), z.literal('artist'), z.literal('album'), z.literal('artist.albums'), z.literal('artist.tracks'), z.literal('album.tracks')])
+  type: z.union([z.literal('tracks'), z.literal('artists'), z.literal('albums'), z.literal('artist.albums'), z.literal('artist.tracks'), z.literal('album.tracks')])
 })
 export const ResponseSchema = z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)])
 
@@ -14,12 +14,12 @@ export type Artist = z.infer<typeof ArtistSearchResultSchema>
 export type Request = z.infer<typeof RequestSchema>
 export type Response<T extends keyof SearchResult = keyof SearchResult> = SearchResult[T][]
 export interface SearchResult {
-  album: Album
+  albums: Album
   'album.tracks': Track
-  artist: Artist
+  artists: Artist
   'artist.albums': Album
   'artist.tracks': Track
-  track: Track
+  tracks: Track
 }
 export type Track = z.infer<typeof TrackSearchResultSchema>
 

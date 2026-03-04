@@ -33,8 +33,7 @@ export class HIP2_Conn_Message {
 
   constructor(private readonly peer: Peer, private readonly requestManager: RequestManager) {}
 
-  static readonly identifyType = (result: Message): MessageType | null => // 'capability' in result ? 'capability' :
-    'request' in result ? 'request'
+  static readonly identifyType = (result: Message): MessageType | null => 'request' in result ? 'request'
     : 'response' in result ? 'response'
     : 'announce' in result ? 'announce'
     : null

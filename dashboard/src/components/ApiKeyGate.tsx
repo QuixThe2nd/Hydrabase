@@ -44,12 +44,7 @@ export const ApiKeyGate = ({ onSubmit }: { onSubmit: (socket: string, key: strin
       <div style={{ animation: shake ? "shake .4s ease" : "none", display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
         <input autoFocus onChange={(e) => setSocket(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="Enter Socket URL…" style={inputStyle} type="url" value={socket} />
         <input onChange={(e) => setKey(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="Enter API key…" style={inputStyle} type="password" value={key} />
-        <button
-          onClick={submit}
-          style={{ background: "#238636", border: "1px solid #2ea043", borderRadius: 6, color: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", padding: "10px", width: "100%" }}
-        >
-          CONNECT →
-        </button>
+        <button onClick={submit} style={{ background: "#238636", border: "1px solid #2ea043", borderRadius: 6, color: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", padding: "10px", width: "100%" }}>CONNECT →</button>
       </div>
       <span style={{ color: "#484f58", fontSize: 10 }}>{socket}</span>
     </div>

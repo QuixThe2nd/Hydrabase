@@ -4,9 +4,9 @@ import * as Node from './Node'
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))
 
-const artists = await Node.search('artist', 'jay z')
-const albums = await Node.search('album', 'made in england')
-/*Const tracks = */await Node.search('track', 'dont stop me now')
+const artists = await Node.search('artists', 'jay z')
+const albums = await Node.search('albums', 'made in england')
+/*Const tracks = */await Node.search('tracks', 'dont stop me now')
 // Log('Artist results:', artists)
 // Log('Album results:', albums)
 // Log('Track results:', tracks)

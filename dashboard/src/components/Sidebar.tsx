@@ -18,6 +18,7 @@ export const Sidebar = ({ peers, selfAddr, setTab, tab, uptime }: { peers: PeerW
   const connCount = peers.filter(p => p.status === "connected").length
   return <div style={{ background: "#010409", borderRight: `1px solid ${BORD}`, display: "flex", flexDirection: "column", flexShrink: 0, height: "calc(100vh - 48px)", position: "sticky", top: 0, width: 196 }}>
     <div style={{ borderBottom: `1px solid ${BORD}`, padding: "16px 16px 14px" }}>
+      {/* // TODO: Logo */}
       <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", marginBottom: 4 }}>HYDRABASE</span>
     </div>
     <nav style={{ flex: 1, padding: "8px 6px" }}>

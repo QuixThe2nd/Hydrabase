@@ -89,21 +89,13 @@ export class StatsReporter {
     }
   }
 
-  private readonly knownPeers = (): `0x${string}`[] => this.db.all<{ address: `0x${string}` }>(sql.raw(`
-    SELECT DISTINCT address FROM tracks
-    UNION
-    SELECT DISTINCT address FROM artists
-    UNION
-    SELECT DISTINCT address FROM albums
-  `)).map(r => r.address)
+  private readonly knownPeers = (): `0x${string}`[] => this.db.all<{ address: `0x${string}` }>(sql.raw(`SELECT DISTINCT address FROM tracks
+    UNION SELECT DISTINCT address FROM artists
+    UNION SELECT DISTINCT address FROM albums`)).map(r => r.address)
 
-  private readonly knownPlugins = (): string[] => this.db.all<{ plugin_id: string }>(sql.raw(`
-    SELECT DISTINCT plugin_id FROM tracks
-    UNION
-    SELECT DISTINCT plugin_id FROM artists
-    UNION
-    SELECT DISTINCT plugin_id FROM albums
-  `)).map(r => r.plugin_id)
+  private readonly knownPlugins = (): string[] => this.db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks
+    UNION SELECT DISTINCT plugin_id FROM artists
+    UNION SELECT DISTINCT plugin_id FROM albums`)).map(r => r.plugin_id)
 
   private async report(): Promise<void> {
     const client = this.peers.apiPeer

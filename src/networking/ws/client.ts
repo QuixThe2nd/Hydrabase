@@ -6,7 +6,7 @@ import type Peers from '../../Peers'
 import { log, warn } from '../../log'
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 
-interface Peer {
+export interface Peer {
   address: `0x${string}`
   hostname: `ws://${string}`
   username: string

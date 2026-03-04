@@ -4,11 +4,11 @@ import { ACCENT, BORD, MUTED, panel } from "../../../theme";
 import { PanelHeader } from "../../PanelHeader";
 
 interface Props {
-  installedPlugins: string[];
-  knownPlugins: string[];
-  peerData: VoteCounts;
-  peers: PeerWithCountry[];
-  votes: VoteCounts;
+  installedPlugins: string[]
+  knownPlugins: string[]
+  peerData: VoteCounts
+  peers: PeerWithCountry[]
+  votes: VoteCounts
 }
 
 const Header = ({ peerData, votes }: { peerData: VoteCounts, votes: VoteCounts }) => {
@@ -25,9 +25,7 @@ const Header = ({ peerData, votes }: { peerData: VoteCounts, votes: VoteCounts }
         <div style={{ alignItems: "flex-end", display: "flex", gap: 4, marginBottom: 10 }}>
           <span style={{ color, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{local}</span>
           <span style={{ color: MUTED, fontSize: 13, marginBottom: 2 }}>/ {total}</span>
-          <span style={{ color: MUTED, fontSize: 11, marginBottom: 2, marginLeft: "auto" }}>
-            {total > 0 ? ((local / total) * 100).toFixed(0) : 0}%
-          </span>
+          <span style={{ color: MUTED, fontSize: 11, marginBottom: 2, marginLeft: "auto" }}>{total > 0 ? ((local / total) * 100).toFixed(0) : 0}%</span>
         </div>
         <div style={{ background: "#21262d", borderRadius: 3, height: 5, overflow: "hidden" }}>
           <div style={{ background: color, borderRadius: 3, height: "100%", width: `${total > 0 ? (local / total) * 100 : 0}%` }} />
