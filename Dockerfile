@@ -1,23 +1,27 @@
-# ---- deps stage ----
 FROM oven/bun AS deps
 WORKDIR /app
-RUN chown bun:bun /app
-USER bun
-COPY --chown=bun:bun package.json bun.lock ./
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-# ---- release stage ----
 FROM oven/bun AS release
 WORKDIR /app
-RUN chown bun:bun /app
 
-COPY --chown=bun:bun --from=deps /app/node_modules ./node_modules
-COPY --chown=bun:bun . .
+RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENV NODE_ENV=production
+ENV PUID=1000
+ENV PGID=1000
+
 EXPOSE 4545/tcp
 EXPOSE 45454/udp
 
-VOLUME [ "/app/data" ]
+VOLUME ["/app/data"]
 
-CMD bun src; sleep 3600
+USER root
+ENTRYPOINT ["/entrypoint.sh"]
