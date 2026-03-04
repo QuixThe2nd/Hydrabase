@@ -15,7 +15,7 @@ export class PeerMap extends Map<`0x${string}`, Peer> {
     if (this.lastCount !== this.count) {
       log(`[PEERS] Connected to ${this.count} peer${this.count === 1 ? '' : 's'}`)
       this.lastCount = this.count
-    }
+    } // TODO: encrypt private key
   }
 
   override delete(key: `0x${string}`) {

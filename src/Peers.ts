@@ -13,7 +13,7 @@ import { startServer, type WebSocketServerConnection } from './networking/ws/ser
 import { PeerMap } from './PeerMap';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
-
+// TODO: TCP hole punching
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 const parser = new Parser()
 parser.functions.avg = (...args: number[]) => avg(args)
@@ -26,7 +26,7 @@ const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHas
     const hash = BigInt(Bun.hash(JSON.stringify(_result)))
     if (!(result.plugin_id in pluginMatches)) {pluginMatches[result.plugin_id] = { match: 0, mismatch: 0 }}
     pluginMatches[result.plugin_id][confirmedHashes.has(hash) ? 'match' : 'mismatch']++
-  }
+  } // TODO: Store peer username
   return pluginMatches
 } // TODO: show all ws requests/responses/announces/etc in event log
 

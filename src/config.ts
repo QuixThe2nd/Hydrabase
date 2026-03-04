@@ -1,20 +1,15 @@
-const ip = (await (await fetch('https://icanhazip.com')).text()).trim()
-
-const serverPort = Number(process.env['SERVER_PORT'] ?? 4545)
-
 export const CONFIG = {
+  hostname: process.env['HOSTNAME'] ?? (await (await fetch('https://icanhazip.com')).text()).trim(),
+  listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',
+  serverPort: Number(process.env['SERVER_PORT'] ?? 4545),
+  dhtPort: Number(process.env['DHT_PORT'] ?? 4545),
   username: process.env['USERNAME'] ?? 'Anonymous',
   apiKey: process.env['API_KEY'] ?? false,
-  blacklistedIPs: ['0.0.0.0'],
-  dhtPort: Number(process.env['DHT_PORT'] ?? 45454),
+  pluginConfidence: 'x / (x + y)',
+  finalConfidence: 'avg(x, y, z)',
+  soulIdCutoff: 32,
+  upnpTTL: 3600, // Seconds
+  upnpReannounce: 1800, // Seconds
   dhtReannounce: 15*60*1_000, // Ms
   dhtRoomSeed: 'hydrabase',
-  finalConfidence: 'avg(x, y, z)',
-  listenAddress: '0.0.0.0', // Listen address
-  pluginConfidence: 'x / (x + y)',
-  serverHostname: ip,
-  serverPort,
-  soulIdCutoff: 32,
-  upnpReannounce: 1800, // Seconds
-  upnpTTL: 3600 // Seconds
 }

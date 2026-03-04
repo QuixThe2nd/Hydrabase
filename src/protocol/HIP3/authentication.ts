@@ -15,14 +15,14 @@ type Auth =
 const prove = {
   client: (account: Account, peerHostname: `ws://${string}`) => ({
     'x-address': account.address,
-    'x-hostname': `ws://${CONFIG.serverHostname}:${CONFIG.serverPort}`,
+    'x-hostname': `ws://${CONFIG.hostname}:${CONFIG.serverPort}`,
     'x-signature': account.sign(`I am connecting to ${peerHostname}`).toString()
   }),
   server: (account: Account, port: number) => new Response(JSON.stringify({
     address: account.address,
     username: CONFIG.username,
     userAgent: `Hydrabase/${version}`,
-    signature: account.sign(`I am ws://${CONFIG.serverHostname}:${port}`).toString()
+    signature: account.sign(`I am ws://${CONFIG.hostname}:${port}`).toString()
   } satisfies z.infer<typeof AuthSchema>))
 }
 
@@ -47,9 +47,9 @@ const verify = {
     if (unverifiedAuth.apiKey && unverifiedAuth.apiKey !== CONFIG.apiKey) return [401, 'Invalid API key']
     else if (unverifiedAuth.signature) {
       if (!unverifiedAddress) return [400, 'Missing address header']
-      if (!unverifiedAuth.signature.verify(`I am connecting to ws://${CONFIG.serverHostname}:${CONFIG.serverPort}`, unverifiedAddress)) return [403, 'Authentication failed']
+      if (!unverifiedAuth.signature.verify(`I am connecting to ws://${CONFIG.hostname}:${CONFIG.serverPort}`, unverifiedAddress)) return [403, 'Authentication failed']
       address = unverifiedAddress as `0x${string}`
-    } else return { username: CONFIG.username, address: '0x0', hostname: 'ws://', userAgent: `Hydrabase-API/${version}` }
+    } else return { username: 'API', address: '0x0', hostname: 'ws://', userAgent: `Hydrabase-API/${version}` }
 
     log(`[HIP3] Verifying client hostname ${address}`)
     if (!unverifiedHostname) return [500, "Missing Hostname"]

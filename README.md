@@ -1,6 +1,6 @@
 # Hydrabase - WIP
 
-Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P@P network that acts as a unified source for music metadata.
+Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source for music metadata.
 
 ## Install
 
@@ -9,26 +9,29 @@ Hydrabase is web-of-trust inspired consensus-less distributed relational databas
 ```yml
 services:
   hydrabase:
-    image: ghcr.io/quixthe2nd/hydrabase
+    image: ghcr.io/QuixThe2nd/Hydrabase
     container_name: hydrabase
     restart: always
     ports:
       - 4545:4545/tcp
-      - 45454:45454/udp
+      - 4545:4545/udp
     volumes:
       - ./data:/app/data
     environment:
-      PUID: 1000
-      PGID: 1000
+      USERNAME: Anonymous
+      # API_KEY: $API_KEY - Use `openssl rand -hex 16` to generate an api key
+
+      # Defaults:
+      # SERVER_PORT: 4545
+      # DHT_PORT: 4545
+      # HOSTNAME: [public_ip]
+      # LISTEN_ADDRESS: 0.0.0.0
+      # PUID: 1000
+      # PGID: 1000
+
       # Uncomment to enable Spotify plugin:
       # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
       # SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
-      # Ports
-      DHT_PORT: 45454
-      SERVER_PORT: 4545
-      # Use `openssl rand -hex 16` to generate an api key
-      # API_KEY: $API_KEY
-      USERNAME: Anonymous
 ```
 
 ### Manual
@@ -46,59 +49,69 @@ To run:
 bun src
 ```
 
+## Networking
+Hydrabase uses both TCP & UDP (default: 4545):
+```
+TCP: 4545 (WebSocket - Used to communicate with peers)
+UDP: 4545 (DHT - Used to discover peers)
+```
+
+Hydrabase will automatically try to port forward using uPnP, and DHT doesn't require port forwarding. For best connectability, I recommend port forwarding both manually. However technically, only TCP is required for Hydrabase to work, though performance may be worse without UDP port forwarded.
+
 ## API Documentation
+
+### 1. Connection & Authentication
 
 To make an API request, you need to connect to a Hydrabase node via WebSocket. Connect to `ws://ip_address:4545` with the `x-api-key` header set.
 
-### Requests
+### 2. Requests
 Once connected to a node, you can trigger searches by sending a message structured like so:
-```json
+```jsonc
 {
   "request": {
-    "type": "artist" | "track" | "album",
+    "type": "artists", // "artists" | "tracks" | "albums"
     "query": "black eyed peas"
   },
-  "nonce": 20
+  "nonce": 0
 }
 ```
 
 Nonces are optional but recommended, they can be any number, but should be unique to that request. That way when the server responds, you know which request it's for:
-```json
+```jsonc
 {
   "response": [
     {
-      "id": "360391",
       "name": "Black Eyed Peas",
-      "popularity": 0,
-      "genres": [ "Pop" ],
-      "followers": 0,
-      "image_url": "",
-      "external_urls": {},
-      "plugin_id": "iTunes"
+      "soul_id": "soul_202144721720576658",
+      "id": "360391",
+      "plugin_id": "iTunes",
+      "confidence": 1
+      // ...
     },
     {
-      "id": "1yxSLGMDHlW21z4YXirZDS",
       "name": "Black Eyed Peas",
-      "popularity": 81,
-      "genres": [],
-      "followers": 10041814,
-      "image_url": "https://i.scdn.co/image/ab6761610000e5ebb3037310c07b99cbefbd2c6d",
-      "external_urls": { "spotify": "https://open.spotify.com/artist/1yxSLGMDHlW21z4YXirZDS" },
-      "plugin_id": "Spotify"
+      "soul_id": "soul_2038199553408899024",
+      "id": "1yxSLGMDHlW21z4YXirZDS",
+      "plugin_id": "Spotify",
+      "confidence": 0.83
+      // ...
     }
   ],
-  "nonce": 20
+  "nonce": 0
 }
 ```
 
-## Networking
-Currently Hydrabase needs 2 ports forwarded:
+### 3. Lookups
+To lookup items, the query must be the Soul ID:
+```jsonc
+{
+  "request": {
+    "type": "artist.tracks", // "artist.albums" | "artist.tracks" | "album.tracks"
+    "query": "soul_202144721720576658"
+  },
+  "nonce": 1
+}
 ```
-TCP: 4545 (WebSocket - Used to communicate with peers)
-UDP: 45454 (DHT - Used to discover peers)
-```
-
-Hydrabase will automatically try to forward required ports using uPnP, but manual port forwarding is recommended. Hydrabase will not work without port forwarding enabled.
 
 ## How it Works
 As Hydrabase is under active development, this section will be incomplete. Here is what is currently functional:
@@ -135,11 +148,11 @@ Metadata discovered via API lookups and other peers is stored in a database. Whe
 ### Future Plans
 While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism. The end goal is for peers running different plugins to benefit by exchanging api responses from different metadata providers.
 
-### Versioning
-#### Protocol Versioning
+## Versioning
+### Protocol Versioning
 A Hydrabase Improvement Proposals (HIP) defines hows peers communicate with each other, they're essentially API specifications/capabilities. Each new type of communication uses a new HIP number (HIP1, HIP2, etc). For example, HIP2 defines how request/response messages are structured, and HIP3 defines how peers authenticate each other. Currently, I am rapidly iterating on Hydrabase, so HIPs are changing, however, once ready for production, HIPs will be immutable. Once immutable, if the authentication protocol needs updating, HIP3v2 will be created.
 
-#### Application Versioning
+### Application Versioning
 v**MAJOR.MINOR.PATCH**:
 - MAJOR = Protocol breaking (wire-incompatible, peers must upgrade)
 - MINOR = Protocol additive OR app breaking (with clear changelog)

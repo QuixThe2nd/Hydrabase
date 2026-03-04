@@ -40,8 +40,8 @@ export class DHT_Node {
       // Log(`[DHT] Discovered node ${node.host}:${node.port}`)
     })
     this.dht.on('peer', async peer => {
-      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.serverHostname}:${CONFIG.serverPort}`) return
-      if (this.knownPeers.has(`${peer.host}:${peer.port}`) || CONFIG.blacklistedIPs.includes(peer.host)) return
+      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.serverPort}`) return
+      if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
       log(`[DHT] Discovered peer ws://${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`)
@@ -50,8 +50,8 @@ export class DHT_Node {
     })
     this.dht.on('announce', async (peer, _infoHash) => {
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId()) return
-      if (this.knownPeers.has(`${peer.host}:${peer.port}`) || CONFIG.blacklistedIPs.includes(peer.host)) return
-      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.serverHostname}:${CONFIG.serverPort}`) return
+      if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
+      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.serverPort}`) return
       log(`[DHT] Received announce from ws://${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`)
       if (client === false) return
