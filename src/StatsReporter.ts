@@ -8,13 +8,14 @@ import type Peers from './Peers'
 import { error } from './log'
 
 export interface ApiPeer {
+  username: string
   address: `0x${string}`
   confidence: number
   hostname: string | undefined
   latency: number
   plugins: string[]
   rxTotal: number
-  status: "connected" | "disconnected";
+  status: 'connected' | 'disconnected'
   txTotal: number
   uptime: number
 }
@@ -75,8 +76,8 @@ export class StatsReporter {
         tracks:  countRow(countPeerSql('tracks')),
       },
       peers: await Promise.all(this.peers.connectedPeers.entries().filter(([,peer]) => peer.address !== '0x0')
-        .map(([, { address, averageLatencyMs, historicConfidence, hostname, isOpened, plugins, rxTotal, txTotal, uptimeMs }]) => (
-          { address, confidence: historicConfidence, hostname, latency: averageLatencyMs, plugins, rxTotal, status: isOpened ? 'connected' as const : 'disconnected' as const, txTotal, uptime: uptimeMs }
+        .map(([, { address, averageLatencyMs, historicConfidence, hostname, isOpened, plugins, rxTotal, txTotal, uptimeMs, username }]) => (
+          { address, confidence: historicConfidence, hostname, latency: averageLatencyMs, plugins, rxTotal, status: isOpened ? 'connected' as const : 'disconnected' as const, txTotal, uptime: uptimeMs, username }
         ))),
       timestamp: new Date().toISOString(),
       votes: {

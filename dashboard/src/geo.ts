@@ -28,16 +28,17 @@ export const enrichPeers = (apiPeers: ApiPeer[] = [], knownPeers: `0x${string}`[
     const { hostname, port } = apiPeer ? parseWsHost(apiPeer.hostname ?? '') : { hostname: 'unknown', port: 4544 }
     return {
       address,
-      confidence: apiPeer ? apiPeer.confidence : 0,
-      country: apiPeer ? await getCountry(hostname) : "N/A",
+      confidence: apiPeer?.confidence ?? 0,
+      country: await getCountry(hostname),
       hostname,
-      latency: apiPeer ? apiPeer.latency : 0,
-      plugins: apiPeer ? apiPeer.plugins : [],
+      latency: apiPeer?.latency ?? 0,
+      plugins: apiPeer?.plugins ?? [],
       port,
-      rxTotal: apiPeer ? apiPeer.rxTotal : 0,
-      status: apiPeer ? apiPeer.status : "disconnected",
-      txTotal: apiPeer ? apiPeer.txTotal : 0,
-      uptime: apiPeer ? apiPeer.uptime : 0,
+      rxTotal: apiPeer?.rxTotal ?? 0,
+      status: apiPeer?.status ?? "disconnected",
+      txTotal: apiPeer?.txTotal ?? 0,
+      uptime: apiPeer?.uptime ?? 0,
+      username: apiPeer?.username ?? 'Anonymous'
     }
   }))
 }

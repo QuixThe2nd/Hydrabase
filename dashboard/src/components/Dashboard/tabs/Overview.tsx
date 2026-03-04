@@ -25,6 +25,7 @@ interface TableProps {
 
 const PEER_HEADER: [keyof ApiPeer, string][] = [
   ["status",     "Status"],
+  ["username",    "Username"],
   ["address",    "Address"],
   ["hostname",   "Host"],
   ["latency",    "Latency"],
@@ -46,6 +47,7 @@ const Table = ({ peers, sel, setSel, SI, toggleSort }: TableProps) => <table sty
         <StatusDot status={p.status} />
         <span style={{ color: p.status === "connected" ? "#3fb950" : "#f85149", fontSize: 10 }}>{p.status}</span>
       </td>
+      <td style={{ color: MUTED, fontSize: 10, padding: "8px 12px" }}>{p.username}</td>
       <td style={{ color: MUTED, fontSize: 10, padding: "8px 12px" }}>{shortAddr(p.address)}</td>
       <td style={{ color: MUTED, fontSize: 11, padding: "8px 12px" }}>{toEmoji(p.country)} {p.hostname}</td>
       <td style={{ color: p.latency ? latColor(p.latency) : MUTED, padding: "8px 12px" }}>{p.latency ? `${Math.round(p.latency * 10) / 10}ms` : "—"}</td>
@@ -78,7 +80,6 @@ export const OverviewTab = ({ dhtNodes, peers, sel, setSel, SI, toggleSort, vote
       <StatCard color="#a5d6ff" label="DHT Nodes" sub="routing table entries" value={dhtNodes.length} />
       <StatCard color="#bc8cff" label="Your Votes" sub={`${votes.tracks} tracks / ${votes.artists} artists / ${votes.albums} albums`} value={votes.tracks + votes.artists + votes.albums} />
     </div>
-
     <div style={panel()}>
       <PanelHeader label="Peers" right={`${connCount}/${peers.length}`} />
       <div style={{ overflowX: "auto" }}>

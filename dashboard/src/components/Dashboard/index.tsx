@@ -90,8 +90,8 @@ export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }
     Promise.all(stats.dhtNodes.map(async (host) => ({ country: await getCountry(host.split(":")[0]!), host }))).then((nodes) => setDhtNodes(nodes))
     setInstalledPlugins(stats.installedPlugins)
     setKnownPlugins(stats.knownPlugins)
-    setDhtNodeCounts((prev) => [...prev, stats.dhtNodes?.length ?? 0])
-    enrichPeers(stats.peers ?? [], stats.knownPeers).then((p) => setPeers(p))
+    setDhtNodeCounts(prev => [...prev, stats.dhtNodes?.length ?? 0])
+    enrichPeers(stats.peers ?? [], stats.knownPeers).then(p => setPeers(p))
     addLog("INFO", `Stats received — ${stats.connectedPeers} connected, ${(stats.dhtNodes ?? []).length} DHT nodes`)
   }, [addLog])
   useEffect(() => {
