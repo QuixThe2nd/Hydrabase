@@ -14,7 +14,7 @@ import { PeersTab } from "./tabs/Peers"
 import { SearchTab } from "./tabs/Search"
 import { VotesTab } from "./tabs/votes"
 import type { PeerStats } from "../../../../src/networking/ws/peer"
-import { Sidebar, type Tab } from "../SideBar"
+import { Sidebar, type Tab } from "../Sidebar"
 import { StatusBar } from "../StatusBar"
 import { ActivityFeed } from "../ActivityFeed"
 
