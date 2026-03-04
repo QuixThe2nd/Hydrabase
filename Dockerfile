@@ -6,7 +6,11 @@ RUN bun install --frozen-lockfile
 FROM oven/bun AS release
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y gcc wget && \
+    wget -O /tmp/su-exec.c https://raw.githubusercontent.com/ncopa/su-exec/master/su-exec.c && \
+    gcc -o /usr/local/bin/su-exec /tmp/su-exec.c && \
+    rm /tmp/su-exec.c && \
+    apt-get remove -y gcc wget && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
