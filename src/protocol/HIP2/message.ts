@@ -39,7 +39,13 @@ export class HIP2_Conn_Message {
     : null
 
   parseMessage = (message: string): false | { data: Message, nonce: number; type: MessageType } => {
-    const { nonce, ...result } = JSON.parse(message)
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(message)
+    } catch {
+      return warn('DEVWARN:', `[HIP2] Invalid JSON from ${this.peer.username} ${this.peer.address}`)
+    }
+    const { nonce, ...result } = parsed
 
     const type = HIP2_Conn_Message.identifyType(result)
     if (!type) return warn('DEVWARN:', `[HIP2] Unexpected message from ${this.peer.username} ${this.peer.address}`, `- ${message}`)
