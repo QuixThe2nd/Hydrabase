@@ -13,9 +13,10 @@ export class DHT_Node {
   get nodes() {
     return this.dht.toJSON().nodes
   }
-  private readonly dht: DHT
 
+  private readonly dht: DHT
   private readonly knownPeers = new Set<`${string}:${number}`>();
+  private retryTimeout: NodeJS.Timeout | undefined
 
   private constructor (account: Account, peers: Peers, onReady: () => void, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     portForward(CONFIG.dhtPort, 'Hydrabase (UDP)', 'UDP');
@@ -40,6 +41,7 @@ export class DHT_Node {
       // Log(`[DHT] Discovered node ${node.host}:${node.port}`)
     })
     this.dht.on('peer', async peer => {
+      if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.|::1$|fc|fd)/i.test(peer.host)) return
       if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.serverPort}`) return
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
@@ -74,6 +76,12 @@ export class DHT_Node {
   public readonly add = (node: DHTNode) => this.dht.addNode(node)
 
   private readonly announce = () => {
+    if (this.nodes.length <= 1) {
+      log('[DHT] Waiting for nodes')
+      this.retryTimeout = setTimeout(() => this.announce(), 5_000)
+      return
+    }
+    clearTimeout(this.retryTimeout)
     const room = DHT_Node.getRoomId()
     this.dht.announce(room, CONFIG.serverPort, err => { if (err) {error('ERROR:', '[DHT] An error occurred during announce', {err})} })
     this.dht.lookup(room, err => { if (err) {error('ERROR:', '[DHT] An error occurred during lookup', {err})} })

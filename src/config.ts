@@ -1,5 +1,5 @@
 export const CONFIG = {
-  hostname: process.env['HOSTNAME'] ?? (await (await fetch('https://icanhazip.com')).text()).trim(),
+  hostname: process.env['EXTERNAL_IP'] ?? (await (await fetch('https://icanhazip.com')).text()).trim(),
   listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',
   serverPort: Number(process.env['SERVER_PORT'] ?? 4545),
   dhtPort: Number(process.env['DHT_PORT'] ?? 4545),
