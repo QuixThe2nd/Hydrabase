@@ -35,7 +35,7 @@ const calculatePeerConfidence = (pluginMatches: Record<string, { match: number, 
     .filter(([pluginId]) => installedPlugins.has(pluginId))
     .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
 ) // 0-1
-
+// TODO: dedupe usernames
 const saveResults = <T extends Request['type']>(peerResults: Response<T>, peerConfidence: number, results: Map<bigint, SearchResult[T] & { confidences: number[] }>, peer: Peer): Map<bigint, SearchResult[T] & { confidences: number[] }> => {
   for (const _result of peerResults) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -105,7 +105,7 @@ export default class Peers {
     if (!(await cacheFile.exists())) return
     const hostnames: `ws://${string}`[] = await cacheFile.json()
     for (const hostname of hostnames) if (hostname && hostname !== 'ws://') WebSocketClient.init(this, this.account, hostname).then(socket => { if (socket) this.add(socket) })
-  }
+  } // TODO: time based confidence scores - older peers = more trustworthy
 
   public isConnectionOpened(address: `0x${string}`): boolean {
     const peer = this.peers.get(address)
