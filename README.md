@@ -9,7 +9,7 @@ Hydrabase is web-of-trust inspired consensus-less distributed relational databas
 ```yml
 services:
   hydrabase:
-    image: ghcr.io/QuixThe2nd/Hydrabase
+    image: ghcr.io/quixthe2nd/hydrabase
     container_name: hydrabase
     restart: always
     network_mode: host
