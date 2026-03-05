@@ -12,6 +12,7 @@ services:
     image: ghcr.io/QuixThe2nd/Hydrabase
     container_name: hydrabase
     restart: always
+    network_mode: host
     ports:
       - 4545:4545/tcp
       - 4545:4545/udp
@@ -24,7 +25,7 @@ services:
       # Defaults:
       # SERVER_PORT: 4545
       # DHT_PORT: 4545
-      # HOSTNAME: [public_ip]
+      # EXTERNAL_IP: [automatically set]
       # LISTEN_ADDRESS: 0.0.0.0
       # PUID: 1000
       # PGID: 1000
