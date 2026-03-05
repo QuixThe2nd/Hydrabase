@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=1000:1000 . .
 
+RUN chown 1000:1000 /app
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
