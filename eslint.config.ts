@@ -57,7 +57,6 @@ export default tseslint.config(
       "no-undefined": "off",
       "no-underscore-dangle": "off",
       "no-unused-vars": "off",
-      "no-use-before-define": "off",
       "no-warning-comments": "off",
       "one-var": "off",
       "react/jsx-filename-extension": "off",
