@@ -31,7 +31,7 @@ const verify = {
     log(`[HIP3] Verifying server address ${hostname}`)
     fetch(`${hostname.replace('ws://', 'http://')}/auth`).then(async response => {
       const auth = AuthSchema.parse(JSON.parse(await response.text()))
-      return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? { address: auth.address, username: auth.username, userAgent: auth["userAgent"] } : warn('DEVWARN:', "[HIP3] Invalid authentication from client's server"))
+      return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? { address: auth.address, username: auth.username, userAgent: auth["userAgent"] } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
     }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${hostname}`, `- ${error.name} ${error.message}`)))
   }),
   clientFromServer: async (headers: Record<string, string>): Promise<{ address: `0x${string}`,  hostname: `ws://${string}`, username: string, userAgent: string } | [number, string]> => {
