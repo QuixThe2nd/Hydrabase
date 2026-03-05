@@ -14,7 +14,7 @@ if ! getent passwd "$PUID" > /dev/null 2>&1; then
     adduser -D -u "$PUID" -G "$(getent group "$PGID" | cut -d: -f1)" appuser
 fi
 
-chown -R "$PUID:$PGID" /app/data
+chown -R "$PUID:$PGID" /app/data 2>/dev/null || echo "Warning: Cannot chown /app/data (FUSE mount). Ensure host dir is writable by UID:GID $PUID:$PGID."
 
 exec gosu "$PUID:$PGID" bun src/index.ts
 
