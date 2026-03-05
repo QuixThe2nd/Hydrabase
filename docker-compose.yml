@@ -1,45 +1,22 @@
 services:
   hydrabase:
-    build:
-      context: .
-      dockerfile: Dockerfile
+#    build: .
+    image: ghcr.io/quixthe2nd/hydrabase
     container_name: hydrabase
-    restart: always
-    # host mode is required — Docker bridge NAT drops the UDP packets
-    # that BitTorrent DHT needs for peer discovery.
-    # On Unraid: if your host has a WireGuard VPN active, the container
-    # will route through it automatically in host mode.
     network_mode: host
+    ports:
+      - 4544:4544/tcp
+      - 45455:45455/udp
     volumes:
-      - ./data:/app/data
+      #- ./data:/app/data
+      - /mnt/user/appdata/hydrabase/data:/app/data
     environment:
-      # Your display name on the network
-      # USERNAME: Anonymous
-
-      # API key for local HTTP API access
-      # Generate with: openssl rand -hex 16
-      # API_KEY: your_key_here
-
-      # Your public-facing IP.
-      # Defaults to auto-detected via icanhazip.com.
-      # Set this if auto-detect is wrong (e.g. behind a reverse proxy).
-      # EXTERNAL_IP: 1.2.3.4
-
-      # Ports (defaults shown)
-      # SERVER_PORT: 4545
-      # DHT_PORT: 4545
-
-      # Listen address (default: all interfaces)
-      # LISTEN_ADDRESS: 0.0.0.0
-
-      # File permission user/group (Unraid: match your user)
-      # PUID: 1000
-      # PGID: 1000
-
-      # Opt-in: share LAN/VPN IPs with peers so nearby nodes connect directly
-      # instead of relaying. Only shared to authenticated peers, never the DHT.
-      # SHARE_CANDIDATES: "true"
-
-      # Spotify plugin (optional)
-      # SPOTIFY_CLIENT_ID: your_id
-      # SPOTIFY_CLIENT_SECRET: your_secret
+      PUID: 1000
+      PGID: 1000
+      DHT_PORT: 45455
+      SERVER_PORT: 4544
+      HOST: 0.0.0.0
+      API_KEY: YOUR_API_KEY_HERE
+      #SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
+      #SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
+      #USERNAME: Aservices:
