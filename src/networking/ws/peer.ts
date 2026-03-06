@@ -185,7 +185,7 @@ export class Peer {
       this.startTime = Number(new Date())
       id = setInterval(() => {
         this.send({ nonce: this.nonce++, ping: { time: Number(new Date()) } })
-      }, 5_000)
+      }, 60_000)
     })
     this.socket.onClose(() => {
       this.requestManager.close()
