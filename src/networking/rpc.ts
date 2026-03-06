@@ -70,7 +70,7 @@ export class RPC implements Socket {
   public onOpen(handler: () => void) {
     this.openHandler = () => handler()
   }
-  public readonly send = (message: string) => socket.query(this.node, { d: message, q: `${CONFIG.rpcPrefix}_msg` }, err => {
+  public readonly send = (message: string) => socket.query(this.node, { a: { d: message }, q: `${CONFIG.rpcPrefix}_msg` }, err => {
     if (err) {
       error('ERROR:', '[RPC] Message failed to send', {err})
       return this.close()
