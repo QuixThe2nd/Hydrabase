@@ -28,7 +28,6 @@ const nonce = Math.random()
 
 const filterPeers = (peers: PeerWithCountry[], filter: FilterState) => [...peers].filter((p) => filter === "all" || (p.connection === undefined && filter === 'disconnected') || (p.connection !== undefined && filter === 'connected'))
 
-// ─── Dashboard ─────────────────────────────────────────────────────────────────
 export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [wsState, setWsState] = useState<WsState>("connecting")
   const [peers, setPeers] = useState<PeerWithCountry[]>([])

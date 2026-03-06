@@ -20,8 +20,8 @@ export const Sidebar = ({ peers, setTab, stats, tab, uptime }: { peers: PeerWith
   const connCount = peers.filter(p => p.connection !== undefined).length
   return <div style={{ background: "#010409", borderRight: `1px solid ${BORD}`, display: "flex", flexDirection: "column", flexShrink: 0, height: "calc(100vh - 48px)", position: "sticky", top: 0, width: 196 }}>
     <div style={{ borderBottom: `1px solid ${BORD}`, padding: "16px 16px 14px" }}>
-      {/* // TODO: Logo */}
-      <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: ".06em", marginBottom: 4 }}>HYDRABASE</span>
+      <img src="./logo-white.svg" style={{ marginRight: '4px', width: '16px' }} />
+      <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: ".06em", marginBottom: 4 }}>HYDRABASE</span>
     </div>
     <nav style={{ flex: 1, padding: "8px 6px" }}>
       {NAV_ITEMS.map(({ icon, label, tab: t }) => <button key={t} onClick={() => setTab(t)} style={{ alignItems: "center", background: tab === t ? "rgba(88,166,255,.1)" : "none", border: "none", borderLeft: `2px solid ${tab === t ? ACCENT : "transparent"}`, borderRadius: "0 6px 6px 0", color: tab === t ? TEXT : MUTED, cursor: "pointer", display: "flex", fontFamily: "inherit", fontSize: 13, fontWeight: tab === t ? 600 : 400, gap: 9, marginBottom: 2, padding: "7px 12px", transition: "all .15s", width: "100%" }}>

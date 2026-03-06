@@ -96,6 +96,7 @@ export const startServer = async (account: Account, peers: Peers) => {
       if (req.headers.get("upgrade") !== "websocket") {
         if (url.pathname === "/src/main.tsx") return new Response(Bun.file(`./dist/main.js`))
         if (url.pathname === "/") return new Response(Bun.file(`./dashboard/index.html`))
+        if (url.pathname === "/logo-white.svg") return new Response(Bun.file(`./public/logo-white.svg`))
         return new Response('Page not found', { status: 404 })
       }
       const response = await handleConnection(server, req)
