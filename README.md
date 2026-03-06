@@ -12,10 +12,10 @@ services:
     image: ghcr.io/quixthe2nd/hydrabase
     container_name: hydrabase
     restart: always
-    network_mode: host
-    ports:
-      - 4545:4545/tcp
-      - 4545:4545/udp
+    network_mode: host # Can be replaced with ports if manually port forwarded
+    # ports:
+    #   - 4545:4545/tcp
+    #   - 4545:4545/udp
     volumes:
       - ./data:/app/data
     environment:

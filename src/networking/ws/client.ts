@@ -1,5 +1,3 @@
-import z from 'zod'
-
 import type { Account } from '../../Crypto/Account'
 import type Peers from '../../Peers'
 
@@ -12,13 +10,6 @@ export interface Peer {
   userAgent: string
   username: string
 }
-
-export const AuthSchema = z.object({
-  address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
-  signature: z.string(),
-  userAgent: z.string().default('Hydrabase/Unknown'),
-  username: z.string().default('Anonymous'),
-})
 
 export default class WebSocketClient {
   get isOpened() {

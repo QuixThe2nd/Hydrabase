@@ -1,12 +1,18 @@
-import type z from "zod";
+import z from "zod";
 
 import type { Account } from "../../Crypto/Account";
 
 import { CONFIG } from "../../config";
 import { Signature } from "../../Crypto/Signature";
 import { log, warn } from "../../log";
-import { AuthSchema } from "../../networking/ws/client";
 import { version } from "../../networking/ws/server";
+
+const AuthSchema = z.object({
+  address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
+  signature: z.string(),
+  userAgent: z.string(),
+  username: z.string()
+})
 
 type Auth =
   | { apiKey: string; signature: Signature }
@@ -59,9 +65,12 @@ const verify = {
   serverFromClient: (hostname: `ws://${string}`) => new Promise<false | { address: `0x${string}`, userAgent: string; username: string, }>(resolve => {
     log(`[HIP3] Verifying server address ${hostname}`)
     fetch(`${hostname.replace('ws://', 'http://')}/auth`).then(async response => {
-      const auth = AuthSchema.parse(JSON.parse(await response.text()))
-      return resolve(Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address) ? { address: auth.address, userAgent: auth["userAgent"], username: auth.username } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
-    }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${hostname}`, `- ${error.name} ${error.message}`)))
+      const { data: auth } = AuthSchema.safeParse(JSON.parse(await response.text()))
+      if (!auth) return resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${hostname}`))
+      const signature = Signature.fromString(auth.signature)
+      console.log(signature.message, `I am ${hostname}`)
+      return resolve(signature.verify(`I am ${hostname}`, auth.address) ? { address: auth.address, userAgent: auth["userAgent"], username: auth.username } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
+    }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to connect to server ${hostname}`, `- ${error.name} ${error.message}`)))
   })
 }
 
@@ -69,5 +78,5 @@ export const HIP3_CONN_Authentication =  {
   proveClientAddress: (account: Account, peerHostname: `ws://${string}`) => prove.client(account, peerHostname),
   proveServerIdentity: (account: Account, listenPort: number) => prove.server(account, listenPort),
   verifyClientFromServer: (headers: Record<string, string>) => verify.clientFromServer(headers),
-  verifyServerFromClient: async (hostname: `ws://${string}`) => verify.serverFromClient(hostname),
+  verifyServerFromClient: (hostname: `ws://${string}`) => verify.serverFromClient(hostname),
 }
