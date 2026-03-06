@@ -5,7 +5,7 @@ import type { Connection } from './ws/client'
 import type { Socket } from './ws/peer'
 
 import { CONFIG } from '../config'
-import { log } from '../log'
+import { error, log, warn } from '../log'
 
 const onReply = (message: KRPCResponse, node: KRPCNode): false | undefined => undefined
   // Console.log('visited peer', message, node)
@@ -18,15 +18,17 @@ const startRPC = () => {
   
   rpc.on('query', (query, node) => {
     const q = query.q.toString()
+    console.log(q, `${node.address}:${node.port}`)
     if (!q.startsWith(CONFIG.rpcPrefix)) return
 
-    const key = `${node.host}:${node.port}`
+    const key = `${node.address}:${node.port}`
     log(`[RPC] Received message from ${key}: ${q}`)
 
     if (q === `${CONFIG.rpcPrefix}_msg`) {
       const message = query.a?.['d']?.toString()
+      console.log(query)
       if (message) connections.get(key)?.messageHandler?.(message)
-      rpc.response(node, query, { ok: true })
+      rpc.response({ ...node, host: node.address }, query, { ok: 1 })
     }
   })
 
@@ -39,13 +41,13 @@ export const { rpc, socket } = startRPC()
 
 export class RPC implements Socket {
   public isOpened = true
-  public messageHandler?: (message: string) => void
+  public messageHandler: (message: string) => void = msg => warn('DEVWARN:', `[RPC] Received message but not handler to handle it - ${msg}`)
   public readonly peer: Connection
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
 
-  constructor(hostname: `rpc://${string}`) {
+  constructor(private readonly hostname: `rpc://${string}`) {
     log(`[RPC] Connecting to peer ${hostname}`)
     const { hostname: host, port } = new URL(hostname)
     this.node = { host, port: Number(port) }
@@ -54,7 +56,7 @@ export class RPC implements Socket {
     connections.set(`${this.node.host}:${this.node.port}`, this)
   }
   public readonly close = () => {
-    this.isOpened = false
+    // this.isOpened = false
     connections.delete(`${this.node.host}:${this.node.port}`)
     this.closeHandlers.map(handler => handler())
   }
@@ -68,15 +70,15 @@ export class RPC implements Socket {
   public onOpen(handler: () => void) {
     this.openHandler = () => handler()
   }
-  public readonly send = (message: string) => socket.query(this.node, { d: message, q: `${CONFIG.rpcPrefix}_msg` }, (err, reply) => {
+  public readonly send = (message: string) => socket.query(this.node, { d: message, q: `${CONFIG.rpcPrefix}_msg` }, err => {
     if (err) {
-      console.error(err)
+      error('ERROR:', '[RPC] Message failed to send', {err})
       return this.close()
     }
+    log(`[RPC] Peer acknowledged message ${this.hostname}`)
     if (!this.isOpened) {
       this.isOpened = true
       this.openHandler?.()
     }
-    log(`[RPC] Peer responded`, reply) // Reply.r has their response data
   })
 }

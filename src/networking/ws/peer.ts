@@ -6,7 +6,6 @@ import type { DB, Repositories } from "../../db";
 import type { MetadataPlugin } from "../../Metadata";
 import type Peers from "../../Peers";
 import type { NodeStats, Votes } from "../../StatsReporter";
-import type { Connection } from './client';
 
 import { CONFIG } from "../../config";
 import { log, warn } from "../../log";
@@ -14,7 +13,7 @@ import { HIP2_Conn_Message } from "../../protocol/HIP2/message";
 import { type Announce, HIP4_Conn_Announce } from "../../protocol/HIP4/announce";
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "../../RequestManager";
 import { RPC } from '../rpc';
-import WebSocketClient from './client';
+import WebSocketClient, { type Connection } from './client';
 
 export interface PeerStats {
   address: `0x${string}`
@@ -193,8 +192,10 @@ export class Peer {
       if (id) clearInterval(id)
     })
     this.socket.onMessage(async message => {
+      console.log('Received message', message)
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message)
+      console.log(result)
       if (!result) return
       const { data, nonce, type } = result
       await this.handlers[type](data, nonce)

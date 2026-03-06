@@ -27,7 +27,7 @@ declare module 'k-rpc' {
 
     readonly nodes: unknown;
 
-    on(event: 'query', listener: (query: KRPCQuery, node: KRPCNode) => void): this;
+    on(event: 'query', listener: (query: KRPCQuery, node: { address: string, family: "IPv4" | IPv6; port: number, size: number, }) => void): this;
 
     on(event: 'ping', listener: (oldNodes: KRPCNode[], swapNew: (node: KRPCNode) => void) => void): this;
 
