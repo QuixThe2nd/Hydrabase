@@ -26,7 +26,7 @@ const startRPC = () => {
 
     if (q === `${CONFIG.rpcPrefix}_msg`) {
       const message = query.a?.['d']?.toString()
-      console.log(query)
+      console.log(message)
       if (message) connections.get(key)?.messageHandler?.(message)
       rpc.response({ ...node, host: node.address }, query, { ok: 1 })
     }
