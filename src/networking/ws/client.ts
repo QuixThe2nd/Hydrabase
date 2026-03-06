@@ -8,7 +8,7 @@ import { RPC } from '../rpc'
 
 export interface Connection {
   address: `0x${string}`
-  hostname: `ws://${string}`
+  hostname: `${string}://${string}`
   userAgent: string
   username: string
 }
@@ -32,7 +32,7 @@ export default class WebSocketClient implements Socket {
   }
 
   static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`): Promise<Socket> => {
-    return new RPC(hostname)
+    return new RPC(hostname.replace('ws://', 'rpc://') as `rpc://${string}`)
     return false
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return result

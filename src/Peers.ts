@@ -79,8 +79,6 @@ export default class Peers {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public add(socket: Socket) {
-    socket.onClose(() => this.peers.delete(socket.peer.address))
-    const peer = new Peer(this.search, socket, this.account, this, this.repos, this.db, this.metadataManager.installedPlugins)
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
         warn('DEVWARN:', `[PEERS] Tried to connect to existing peer again via ${socket instanceof WebSocketClient ? 'client' : 'server'} ${socket.peer.address} ${socket.peer.hostname}`)
@@ -88,6 +86,8 @@ export default class Peers {
       }
       return
     } // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
+    socket.onClose(() => this.peers.delete(socket.peer.address))
+    const peer = new Peer(this.search, socket, this.account, this, this.repos, this.db, this.metadataManager.installedPlugins)
     this.peers.set(socket.peer.address, peer)
     cacheFile.write(JSON.stringify(Object.values(this.peers).map(peer => peer.hostname)))
     this.announce(peer)

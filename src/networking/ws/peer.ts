@@ -14,6 +14,7 @@ import { HIP2_Conn_Message } from "../../protocol/HIP2/message";
 import { type Announce, HIP4_Conn_Announce } from "../../protocol/HIP4/announce";
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "../../RequestManager";
 import { RPC } from '../rpc';
+import WebSocketClient from './client';
 
 export interface PeerStats {
   address: `0x${string}`
@@ -180,14 +181,16 @@ export class Peer {
     this.HIP2_Conn_Message = new HIP2_Conn_Message(this, this.requestManager)
     this.HIP4_Conn_Announce = new HIP4_Conn_Announce(account, this, peers)
     // Log(`Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
+    let id: NodeJS.Timeout | undefined
     this.socket.onOpen(() => {
       this.startTime = Number(new Date())
-      setInterval(() => {
+      id = setInterval(() => {
         this.send({ nonce: this.nonce++, ping: Number(new Date()) })
       }, 5_000)
     })
     this.socket.onClose(() => {
       this.requestManager.close()
+      if (id) clearInterval(id)
     })
     this.socket.onMessage(async message => {
       this._dl += message.length
@@ -217,6 +220,7 @@ export class Peer {
       return
     }
     this._ul += message.length
+    log(`[${this.socket instanceof RPC ? 'RPC' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'}] Sending ${Object.keys(JSON.parse(message)).join(',')} to ${this.hostname}`)
     this.socket.send(message)
   }
 
