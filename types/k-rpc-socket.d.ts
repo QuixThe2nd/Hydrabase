@@ -38,12 +38,8 @@ declare module 'k-rpc-socket' {
     /** Number of concurrent queries currently pending. */
     inflight: number;
 
-    /** Emitted when a query is received. */
     on(event: "query", listener: (query: Query, peer: Peer) => void): this;
-    /** Emitted on non-fatal errors. Safe to ignore. */
-    on(event: "warning", listener: (error: Error) => void): this;
-    /** Emitted on fatal errors. */
-    on(event: "error", listener: (error: Error) => void): this;
+    on(event: "error" | "warning", listener: (error: Error) => void): this;
 
     on(event: string, listener: (...args: unknown[]) => void): this;
     /**

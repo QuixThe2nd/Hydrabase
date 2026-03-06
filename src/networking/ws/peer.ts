@@ -192,7 +192,7 @@ export class Peer {
       if (id) clearInterval(id)
     })
     this.socket.onMessage(async message => {
-      console.log('Received message', message)
+      log(`[PEERS] Received message ${message}`)
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message)
       console.log(result)

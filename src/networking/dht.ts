@@ -5,8 +5,8 @@ import type Peers from '../Peers';
 
 import { CONFIG } from '../config';
 import { error, log, warn } from '../log';
-import WebSocketClient from './ws/client';
 import { rpc } from './rpc';
+import WebSocketClient from './ws/client';
 
 export class DHT_Node {
   public readonly resolved = {
