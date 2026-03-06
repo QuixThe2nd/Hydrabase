@@ -10,8 +10,8 @@ export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/
 
 const MessageSchemas = {
   announce: AnnounceSchema,
-  ping: z.object({ ping: z.number() }),
-  pong: z.object({ pong: z.number() }),
+  ping: z.object({ time: z.number() }),
+  pong: z.object({ time: z.number() }),
   request: RequestSchema,
   response: ResponseSchema
 }
@@ -38,6 +38,8 @@ export class HIP2_Conn_Message {
   static readonly identifyType = (result: Message): MessageType | null => 'request' in result ? 'request'
     : 'response' in result ? 'response'
     : 'announce' in result ? 'announce'
+    : 'ping' in result ? 'ping'
+    : 'pong' in result ? 'pong'
     : null
 
   parseMessage = (message: string): false | { data: Message, nonce: number; type: MessageType } => {

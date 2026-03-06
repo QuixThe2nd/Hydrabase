@@ -184,7 +184,7 @@ export class Peer {
     this.socket.onOpen(() => {
       this.startTime = Number(new Date())
       id = setInterval(() => {
-        this.send({ nonce: this.nonce++, ping: Number(new Date()) })
+        this.send({ nonce: this.nonce++, ping: { time: Number(new Date()) } })
       }, 5_000)
     })
     this.socket.onClose(() => {
@@ -214,7 +214,7 @@ export class Peer {
     return response;
   }
 
-  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: number } | { pong: number } | { request: Request & { type: T } } | { response: Response<T> } | { stats: NodeStats }) & { nonce: number }) {
+  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: { time: number } } | { pong: { time: number } } | { request: Request & { type: T } } | { response: Response<T> } | { stats: NodeStats }) & { nonce: number }) {
     const message = JSON.stringify(payload)
     if (!this.socket.isOpened) {
       warn('DEVWARN:', `[PEER] Cannot send ${Object.keys(payload).join(',')} to unconnected peer ${this.socket.peer.address}`)

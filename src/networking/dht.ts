@@ -5,7 +5,6 @@ import type Peers from '../Peers';
 
 import { CONFIG } from '../config';
 import { error, log, warn } from '../log';
-import { rpc } from './rpc';
 import WebSocketClient from './ws/client';
 
 export class DHT_Node {
@@ -24,7 +23,7 @@ export class DHT_Node {
   private retryTimeout: NodeJS.Timeout | undefined
 
   constructor (account: Account, peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
-    this.dht = new DHT({ krpc: rpc })
+    this.dht = new DHT({ krpc: peers.rpc })
     this.dht.listen(CONFIG.dhtPort, '0.0.0.0', () => {
       log(`[DHT] Listening on port ${CONFIG.dhtPort}`)
       this.resolved.listening = true
@@ -57,7 +56,7 @@ export class DHT_Node {
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
       log(`[DHT] Discovered peer ws://${peer.host}:${peer.port}`)
-      const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`)
+      const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`, peers.socket)
       if (client === false) return
       peers.add(client)
     })
@@ -66,7 +65,7 @@ export class DHT_Node {
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.serverPort}`) return
       log(`[DHT] Received announce from ws://${peer.host}:${peer.port}`)
-      const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`)
+      const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`, peers.socket)
       if (client === false) return
       peers.add(client)
       this.knownPeers.add(`${peer.host}:${peer.port}`)

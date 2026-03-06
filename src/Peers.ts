@@ -1,3 +1,6 @@
+import type { KRPC } from 'k-rpc';
+import type { RpcSocket } from 'k-rpc-socket';
+
 import { Parser } from 'expr-eval'
 
 import type { Account } from './Crypto/Account';
@@ -7,6 +10,7 @@ import type { Request, Response, SearchResult } from './RequestManager'
 
 import { CONFIG } from './config'
 import { log, warn } from './log';
+import { startRPC } from './networking/rpc';
 import WebSocketClient from "./networking/ws/client";
 import { Peer, type Socket } from "./networking/ws/peer";
 import { PeerMap } from './PeerMap';
@@ -57,14 +61,16 @@ const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer =>
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
 export default class Peers {
+  public readonly rpc: KRPC
+
+  public readonly socket: RpcSocket
+
   get apiPeer() {
     return this.peers.get('0x0')
   }
-
   get connectedPeers() {
     return [...this.peers.values()]
   }
-
   public get count() { 
     return this.peers.count
   }
@@ -73,7 +79,11 @@ export default class Peers {
   }
   private readonly peers = new PeerMap()
 
-  constructor(private readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>) {}
+  constructor(private readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>) {
+    const { rpc, socket } = startRPC(this)
+    this.socket = socket
+    this.rpc = rpc
+  }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public add(socket: Socket) {
@@ -121,13 +131,13 @@ export default class Peers {
   public async loadCache() {
     log('[PEERS] Connecting to bootstrap peers...')
     await Promise.all(CONFIG.bootstrapPeers.split(',').map(async node => {
-      const socket = await WebSocketClient.init(this, this.account, `ws://${node}`)
+      const socket = await WebSocketClient.init(this, this.account, `ws://${node}`, this.socket)
       if (socket) this.add(socket)
     }))
     log('[PEERS] Loading cached peers...')
     if (!(await cacheFile.exists())) return
     const hostnames: `ws://${string}`[] = await cacheFile.json()
-    for (const hostname of hostnames) if (hostname && hostname !== 'ws://') WebSocketClient.init(this, this.account, hostname).then(socket => { if (socket) this.add(socket) })
+    for (const hostname of hostnames) if (hostname && hostname !== 'ws://') WebSocketClient.init(this, this.account, hostname, this.socket).then(socket => { if (socket) this.add(socket) })
   } // TODO: time based confidence scores - older peers = more trustworthy
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>): Promise<Map<bigint, SearchResult[T]>> {
