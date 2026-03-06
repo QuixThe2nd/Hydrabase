@@ -74,7 +74,7 @@ const verify = {
       const { data: auth } = AuthSchema.safeParse(JSON.parse(await response.text()))
       if (!auth) return resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${hostname}`))
       const signature = Signature.fromString(auth.signature)
-      console.log(signature.message, `I am ${hostname}`)
+      console.log({ expected: `I am ${hostname}`, signed: signature.message })
       return resolve(signature.verify(`I am ${hostname}`, auth.address) ? { address: auth.address, userAgent: auth["userAgent"], username: auth.username } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
     }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to connect to server ${hostname}`, `- ${error.name} ${error.message}`)))
   })

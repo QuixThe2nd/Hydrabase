@@ -6,14 +6,13 @@ import type { DB, Repositories } from "../../db";
 import type { MetadataPlugin } from "../../Metadata";
 import type Peers from "../../Peers";
 import type { NodeStats, Votes } from "../../StatsReporter";
-import type { WebSocketServerConnection } from "./server";
+import type { Connection } from './client';
 
 import { CONFIG } from "../../config";
 import { log, warn } from "../../log";
 import { HIP2_Conn_Message } from "../../protocol/HIP2/message";
 import { type Announce, HIP4_Conn_Announce } from "../../protocol/HIP4/announce";
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "../../RequestManager";
-import WebSocketClient from "./client";
 
 export interface PeerStats {
   address: `0x${string}`
@@ -22,6 +21,16 @@ export interface PeerStats {
   totalMatches: number
   totalMismatches: number
   votes: { albums: number; artists: number; tracks: number }
+}
+
+export interface Socket {
+  readonly close: () => void
+  readonly isOpened: boolean
+  readonly onClose: (handler: () => void) => void
+  readonly onMessage: (handler: (message: string) => void) => void
+  readonly onOpen: (handler: () => void) => void
+  readonly peer: Connection
+  readonly send: (message: string) => void
 }
 
 const countRow = (db: DB, table: 'albums' | 'artists' | 'tracks', address: `0x${string}`) => db.all<{ n: number }>(sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '${address}'`))[0]?.n ?? 0
@@ -165,7 +174,7 @@ export class Peer {
 
   private startTime?: number
 
-  constructor(private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>, private readonly socket: WebSocketClient | WebSocketServerConnection, account: Account, peers: Peers, private readonly repos: Repositories, private readonly db: DB, private readonly ownPlugins: MetadataPlugin[]) {
+  constructor(private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>, private readonly socket: Socket, account: Account, peers: Peers, private readonly repos: Repositories, private readonly db: DB, private readonly ownPlugins: MetadataPlugin[]) {
     this.requestManager = new RequestManager()
     this.HIP2_Conn_Message = new HIP2_Conn_Message(this, this.requestManager)
     this.HIP4_Conn_Announce = new HIP4_Conn_Announce(account, this, peers)

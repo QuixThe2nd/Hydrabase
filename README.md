@@ -2,9 +2,7 @@
 <p align="center">Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source for music metadata.
 </p>
 <p align="center">
-  <a href="https://github.com/StarfilesFileSharing/hydrafiles/releases">Quick Install</a>
-  <br><br>
-  <img src="./public/logo.png">
+  <img src="./public/logo-black.svg">
 </p>
 
 ## Install

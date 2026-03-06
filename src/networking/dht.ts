@@ -1,5 +1,4 @@
 import DHT, { type DHTNode } from 'bittorrent-dht'
-import krpc from 'k-rpc'
 
 import type { Account } from '../Crypto/Account';
 import type Peers from '../Peers';
@@ -7,6 +6,7 @@ import type Peers from '../Peers';
 import { CONFIG } from '../config';
 import { error, log, warn } from '../log';
 import WebSocketClient from './ws/client';
+import { rpc } from './rpc';
 
 export class DHT_Node {
   public readonly resolved = {
@@ -24,10 +24,14 @@ export class DHT_Node {
   private retryTimeout: NodeJS.Timeout | undefined
 
   constructor (account: Account, peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
-    this.dht = new DHT({ bootstrap: ['router.bittorrent.com:6881', 'router.utorrent.com:6881', 'dht.transmissionbt.com:6881'], krpc: krpc() })
+    this.dht = new DHT({ krpc: rpc })
     this.dht.listen(CONFIG.dhtPort, '0.0.0.0', () => {
       log(`[DHT] Listening on port ${CONFIG.dhtPort}`)
       this.resolved.listening = true
+    })
+    CONFIG.dhtBootstrapNodes.split(',').forEach(node => {
+      const [host, port] = node.split(':') as [string, `${number}`]
+      this.dht.addNode({ host, port: Number(port) })
     })
     this.dht.on('error', err => error('ERROR:', '[DHT] An error occurred', {err}))
     this.dht.on('ready', () => {
