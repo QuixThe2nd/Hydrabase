@@ -1,4 +1,4 @@
-import krpc, { type KRPCNode, type KRPCResponse } from 'k-rpc'
+import krpc from 'k-rpc'
 import krpcSocket from 'k-rpc-socket'
 
 import type { Connection } from './ws/client'
@@ -6,9 +6,6 @@ import type { Socket } from './ws/peer'
 
 import { CONFIG } from '../config'
 import { error, log, warn } from '../log'
-
-const onReply = (message: KRPCResponse, node: KRPCNode): false | undefined => undefined
-  // Console.log('visited peer', message, node)
 
 const connections = new Map<string, RPC>()
 
@@ -18,7 +15,7 @@ const startRPC = () => {
   
   rpc.on('query', (query, node) => {
     const q = query.q.toString()
-    console.log(q, `${node.address}:${node.port}`)
+    log(`[RPC] Received query ${q} from ${`${node.address}:${node.port}`}`)
     if (!q.startsWith(CONFIG.rpcPrefix)) return
 
     const key = `${node.address}:${node.port}`
@@ -26,7 +23,7 @@ const startRPC = () => {
 
     if (q === `${CONFIG.rpcPrefix}_msg`) {
       const message = query.a?.['d']?.toString()
-      console.log(message)
+      log(`[RPC] Received message from ${`${node.address}:${node.port}`}`, {message})
       if (message) connections.get(key)?.messageHandler?.(message)
       rpc.response({ ...node, host: node.address }, query, { ok: 1 })
     }
@@ -41,13 +38,11 @@ export const { rpc, socket } = startRPC()
 
 export class RPC implements Socket {
   public isOpened = true
-  public messageHandler: (message: string) => void = msg => warn('DEVWARN:', `[RPC] Received message but not handler to handle it - ${msg}`)
   public readonly peer: Connection
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
-
-  constructor(private readonly hostname: `rpc://${string}`) {
+  constructor(private readonly hostname: `ws://${string}`) {
     log(`[RPC] Connecting to peer ${hostname}`)
     const { hostname: host, port } = new URL(hostname)
     this.node = { host, port: Number(port) }
@@ -55,11 +50,13 @@ export class RPC implements Socket {
     setTimeout(() => this.openHandler?.(), 5_000)
     connections.set(`${this.node.host}:${this.node.port}`, this)
   }
+
   public readonly close = () => {
-    // this.isOpened = false
+    // This.isOpened = false
     connections.delete(`${this.node.host}:${this.node.port}`)
     this.closeHandlers.map(handler => handler())
   }
+  public messageHandler: (message: string) => void = msg => warn('DEVWARN:', `[RPC] Received message but not handler to handle it - ${msg}`)
   public readonly onClose = (handler: () => void) => {
     this.closeHandlers.push(() => handler())
   }

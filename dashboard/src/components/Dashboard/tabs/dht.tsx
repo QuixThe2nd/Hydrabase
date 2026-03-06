@@ -73,7 +73,7 @@ export const DhtTab = ({ dhtNodeCounts, dhtNodes, socket, tLabels, wsState }: Pr
               <td style={{ fontFamily: "monospace", fontSize: 11, padding: "7px 12px" }}>{ip}</td>
               <td style={{ color: MUTED, padding: "7px 12px" }}>{port}</td>
               <td style={{ padding: "7px 12px" }}>
-                <StatusDot status="connected" />
+                <StatusDot status={true} />
                 <span style={{ color: "#3fb950", fontSize: 10 }}>reachable</span>
               </td>
             </tr>

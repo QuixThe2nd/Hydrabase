@@ -94,10 +94,10 @@ export const startServer = async (account: Account, peers: Peers) => {
     fetch: async (req, server) =>  {
       const url = new URL(req.url)
       if (req.headers.get("upgrade") !== "websocket") {
-        if (url.pathname === "/src/main.tsx") return new Response(Bun.file(`./dist/main.js`))
-        if (url.pathname === "/") return new Response(Bun.file(`./dashboard/index.html`))
-        if (url.pathname === "/logo-white.svg") return new Response(Bun.file(`./public/logo-white.svg`))
-        return new Response('Page not found', { status: 404 })
+        return url.pathname === "/" ? new Response(Bun.file(`./dashboard/index.html`))
+             : url.pathname === "/src/main.tsx" ? new Response(Bun.file(`./dist/main.js`))
+             : url.pathname === "/logo-white.svg" ? new Response(Bun.file(`./public/logo-white.svg`))
+             : new Response('Page not found', { status: 404 })
       }
       const response = await handleConnection(server, req)
       if (response === undefined) return response

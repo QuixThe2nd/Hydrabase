@@ -8,7 +8,7 @@ import type { PeerStats } from "../../../../src/networking/ws/peer"
 import type { NodeStats } from "../../../../src/StatsReporter"
 import type { EventEntry, FilterState, PeerWithCountry, WsState } from "../../types"
 
-import { error } from "../../../../src/log"
+import { error, warn } from "../../../../src/log"
 import { getCountry } from "../../geo"
 import { BG, GLOBAL_STYLES, TEXT } from "../../theme"
 import { ActivityFeed } from "../ActivityFeed"
@@ -52,7 +52,7 @@ export const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }
   const [stats, setStats] = useState<NodeStats | null>(null)
   const [dhtNodeCounts, setDhtNodeCounts] = useState<number[]>([])
 
-  const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => {})
+  const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => warn('DEVWARN:', '[WEBUI] onPeerStatsRef not initialised'))
   const wsRef = useRef<undefined | WebSocket>(undefined)
 
   const addLog = useCallback((lv: string, m: string) => {

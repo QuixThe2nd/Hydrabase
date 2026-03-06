@@ -9,9 +9,7 @@ import { CONFIG } from './config'
 import { log, warn } from './log';
 import WebSocketClient from "./networking/ws/client";
 import { Peer, type Socket } from "./networking/ws/peer";
-import { type WebSocketServerConnection } from './networking/ws/server'
 import { PeerMap } from './PeerMap';
-import { RPC } from './networking/rpc';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 // TODO: TCP hole punching
