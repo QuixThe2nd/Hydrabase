@@ -13,6 +13,7 @@ import { log, warn } from "../../log";
 import { HIP2_Conn_Message } from "../../protocol/HIP2/message";
 import { type Announce, HIP4_Conn_Announce } from "../../protocol/HIP4/announce";
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "../../RequestManager";
+import { RPC } from '../rpc';
 
 export interface PeerStats {
   address: `0x${string}`

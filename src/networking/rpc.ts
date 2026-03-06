@@ -22,10 +22,10 @@ const startRPC = () => {
 
 export const { rpc, socket } = startRPC()
 
-  // Rpc.response(node, query, response, [nodes], [callback])
+// Rpc.response(node, query, response, [nodes], [callback])
 
 export class RPC implements Socket {
-  public isOpened = false
+  public isOpened = true
   public readonly peer: Connection
   private closeHandlers: (() => void)[] = []
   private openHandler?: () => void
@@ -33,9 +33,11 @@ export class RPC implements Socket {
   private readonly node: { host: string, port: number }
 
   constructor(hostname: `ws://${string}`) {
+    log(`[RPC] Connecting to peer ${hostname}`)
     const { hostname: host, port } = new URL(hostname)
     this.node = { host, port: Number(port) }
     this.peer = { address: '0x0', hostname, userAgent: 'Hydrabase/DHT', username: 'Anonymous' }
+    setTimeout(() => this.openHandler?.(), 5_000)
   }
   public readonly close = () => {
     this.isOpened = false
@@ -52,8 +54,12 @@ export class RPC implements Socket {
     this.openHandler = () => handler()
   }
   public readonly send = (message: string) => {
+    log('[RPC] Sending', {message})
     socket.query(this.node, { d: message, q: `${CONFIG.rpcPrefix}_msg` }, (err, reply) => {
-      if (err) return this.close()
+      if (err) {
+        console.error(err)
+        return this.close()
+      }
       if (!this.isOpened) {
         this.isOpened = true
         this.openHandler?.()

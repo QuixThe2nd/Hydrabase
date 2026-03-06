@@ -31,8 +31,9 @@ export default class WebSocketClient implements Socket {
     this._connect(account)
   }
 
-  static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`) => {
-    peers.add(new RPC(hostname))
+  static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`): Promise<Socket> => {
+    return new RPC(hostname)
+    return false
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return result
     const { address, userAgent, username } = result

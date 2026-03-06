@@ -11,6 +11,7 @@ import WebSocketClient from "./networking/ws/client";
 import { Peer, type Socket } from "./networking/ws/peer";
 import { type WebSocketServerConnection } from './networking/ws/server'
 import { PeerMap } from './PeerMap';
+import { RPC } from './networking/rpc';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 // TODO: TCP hole punching
@@ -92,7 +93,7 @@ export default class Peers {
     this.announce(peer)
   }
 
-public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
+  public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
     const peer = this.peers.get(address)
     if (!peer) return 0
     return peer.historicConfidence // TODO: tit for tat
@@ -100,7 +101,7 @@ public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin 
 
   // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
   public readonly has = (address: `0x${string}`) => address in this.peers
-public readonly isConnected = async () => {
+  public readonly isConnected = async () => {
     let i = 0
     await new Promise(res => {
       const id = setInterval(() => {
