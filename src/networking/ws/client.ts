@@ -1,17 +1,19 @@
 import type { Account } from '../../Crypto/Account'
 import type Peers from '../../Peers'
+import type { Socket } from './peer'
 
 import { log, warn } from '../../log'
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
+import { RPC } from '../rpc'
 
-export interface Peer {
+export interface Connection {
   address: `0x${string}`
   hostname: `ws://${string}`
   userAgent: string
   username: string
 }
 
-export default class WebSocketClient {
+export default class WebSocketClient implements Socket {
   get isOpened() {
     return this._isOpened
   }
@@ -23,14 +25,14 @@ export default class WebSocketClient {
   private reconnectAttempts = 0
   private reconnectTimer: null | ReturnType<typeof setTimeout> = null
   private retryQueue: (() => void)[] = []
-
   private socket!: WebSocket
 
-  private constructor(account: Account, public readonly peer: Peer, private readonly peers: Peers) {
+  private constructor(account: Account, public readonly peer: Connection, private readonly peers: Peers) {
     this._connect(account)
   }
 
   static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`) => {
+    peers.add(new RPC(hostname))
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return result
     const { address, userAgent, username } = result

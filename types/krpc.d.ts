@@ -82,6 +82,7 @@ declare module 'k-rpc' {
 
   export interface KRPCQuery {
     a?: Record<string, unknown>;
+    d: string;
     q: string;
     t?: Buffer;
   }

@@ -8,7 +8,7 @@ import type { Request, Response, SearchResult } from './RequestManager'
 import { CONFIG } from './config'
 import { log, warn } from './log';
 import WebSocketClient from "./networking/ws/client";
-import { Peer } from "./networking/ws/peer";
+import { Peer, type Socket } from "./networking/ws/peer";
 import { type WebSocketServerConnection } from './networking/ws/server'
 import { PeerMap } from './PeerMap';
 
@@ -77,7 +77,7 @@ export default class Peers {
   constructor(private readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>) {}
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public add(socket: WebSocketClient | WebSocketServerConnection) {
+  public add(socket: Socket) {
     socket.onClose(() => this.peers.delete(socket.peer.address))
     const peer = new Peer(this.search, socket, this.account, this, this.repos, this.db, this.metadataManager.installedPlugins)
     if (this.peers.has(socket.peer.address)) {

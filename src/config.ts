@@ -11,9 +11,10 @@ export const CONFIG = {
   pluginConfidence: 'x / (x + y)',
   requireDhtConnection: process.env['REQUIRE_DHT_CONNECTION'] !== 'false',
   requirePeerConnection: process.env['REQUIRE_PEER_CONNECTION'] !== 'false',
+  rpcPrefix: 'hydra_',
   serverPort: Number(process.env['SERVER_PORT'] ?? 4545),
   soulIdCutoff: 32,
   upnpReannounce: 1800, // Seconds
   upnpTTL: 3600, // Seconds
-  username: process.env['USERNAME'] ?? 'Anonymous',
+  username: process.env['USERNAME'] ?? 'Anonymous'
 }

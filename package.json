@@ -33,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "expr-eval": "^2.0.2",
     "js-sha3": "^0.9.3",
+    "k-rpc-socket": "^1.11.1",
     "nat-upnp": "^1.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

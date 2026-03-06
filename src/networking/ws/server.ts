@@ -3,25 +3,26 @@ import { join } from "path";
 
 import type { Account } from "../../Crypto/Account";
 import type Peers from '../../Peers';
-import type { Peer } from "./client";
+import type { Connection } from "./client";
+import type { Socket } from "./peer";
 
 import { CONFIG } from '../../config'
 import { log, warn } from '../../log';
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 
-type WebSocketData = Peer & {
+type WebSocketData = Connection & {
   conn?: WebSocketServerConnection
   isOpened: boolean
 }
 
 export const version = readFileSync(join(__dirname, "../../../VERSION"), "utf-8").trim();
 
-export class WebSocketServerConnection {
+export class WebSocketServerConnection implements Socket {
   get isOpened() {
     return this.socket.data.isOpened
   }
 
-  get peer(): Peer {
+  get peer(): Connection {
     return {
       address: this.socket.data.address,
       hostname: this.socket.data.hostname,
