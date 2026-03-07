@@ -5,8 +5,9 @@ export const CONFIG = {
   dhtPort: Number(process.env['DHT_PORT'] ?? 4545),
   dhtReannounce: 15*60*1_000, // Ms
   dhtRoomSeed: 'hydrabase',
+  domainName: process.env['DOMAIN'],
+  externalIp: process.env['EXTERNAL_IP'] ?? (await (await fetch('https://icanhazip.com')).text()).trim(),
   finalConfidence: 'avg(x, y, z)',
-  hostname: process.env['EXTERNAL_IP'] ?? (await (await fetch('https://icanhazip.com')).text()).trim(),
   listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',
   pluginConfidence: 'x / (x + y)',
   requireDhtConnection: process.env['REQUIRE_DHT_CONNECTION'] !== 'false',

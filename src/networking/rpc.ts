@@ -8,7 +8,6 @@ import type { Socket } from './ws/peer'
 import { CONFIG } from '../config'
 import { Signature } from '../Crypto/Signature'
 import { error, log, warn } from '../log'
-import { hostnameToIp } from '../protocol/HIP3/authentication'
 import { version } from "./ws/server";
 
 const connections = new Map<string, RPC>()
@@ -16,7 +15,7 @@ const authenticatedPeers = new Map<string, { address: `0x${string}`, userAgent: 
 
 const handlers = {
   // eslint-disable-next-line max-statements
-  auth: async (peers: Peers, query: krpc.KRPCQuery, key: string, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {
+  auth: (peers: Peers, query: krpc.KRPCQuery, key: string, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {
     const address = query.a?.['address']?.toString() as `0x${string}` | undefined
     const signature = query.a?.['signature']?.toString()
     const userAgent = query.a?.['userAgent']?.toString() ?? 'Hydrabase/DHT'
@@ -26,13 +25,13 @@ const handlers = {
       warn('DEVWARN:', `[RPC] Auth missing fields from ${key}`)
       return peers.rpc.response({ ...node, host: node.address }, query, { err: 'Missing auth fields', ok: 0 })
     }
-    if (!Signature.fromString(signature).verify(`I am connecting to ws://${await hostnameToIp(CONFIG.hostname)}:${CONFIG.serverPort}`, address)) {
+    if (!Signature.fromString(signature).verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.serverPort}`, address)) {
       warn('DEVWARN:', `[RPC] Auth failed for ${key} (address: ${address})`)
       return peers.rpc.response({ ...node, host: node.address }, query, { err: 'Invalid signature', ok: 0 })
     }
     log(`[RPC] Authenticated peer ${username} ${address} at ${key}`)
     authenticatedPeers.set(key, { address, userAgent, username })
-    peers.rpc.response({ ...node, host: node.address }, query, { address: peers.account.address, ok: 1, signature: account.sign(`I am connecting to ${hostname}`).toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username })
+    peers.rpc.response({ ...node, host: node.address }, query, { address: peers.account.address, ok: 1, signature: peers.account.sign(`I am connecting to ${hostname}`).toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username })
     if (!connections.has(key)) peers.add(new RPC(`ws://${key}` as `ws://${string}`, peers, { address, hostname: hostname as `ws://${string}`, userAgent, username }))
   },
   // eslint-disable-next-line max-statements
@@ -81,9 +80,9 @@ export class RPC implements Socket {
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
-  constructor(private readonly hostname: `ws://${string}`, private readonly peers: Peers, knownIdentity?: { address: `0x${string}`, hostname: `ws://${string}`; userAgent: string, username: string, }) {
+  constructor(private readonly hostname: string, private readonly peers: Peers, knownIdentity?: { address: `0x${string}`, hostname: `ws://${string}`; userAgent: string, username: string, }) {
     log(`[RPC] Connecting to peer ${hostname}`)
-    const { hostname: host, port } = new URL(hostname)
+    const [host, port] = hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
 
     if (knownIdentity) {
@@ -128,21 +127,21 @@ export class RPC implements Socket {
       warn('DEVWARN:', `[RPC] No account available for auth handshake to ${this.hostname}`)
       return setTimeout(() => this.openHandler?.(), 5_000)
     }
-    const sig = account.sign(`I am connecting to ws://${this.node.host}:${this.node.port}`)
+    const sig = account.sign(`I am connecting to ${this.node.host}:${this.node.port}`)
     // eslint-disable-next-line max-statements
-    this.peers.socket.query(this.node, { a: { address: account.address, hostname: `ws://${CONFIG.hostname}:${CONFIG.serverPort}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, response) => {
+    this.peers.socket.query(this.node, { a: { address: account.address, hostname: `${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.serverPort}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, response) => {
       if (err) {
         warn('DEVWARN:', `[RPC] Auth handshake failed with ${this.hostname}`, { err })
         return this.close()
       }
+      console.log(response.r?.['err']?.toString())
       const addr = response?.r?.['address']?.toString() as `0x${string}` | undefined
       const remoteSig = response?.r?.['signature']?.toString()
       if (!addr || !remoteSig) {
         warn('DEVWARN:', `[RPC] Auth response missing fields from ${this.hostname}`)
         return this.close()
       }
-      const ourHostname = `ws://${CONFIG.hostname}:${CONFIG.serverPort}`
-      const valid = Signature.fromString(remoteSig).verify(`I am connecting to ${ourHostname}`, addr)
+      const valid = Signature.fromString(remoteSig).verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.serverPort}`, addr)
       if (!valid) {
         warn('DEVWARN:', `[RPC] Auth response invalid from ${this.hostname}`)
         return this.close()

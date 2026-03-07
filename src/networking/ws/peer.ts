@@ -195,7 +195,7 @@ export class Peer {
   constructor(private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>, private readonly socket: Socket, account: Account, peers: Peers, private readonly repos: Repositories, private readonly db: DB, private readonly ownPlugins: MetadataPlugin[]) {
     this.requestManager = new RequestManager()
     this.HIP2_Conn_Message = new HIP2_Conn_Message(this, this.requestManager)
-    this.HIP4_Conn_Announce = new HIP4_Conn_Announce(account, this, peers)
+    this.HIP4_Conn_Announce = new HIP4_Conn_Announce(this, peers)
     // Log(`Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     let id: NodeJS.Timeout | undefined
     this.socket.onOpen(() => {

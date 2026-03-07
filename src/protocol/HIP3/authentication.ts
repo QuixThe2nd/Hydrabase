@@ -1,4 +1,3 @@
-import { lookup } from 'node:dns/promises'
 import z from "zod";
 
 import type { Account } from "../../Crypto/Account";
@@ -20,13 +19,6 @@ type Auth =
   | { apiKey: string; signature?: undefined }
   | { apiKey?: undefined; signature: Signature }
 
-
-const isIP = (ipaddress: string) => /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/u.test(ipaddress)
-export const hostnameToIp = async (hostname: string) => {
-  if (isIP(hostname)) return hostname
-  return (await lookup(hostname)).address
-}
-
 const verifyAddress = async (_unverifiedSignature: string | undefined, _unverifiedApiKey: string | undefined, protocol: string | undefined, unverifiedAddress: string | undefined): [number, string] | { address: `0x${string}`; hostname: `ws://${string}`; userAgent: string; username: string } | { address: `0x${string}` } => {
   const unverifiedSignature = _unverifiedSignature ? Signature.fromString(_unverifiedSignature) : undefined
   const unverifiedApiKey = _unverifiedApiKey ?? protocol?.split(',').map(s => s.trim()).find(s => s.startsWith('x-api-key-'))?.replace('x-api-key-', '')
@@ -36,21 +28,21 @@ const verifyAddress = async (_unverifiedSignature: string | undefined, _unverifi
   if (unverifiedAuth.apiKey && unverifiedAuth.apiKey !== CONFIG.apiKey) return [401, 'Invalid API key']
   else if (unverifiedAuth.signature) {
     if (!unverifiedAddress) return [400, 'Missing address header']
-    if (!unverifiedAuth.signature.verify(`I am connecting to ws://${await hostnameToIp(CONFIG.hostname)}:${CONFIG.serverPort}`, unverifiedAddress)) return [403, 'Authentication failed']
+    if (!unverifiedAuth.signature.verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}`, unverifiedAddress)) return [403, 'Authentication failed']
     return { address: unverifiedAddress as `0x${string}` }
   }
   return { address: '0x0', hostname: 'ws://', userAgent: `Hydrabase-API/${version}`, username: 'API' }
 }
 
 const prove = {
-  client: async (account: Account, peerHostname: `ws://${string}`) => ({
+  client: (account: Account, hostname: string) => ({
     'x-address': account.address,
-    'x-hostname': `ws://${CONFIG.hostname}:${CONFIG.serverPort}`,
-    'x-signature': account.sign(`I am connecting to ${await hostnameToIp(new URL(peerHostname).host)})`).toString()
+    'x-hostname': CONFIG.domainName ?? CONFIG.externalIp,
+    'x-signature': account.sign(`I am connecting to ${hostname})`).toString()
   }),
-  server: async (account: Account, port: number) => new Response(JSON.stringify({
+  server: (account: Account) => new Response(JSON.stringify({
     address: account.address,
-    signature: account.sign(`I am ws://${await hostnameToIp(CONFIG.hostname)}:${port}`).toString(),
+    signature: account.sign(`I am ${CONFIG.domainName ?? CONFIG.externalIp}`).toString(),
     userAgent: `Hydrabase/${version}`,
     username: CONFIG.username
   } satisfies z.infer<typeof AuthSchema>))
@@ -61,7 +53,7 @@ const verify = {
     const { 'sec-websocket-protocol': protocol, 'x-address': unverifiedAddress, 'x-api-key': _unverifiedApiKey, 'x-hostname': unverifiedHostname, 'x-signature': _unverifiedSignature } = headers
 
     log(`[HIP3] Verifying client address ${unverifiedAddress ?? '0x0'}`)
-    const res = await verifyAddress(_unverifiedSignature, _unverifiedApiKey, protocol, unverifiedAddress)
+    const res = verifyAddress(_unverifiedSignature, _unverifiedApiKey, protocol, unverifiedAddress)
     if (Array.isArray(res)) return res
     if ('hostname' in res) return res
 
@@ -70,28 +62,27 @@ const verify = {
     const data = await new Promise<[number, string] | { hostname: `ws://${string}`; userAgent: string, username: string, }>(resolve => {
       fetch(`${unverifiedHostname.replace('ws://', 'http://')}/auth`).then(async response => {
         const auth = AuthSchema.parse(JSON.parse(await response.text()))
-        return resolve(Signature.fromString(auth.signature).verify(`I am ws://${await hostnameToIp(new URL(unverifiedHostname).host)}`, auth.address) ? { hostname: unverifiedHostname as `ws://${string}`, userAgent: auth.userAgent, username: auth.username } : [500, 'Invalid authentication from server'])
+        return resolve(Signature.fromString(auth.signature).verify(`I am ${unverifiedHostname}`, auth.address) ? { hostname: unverifiedHostname as `ws://${string}`, userAgent: auth.userAgent, username: auth.username } : [500, 'Invalid authentication from server'])
       }).catch(() => resolve([500, `Failed to verify hostname`]))
     })
     if (Array.isArray(data)) return data
     return { address: res.address, hostname: data.hostname, userAgent: data.userAgent, username: data.username }
   },
-  serverFromClient: (hostname: `ws://${string}`) => new Promise<false | { address: `0x${string}`, userAgent: string; username: string, }>(resolve => {
+  serverFromClient: (hostname: string) => new Promise<false | { address: `0x${string}`, userAgent: string; username: string, }>(resolve => {
     log(`[HIP3] Verifying server address ${hostname}`)
-    fetch(`${hostname.replace('ws://', 'http://')}/auth`).then(async response => {
+    fetch(`http://${hostname}/auth`).then(async response => {
       const { data: auth } = AuthSchema.safeParse(JSON.parse(await response.text()))
       if (!auth) return resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${hostname}`))
       const signature = Signature.fromString(auth.signature)
-      const ip = await hostnameToIp(new URL(hostname).host)
-      console.log({ expected: `I am ${ip}`, signed: signature.message })
-      return resolve(signature.verify(`I am ws://${ip}`, auth.address) ? { address: auth.address, userAgent: auth["userAgent"], username: auth.username } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
+      console.log({ expected: `I am ${hostname}`, signed: signature.message })
+      return resolve(signature.verify(`I am ${hostname}`, auth.address) ? { address: auth.address, userAgent: auth["userAgent"], username: auth.username } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
     }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to connect to server ${hostname}`, `- ${error.name} ${error.message}`)))
   })
 }
 
 export const HIP3_CONN_Authentication =  {
-  proveClientAddress: (account: Account, peerHostname: `ws://${string}`) => prove.client(account, peerHostname),
-  proveServerIdentity: (account: Account, listenPort: number) => prove.server(account, listenPort),
+  proveClientAddress: (account: Account, hostname: string) => prove.client(account, hostname),
+  proveServerIdentity: (account: Account) => prove.server(account),
   verifyClientFromServer: (headers: Record<string, string>) => verify.clientFromServer(headers),
-  verifyServerFromClient: (hostname: `ws://${string}`) => verify.serverFromClient(hostname),
+  verifyServerFromClient: (hostname: string) => verify.serverFromClient(hostname),
 }

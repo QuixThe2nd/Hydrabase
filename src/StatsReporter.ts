@@ -5,6 +5,7 @@ import type { MetadataPlugin } from './Metadata'
 import type { DHT_Node } from './networking/dht'
 import type Peers from './Peers'
 
+import { CONFIG } from './config'
 import { error } from './log'
 
 export interface ApiPeer {
@@ -35,7 +36,7 @@ export interface NodeStats {
   }
   self: {
     address: `0x${string}`
-    hostname: `ws://${string}`
+    hostname: string
     plugins: string[]
     votes: Votes
   }
@@ -54,7 +55,6 @@ const countPeerSql = (table: 'albums' | 'artists' | 'tracks') => sql.raw(`SELECT
 export class StatsReporter {
   constructor(
     private readonly address: `0x${string}`,
-    private readonly hostname: `ws://${string}`,
     private readonly plugins: MetadataPlugin[],
     private readonly peers: Peers,
     private readonly dht: DHT_Node,
@@ -81,7 +81,7 @@ export class StatsReporter {
       },
       self: {
         address: this.address,
-        hostname: this.hostname,
+        hostname: CONFIG.domainName ?? CONFIG.externalIp,
         plugins: this.plugins.map(p => p.id),
         votes: {
           albums:  countRow(countVotesSql('albums')),

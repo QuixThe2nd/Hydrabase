@@ -8,7 +8,7 @@ import { RPC } from '../rpc'
 
 export interface Connection {
   address: `0x${string}`
-  hostname: `ws://${string}`
+  hostname: string
   userAgent: string
   username: string
 }
@@ -27,18 +27,18 @@ export default class WebSocketClient implements Socket {
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
 
-  private constructor(account: Account, public readonly peer: Connection, private readonly peers: Peers) {
-    this._connect(account)
+  private constructor(public readonly peer: Connection, private readonly peers: Peers) {
+    this._connect(peers.account)
   }
 
-  static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`): Promise<false | Socket> => {
+  static readonly init = async (peers: Peers, hostname: string): Promise<false | Socket> => {
     peers.add(new RPC(hostname, peers))
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return result
     const { address, userAgent, username } = result
     if (peers.has(address)) return warn('DEVWARN:', `[CLIENT] Already connected/connecting to peer ${username} ${address}`)
-    if (address === account.address) return warn('DEVWARN:', `[CLIENT] Not connecting to self`)
-    return new WebSocketClient(account, { address, hostname, userAgent, username }, peers)
+    if (address === peers.account.address) return warn('DEVWARN:', `[CLIENT] Not connecting to self`)
+    return new WebSocketClient({ address, hostname, userAgent, username }, peers)
   }
 
   public readonly close = () => {

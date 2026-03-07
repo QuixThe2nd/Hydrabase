@@ -1,6 +1,5 @@
 import DHT, { type DHTNode } from 'bittorrent-dht'
 
-import type { Account } from '../Crypto/Account';
 import type Peers from '../Peers';
 
 import { CONFIG } from '../config';
@@ -22,7 +21,7 @@ export class DHT_Node {
   private lastResolved = 0
   private retryTimeout: NodeJS.Timeout | undefined
 
-  constructor (account: Account, peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
+  constructor (peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     this.dht = new DHT({ krpc: peers.rpc })
     this.dht.listen(CONFIG.dhtPort, '0.0.0.0', () => {
       log(`[DHT] Listening on port ${CONFIG.dhtPort}`)
@@ -52,20 +51,20 @@ export class DHT_Node {
       this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', async peer => {
-      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.serverPort}`) return
+      if (`${peer.host}:${peer.port}` === `${CONFIG.externalIp}:${CONFIG.serverPort}`) return // TODO: upgrade from external ip to domain if any
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
       log(`[DHT] Discovered peer ws://${peer.host}:${peer.port}`)
-      const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`, peers.socket)
+      const client = await WebSocketClient.init(peers, `${peer.host}:${peer.port}`)
       if (client === false) return
       peers.add(client)
     })
     this.dht.on('announce', async (peer, _infoHash) => {
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId()) return
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
-      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.serverPort}`) return
+      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.externalIp}:${CONFIG.serverPort}`) return // TODO: upgrade from external ip to domain if any
       log(`[DHT] Received announce from ws://${peer.host}:${peer.port}`)
-      const client = await WebSocketClient.init(peers, account, `ws://${peer.host}:${peer.port}`, peers.socket)
+      const client = await WebSocketClient.init(peers, `${peer.host}:${peer.port}`)
       if (client === false) return
       peers.add(client)
       this.knownPeers.add(`${peer.host}:${peer.port}`)

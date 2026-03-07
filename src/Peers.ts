@@ -131,13 +131,13 @@ export default class Peers {
   public async loadCache() {
     log('[PEERS] Connecting to bootstrap peers...')
     await Promise.all(CONFIG.bootstrapPeers.split(',').map(async node => {
-      const socket = await WebSocketClient.init(this, this.account, `ws://${node}`, this.socket)
+      const socket = await WebSocketClient.init(this, node)
       if (socket) this.add(socket)
     }))
     log('[PEERS] Loading cached peers...')
     if (!(await cacheFile.exists())) return
-    const hostnames: `ws://${string}`[] = await cacheFile.json()
-    for (const hostname of hostnames) if (hostname && hostname !== 'ws://') WebSocketClient.init(this, this.account, hostname, this.socket).then(socket => { if (socket) this.add(socket) })
+    const hostnames: string[] = await cacheFile.json()
+    for (const hostname of hostnames) WebSocketClient.init(this, hostname).then(socket => { if (socket) this.add(socket) })
   } // TODO: time based confidence scores - older peers = more trustworthy
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>): Promise<Map<bigint, SearchResult[T]>> {
