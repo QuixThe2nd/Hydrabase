@@ -54,7 +54,7 @@ export class DHT_Node {
       if (`${peer.host}:${peer.port}` === `${CONFIG.hostname}:${CONFIG.port}`) return // TODO: upgrade from external ip to domain if any
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
-      log(`[DHT] Discovered peer ws://${peer.host}:${peer.port}`)
+      log(`[DHT] Discovered peer ${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(peers, `${peer.host}:${peer.port}`)
       if (client === false) return
       peers.add(client)
@@ -62,8 +62,8 @@ export class DHT_Node {
     this.dht.on('announce', async (peer, _infoHash) => {
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId()) return
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
-      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.hostname}:${CONFIG.port}`) return // TODO: upgrade from external ip to domain if any
-      log(`[DHT] Received announce from ws://${peer.host}:${peer.port}`)
+      if (`${peer.host}:${peer.port}` === `${CONFIG.hostname}:${CONFIG.port}`) return // TODO: upgrade from external ip to domain if any
+      log(`[DHT] Received announce from ${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(peers, `${peer.host}:${peer.port}`)
       if (client === false) return
       peers.add(client)

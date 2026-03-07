@@ -64,7 +64,7 @@ export class WebSocketServerConnection implements Socket {
   }
 }
 
-const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request): Promise<undefined | { address?: `0x${string}`, hostname?: `ws://${string}`, res: [number, string] }> => {
+const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   log(`[SERVER] Connecting to client`)
   const headers = Object.fromEntries(req.headers.entries())
   const peer = await HIP3_CONN_Authentication.verifyClientFromServer(headers)
@@ -77,7 +77,7 @@ const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request)
   return server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } }) ? undefined : { address, hostname, res: [500, "Upgrade failed"] }
 }
 
-const buildWebUI = async () => {
+export const buildWebUI = async () => {
   log('[SERVER] Building WebUI')
   await Bun.build({
     conditions: ["browser", "module", "import"],
@@ -89,7 +89,6 @@ const buildWebUI = async () => {
 }
 
 export const startServer = async (account: Account, peers: Peers) => {
-  await buildWebUI()
   const server = Bun.serve({
     fetch: async (req, server) =>  {
       const url = new URL(req.url)
@@ -107,7 +106,7 @@ export const startServer = async (account: Account, peers: Peers) => {
     },
     hostname: CONFIG.listenAddress,
     port: CONFIG.port,
-    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerIdentity(account, CONFIG.port) },
+    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerIdentity(account) },
     websocket: {
       close(ws) {
         ws.data = { ...ws.data, isOpened: false }

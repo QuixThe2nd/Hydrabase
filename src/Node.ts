@@ -9,7 +9,7 @@ import ITunes from './Metadata/plugins/iTunes'
 import Spotify from './Metadata/plugins/Spotify'
 import { DHT_Node } from './networking/dht'
 import { portForward } from './networking/upnp'
-import { startServer } from './networking/ws/server'
+import { buildWebUI, startServer } from './networking/ws/server'
 import Peers from './Peers'
 import { StatsReporter } from './StatsReporter'
 
@@ -57,31 +57,35 @@ class Node {
 
 // eslint-disable-next-line max-statements
 export const startNode = async (): Promise<Node> => {
-  log('[STARTUP] 1/12 Using UPnP')
+  log('[STARTUP] 1/14 Using UPnP')
   await upnp()
-  log('[STARTUP] 2/12 Initialising account')
-  const account = new Account(await getPrivateKey())
-  log('[STARTUP] 3/12 Starting database')
+  log('[STARTUP] 2/14 Fetching private key')
+  const key = await getPrivateKey()
+  log('[STARTUP] 3/14 Initialising account')
+  const account = new Account(key)
+  log('[STARTUP] 4/14 Starting database')
   const { db, repos } = startDatabase()
-  log('[STARTUP] 4/12 Starting metadata manager')
+  log('[STARTUP] 5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos)
-  log('[STARTUP] 5/12 Starting node')
+  log('[STARTUP] 6/14 Starting node')
   // eslint-disable-next-line prefer-const
   let peers: Peers
   const node = new Node(metadataManager, () => peers)
-  log('[STARTUP] 6/12 Starting peer manager')
+  log('[STARTUP] 7/14 Starting peer manager')
   peers = new Peers(account, metadataManager, repos, db, async <T extends Request['type']>(type: T, query: string, searchPeers?: boolean): Promise<Response<T>> => node ? await node.search(type, query, searchPeers) : [])
-  log('[STARTUP] 7/12 Starting server')
+  log('[STARTUP] 8/14 Building Web UI')
+  await buildWebUI()
+  log('[STARTUP] 9/14 Starting server')
   await startServer(account, peers)
-  log('[STARTUP] 8/12 Starting DHT node')
+  log('[STARTUP] 10/14 Starting DHT node')
   const dhtNode = new DHT_Node(peers)
-  log('[STARTUP] 9/12 Starting stats reporter')
+  log('[STARTUP] 11/14 Starting stats reporter')
   new StatsReporter(account.address, metadataManager.installedPlugins, peers, dhtNode, db)
-  log('[STARTUP] 10/12 Loading cached peers')
+  log('[STARTUP] 12/14 Loading cached peers')
   await peers.loadCache()
-  log('[STARTUP] 11/12 Waiting for DHT')
+  log('[STARTUP] 13/14 Waiting for DHT')
   await dhtNode.isReady()
-  log('[STARTUP] 12/12 Waiting for peers')
+  log('[STARTUP] 14/14 Waiting for peers')
   if (CONFIG.requirePeerConnection) await peers.isConnected()
   peers.isConnected()
   return node
