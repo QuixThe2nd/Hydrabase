@@ -7,7 +7,7 @@ import { Signature } from "../../Crypto/Signature";
 import { log, warn } from "../../log";
 import { version } from "../../networking/ws/server";
 
-const AuthSchema = z.object({
+export const AuthSchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
   signature: z.string(),
   userAgent: z.string(),

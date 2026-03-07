@@ -4,8 +4,10 @@ import type { Socket } from './peer'
 
 import { CONFIG } from '../../config'
 import { log, warn } from '../../log'
-import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
+import { AuthSchema, HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 import { RPC } from '../rpc'
+import { Signature } from '../../Crypto/Signature'
+import SuperJSON from 'superjson'
 
 export interface Connection {
   address: `0x${string}`
@@ -33,6 +35,10 @@ export default class WebSocketClient implements Socket {
   }
 
   static readonly init = async (peers: Peers, hostname: `${string}:${number}`): Promise<false | Socket> => {
+    const res = await fetch(`http://${hostname}/auth`)
+    const sig = AuthSchema.safeParse(JSON.parse(await res.text())).data?.signature
+    const canonHostname = Signature.fromString(sig).message.replace('I am ', '')
+    if (hostname !== canonHostname) return await WebSocketClient.init(peers, canonHostname)
     if (hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
     if (hostname !== '0.0.0.0:0') RPC.fromOutbound(hostname, peers).then(rpc => { if (rpc) peers.add(rpc) })
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
