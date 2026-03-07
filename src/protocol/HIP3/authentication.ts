@@ -60,14 +60,11 @@ const verify = {
     log(`[HIP3] Verifying client hostname ${res.address}`)
     if (!unverifiedHostname) return [500, "Missing Hostname"]
     const data = await new Promise<[number, string] | { hostname: `${string}:${number}`; userAgent: string, username: string, }>(resolve => {
-      console.log(`http://${unverifiedHostname}/auth`)
       fetch(`http://${unverifiedHostname}/auth`).then(async response => {
-        const body = await response.text()
-        console.log(body)
-        const auth = AuthSchema.parse(JSON.parse(body))
+        const auth = AuthSchema.parse(JSON.parse(await response.text()))
         const signature = Signature.fromString(auth.signature)
         if (`I am ${unverifiedHostname}` !== signature.message) console.log({ expected: `I am ${unverifiedHostname}`, signed: signature.message })
-        return resolve(signature.verify(`I am ${unverifiedHostname}`, auth.address) ? { hostname: unverifiedHostname as `${string}:${number}`, userAgent: auth.userAgent, username: auth.username } : [500, 'Invalid authentication from server'])
+        return resolve(signature.verify(`I am ${unverifiedHostname}`, res.address) ? { hostname: unverifiedHostname as `${string}:${number}`, userAgent: res.userAgent, username: res.username } : [500, 'Invalid authentication from server'])
       }).catch(err => {
         console.error(err)
         resolve([500, `Failed to verify hostname`])

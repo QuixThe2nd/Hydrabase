@@ -91,6 +91,8 @@ export class RPC implements Socket {
     if (!response) return warn('DEVWARN:', `[RPC] Auth handshake failed with ${hostname}`)
     const addr = response?.r?.['address']?.toString() as `0x${string}` | undefined
     const remoteSig = response?.r?.['signature']?.toString()
+    const err = response.r?.e[1].toString()
+    if (err) return warn('DEVWARN:', `[RPC] Failed to authenticate from outbound - ${err}`)
     if (!addr || !remoteSig) return warn('DEVWARN:', `[RPC] Auth response missing fields from ${hostname}`)
     const signature = Signature.fromString(remoteSig)
     if (!signature.verify(`I am connecting to ${CONFIG.hostname}:${CONFIG.port}`, addr)) {
