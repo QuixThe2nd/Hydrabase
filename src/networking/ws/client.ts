@@ -34,12 +34,13 @@ export default class WebSocketClient implements Socket {
 
   static readonly init = async (peers: Peers, hostname: `${string}:${number}`): Promise<false | Socket> => {
     if (hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
-    peers.add(new RPC(hostname, peers))
+    if (hostname !== '0.0.0.0:0') RPC.fromOutbound(hostname, peers).then(rpc => { if (rpc) peers.add(rpc) })
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
-    if (!result) return result
+    if (!result) return warn('DEVWARN:', '[CLIENT] Authentication failed')
     const { address, userAgent, username } = result
     if (peers.has(address)) return warn('DEVWARN:', `[CLIENT] Already connected/connecting to peer ${username} ${address}`)
     if (address === peers.account.address) return warn('DEVWARN:', `[CLIENT] Not connecting to self`)
+    log(`[CLIENT] Connecting to server ${username} ${address} ${hostname}`)
     return new WebSocketClient({ address, hostname, userAgent, username }, peers)
   }
 
@@ -69,7 +70,7 @@ export default class WebSocketClient implements Socket {
   private _connect(account: Account) {
     const headers = HIP3_CONN_Authentication.proveClientAddress(account, this.peer.hostname)
     log(`[CLIENT] Connecting to server ${this.peer.username} ${this.peer.hostname} ${this.peer.address}`)
-    this.socket = new WebSocket(this.peer.hostname, { headers })
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers })
 
     this.socket.addEventListener('open', () => {
       log(`[CLIENT] Connected to server ${this.peer.username} ${this.peer.hostname} ${this.peer.address}`)
@@ -79,7 +80,7 @@ export default class WebSocketClient implements Socket {
     })
 
     this.socket.addEventListener('close', ev => {
-      log(`[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.hostname} ${this.peer.address}`, `- ${ev.reason}`)
+      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.hostname} ${this.peer.address}`, `- ${ev.reason}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
       if (!this.peers.isConnectionOpened(this.peer.address)) {this._scheduleReconnect(account)}

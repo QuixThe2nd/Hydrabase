@@ -28,7 +28,7 @@ const verifyAddress = (_unverifiedSignature: string | undefined, _unverifiedApiK
   if (unverifiedAuth.apiKey && unverifiedAuth.apiKey !== CONFIG.apiKey) return [401, 'Invalid API key']
   else if (unverifiedAuth.signature) {
     if (!unverifiedAddress) return [400, 'Missing address header']
-    if (!unverifiedAuth.signature.verify(`I am connecting to ${CONFIG.hostname}`, unverifiedAddress)) return [403, 'Authentication failed']
+    if (!unverifiedAuth.signature.verify(`I am connecting to ${CONFIG.hostname}:${CONFIG.port}`, unverifiedAddress)) return [403, 'Authentication failed']
     return { address: unverifiedAddress as `0x${string}` }
   }
   return { address: '0x0', hostname: '0.0.0.0:0', userAgent: `Hydrabase-API/${version}`, username: 'API' }
@@ -38,7 +38,7 @@ const prove = {
   client: (account: Account, hostname: string) => ({
     'x-address': account.address,
     'x-hostname': CONFIG.hostname,
-    'x-signature': account.sign(`I am connecting to ${hostname})`).toString()
+    'x-signature': account.sign(`I am connecting to ${hostname}`).toString()
   }),
   server: (account: Account) => new Response(JSON.stringify({
     address: account.address,
@@ -74,7 +74,6 @@ const verify = {
       const { data: auth } = AuthSchema.safeParse(JSON.parse(await response.text()))
       if (!auth) return resolve(warn('WARN:', `[HIP3] Failed to authenticate server ${hostname}`))
       const signature = Signature.fromString(auth.signature)
-      console.log({ expected: `I am ${hostname}`, signed: signature.message })
       return resolve(signature.verify(`I am ${hostname}`, auth.address) ? { address: auth.address, userAgent: auth["userAgent"], username: auth.username } : warn('DEVWARN:', `[HIP3] Invalid authentication from client ${hostname}`))
     }).catch((error: Error) => resolve(warn('WARN:', `[HIP3] Failed to connect to server ${hostname}`, `- ${error.name} ${error.message}`)))
   })

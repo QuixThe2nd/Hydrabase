@@ -93,6 +93,7 @@ declare module 'k-rpc' {
 
   export interface KRPCResponse {
     e?: [number, string];
+    ok: 0 | 1
     r?: Record<string, unknown>;
     t?: Buffer;
   }
