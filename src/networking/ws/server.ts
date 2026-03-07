@@ -77,16 +77,13 @@ const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request)
   return server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } }) ? undefined : { address, hostname, res: [500, "Upgrade failed"] }
 }
 
-export const buildWebUI = async () => {
-  log('[SERVER] Building WebUI')
-  await Bun.build({
-    conditions: ["browser", "module", "import"],
-    define: { __CDN_URL__: 'https://cdn.jsdelivr.net/npm/@iplookup/country/', VERSION: JSON.stringify(version) },
-    entrypoints: ["./dashboard/src/main.tsx"],
-    outdir: "./dist",
-    target: "browser",
-  })
-}
+export const buildWebUI = async () => await Bun.build({
+  conditions: ["browser", "module", "import"],
+  define: { __CDN_URL__: 'https://cdn.jsdelivr.net/npm/@iplookup/country/', VERSION: JSON.stringify(version) },
+  entrypoints: ["./dashboard/src/main.tsx"],
+  outdir: "./dist",
+  target: "browser",
+})
 
 export const startServer = async (account: Account, peers: Peers) => {
   const server = Bun.serve({

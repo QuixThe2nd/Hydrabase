@@ -3,7 +3,7 @@ import secp256k1 from 'secp256k1'
 import SuperJSON from 'superjson'
 import z from 'zod'
 
-import { log } from '../log'
+import { debug } from '../log'
 import { Account } from './Account'
 
 export const SignatureSchema = z.object({
@@ -26,14 +26,14 @@ export class Signature implements SignatureObj {
   static readonly fromString = (serialisedSignature: string): Signature => new Signature(SignatureSchema.parse(SuperJSON.parse(serialisedSignature)))
 
   static sign(message: string, privKey: Uint8Array) {
-    log(`[SIGNATURE] Signing message ${message}`)
+    debug(`[SIGNATURE] Signing message ${message}`)
     const { recid, signature } = secp256k1.ecdsaSign(Account.hash(message), privKey)
     return new Signature({ message, recid, signature })
   }
   public readonly toString = (): string => SuperJSON.stringify({ message: this.message, recid: this.recid, signature: this.signature } satisfies SignatureObj)
 
   public readonly verify = (message: string, address: string) => {
-    log(`[SIGNATURE] Verifying message ${message} from ${address}`)
+    debug(`[SIGNATURE] Verifying message ${message} from ${address}`)
     return `0x${  keccak256(secp256k1.ecdsaRecover(this.signature, this.recid, Account.hash(message), false).slice(1)).slice(-40)}` === address
   }
 }

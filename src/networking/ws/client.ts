@@ -40,7 +40,6 @@ export default class WebSocketClient implements Socket {
     const { address, userAgent, username } = result
     if (peers.has(address)) return warn('DEVWARN:', `[CLIENT] Already connected/connecting to peer ${username} ${address}`)
     if (address === peers.account.address) return warn('DEVWARN:', `[CLIENT] Not connecting to self`)
-    log(`[CLIENT] Connecting to server ${username} ${address} ${hostname}`)
     return new WebSocketClient({ address, hostname, userAgent, username }, peers)
   }
 
