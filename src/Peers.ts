@@ -137,7 +137,7 @@ export default class Peers {
     log('[PEERS] Loading cached peers...')
     if (!(await cacheFile.exists())) return
     const hostnames: string[] = await cacheFile.json()
-    for (const hostname of hostnames) WebSocketClient.init(this, hostname).then(socket => { if (socket) this.add(socket) })
+    for (const hostname of hostnames) if (hostname) WebSocketClient.init(this, hostname).then(socket => { if (socket) this.add(socket) })
   } // TODO: time based confidence scores - older peers = more trustworthy
 
   public async requestAll<T extends Request['type']>(request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>): Promise<Map<bigint, SearchResult[T]>> {
