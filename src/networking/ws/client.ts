@@ -5,7 +5,6 @@ import type { Socket } from './peer'
 import { log, warn } from '../../log'
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 import { RPC } from '../rpc'
-import type { RpcSocket } from 'k-rpc-socket'
 
 export interface Connection {
   address: `0x${string}`
@@ -32,9 +31,8 @@ export default class WebSocketClient implements Socket {
     this._connect(account)
   }
 
-  static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`, socket: RpcSocket): Promise<false | Socket> => {
-    return new RPC(hostname, peers, socket)
-    return false
+  static readonly init = async (peers: Peers, account: Account, hostname: `ws://${string}`): Promise<false | Socket> => {
+    peers.add(new RPC(hostname, peers))
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return result
     const { address, userAgent, username } = result

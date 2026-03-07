@@ -9,7 +9,7 @@ import type { NodeStats, Votes } from "../../StatsReporter";
 
 import { CONFIG } from "../../config";
 import { log, warn } from "../../log";
-import { HIP2_Conn_Message } from "../../protocol/HIP2/message";
+import { HIP2_Conn_Message, type Ping } from "../../protocol/HIP2/message";
 import { type Announce, HIP4_Conn_Announce } from "../../protocol/HIP4/announce";
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "../../RequestManager";
 import { RPC } from '../rpc';
@@ -128,6 +128,10 @@ export class Peer {
     return this._ul
   }
 
+  get type() {
+    return this.socket instanceof RPC ? 'RPC' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
+  }
+
   get uptimeMs() {
     return this.startTime ? Number(new Date()) - this.startTime : 0
   }
@@ -139,7 +143,6 @@ export class Peer {
   get username() {
     return this.socket.peer.username
   }
-
   get votes(): Votes {
     return {
       albums: 0,
@@ -147,13 +150,14 @@ export class Peer {
       tracks: 0,
     }
   }
+
   private _dl = 0
 
   private _ul = 0
 
   private readonly HIP2_Conn_Message: HIP2_Conn_Message
-
   private readonly HIP4_Conn_Announce: HIP4_Conn_Announce
+
   private readonly requestManager: RequestManager
 
   private readonly handlers = {
@@ -163,11 +167,11 @@ export class Peer {
       const peer_stats = collectPeerStats(this.db, _data.address, this.ownPlugins)
       this.send({ nonce, peer_stats })
     },
-    ping: x => {
-      log('[PING] TODO: send pong')
+    ping: (_: Ping, nonce: number) => {
+      this.send({ nonce, pong: { time: Number(new Date()) } })
     },
-    pong: x => {
-      log('[PONG] TODO: log latency')
+    pong: (pong: Ping, nonce: number) => {
+      log('[PONG] TODO: log latency', {nonce,pong})
     },
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => this.HIP2_Conn_Message.send.response(await this.searchNode(request.type, request.query, this.address === '0x0'), nonce),
     response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.peer.address}`)}
@@ -192,7 +196,7 @@ export class Peer {
       if (id) clearInterval(id)
     })
     this.socket.onMessage(async message => {
-      log(`[PEERS] Received message ${message}`)
+      log(`[PEER] [${this.type}] Received message ${message}`)
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message)
       if (!result) return
@@ -213,14 +217,14 @@ export class Peer {
     return response;
   }
 
-  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: { time: number } } | { pong: { time: number } } | { request: Request & { type: T } } | { response: Response<T> } | { stats: NodeStats }) & { nonce: number }) {
+  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { stats: NodeStats }) & { nonce: number }) {
     const message = JSON.stringify(payload)
     if (!this.socket.isOpened) {
-      warn('DEVWARN:', `[PEER] Cannot send ${Object.keys(payload).join(',')} to unconnected peer ${this.socket.peer.address}`)
+      warn('DEVWARN:', `[PEER] [${this.type}]Cannot send ${Object.keys(payload).join(',')} to unconnected peer ${this.socket.peer.address}`)
       return
     }
     this._ul += message.length
-    log(`[${this.socket instanceof RPC ? 'RPC' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'}] Sending ${Object.keys(JSON.parse(message)).join(',')} to ${this.hostname}`)
+    log(`[PEER] [${this.type}]Sending ${Object.keys(JSON.parse(message)).join(',')} to ${this.hostname}`)
     this.socket.send(message)
   }
 

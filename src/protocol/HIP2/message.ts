@@ -1,17 +1,22 @@
 import z from 'zod';
 
-import type { Peer } from '../../networking/ws/peer';
-
 import { log, warn } from '../../log';
+import { type Peer } from '../../networking/ws/peer';
 import { type Request, RequestManager, RequestSchema, type Response, ResponseSchema } from '../../RequestManager';
 import { AnnounceSchema } from '../HIP4/announce';
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
 
+const PingSchema = z.object({
+  time: z.number()
+})
+export type Ping = z.infer<typeof PingSchema>
+
+
 const MessageSchemas = {
   announce: AnnounceSchema,
-  ping: z.object({ time: z.number() }),
-  pong: z.object({ time: z.number() }),
+  ping: PingSchema,
+  pong: PingSchema,
   request: RequestSchema,
   response: ResponseSchema
 }
