@@ -22,7 +22,7 @@ type Auth =
 
 
 const isIP = (ipaddress: string) => /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/u.test(ipaddress)
-const hostnameToIp = async (hostname: string) => {
+export const hostnameToIp = async (hostname: string) => {
   if (isIP(hostname)) return hostname
   return (await lookup(hostname)).address
 }

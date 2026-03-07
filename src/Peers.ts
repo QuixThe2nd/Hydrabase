@@ -79,7 +79,7 @@ export default class Peers {
   }
   private readonly peers = new PeerMap()
 
-  constructor(private readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>) {
+  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>) {
     const { rpc, socket } = startRPC(this)
     this.socket = socket
     this.rpc = rpc
