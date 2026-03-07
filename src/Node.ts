@@ -15,12 +15,12 @@ import { StatsReporter } from './StatsReporter'
 
 const upnp = async() => {
 try {
-    await portForward(CONFIG.serverPort, 'Hydrabase (TCP)', 'TCP');
+    await portForward(CONFIG.port, 'Hydrabase (TCP)', 'TCP');
   } catch (err) {
     warn('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
   }
   try {
-    await portForward(CONFIG.dhtPort, 'Hydrabase (UDP)', 'UDP');
+    await portForward(CONFIG.port, 'Hydrabase (UDP)', 'UDP');
   } catch (err) {
     warn('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
   }

@@ -23,8 +23,8 @@ export class DHT_Node {
 
   constructor (peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     this.dht = new DHT({ krpc: peers.rpc })
-    this.dht.listen(CONFIG.dhtPort, '0.0.0.0', () => {
-      log(`[DHT] Listening on port ${CONFIG.dhtPort}`)
+    this.dht.listen(CONFIG.port, '0.0.0.0', () => {
+      log(`[DHT] Listening on port ${CONFIG.port}`)
       this.resolved.listening = true
     })
     CONFIG.dhtBootstrapNodes.split(',').forEach(node => {
@@ -51,7 +51,7 @@ export class DHT_Node {
       this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', async peer => {
-      if (`${peer.host}:${peer.port}` === `${CONFIG.externalIp}:${CONFIG.serverPort}`) return // TODO: upgrade from external ip to domain if any
+      if (`${peer.host}:${peer.port}` === `${CONFIG.externalIp}:${CONFIG.port}`) return // TODO: upgrade from external ip to domain if any
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
       log(`[DHT] Discovered peer ws://${peer.host}:${peer.port}`)
@@ -62,7 +62,7 @@ export class DHT_Node {
     this.dht.on('announce', async (peer, _infoHash) => {
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId()) return
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
-      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.externalIp}:${CONFIG.serverPort}`) return // TODO: upgrade from external ip to domain if any
+      if (`ws://${peer.host}:${peer.port}` === `ws://${CONFIG.externalIp}:${CONFIG.port}`) return // TODO: upgrade from external ip to domain if any
       log(`[DHT] Received announce from ws://${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(peers, `${peer.host}:${peer.port}`)
       if (client === false) return
@@ -100,7 +100,7 @@ export class DHT_Node {
     }
     clearTimeout(this.retryTimeout)
     const room = DHT_Node.getRoomId()
-     this.dht.announce(room, CONFIG.serverPort, err => { if (err) {error('ERROR:', '[DHT] An error occurred during announce', {err})} })
+     this.dht.announce(room, CONFIG.port, err => { if (err) {error('ERROR:', '[DHT] An error occurred during announce', {err})} })
     this.dht.lookup(room, err => { if (err) {error('ERROR:', '[DHT] An error occurred during lookup', {err})} })
   }
 

@@ -26,8 +26,7 @@ services:
       # API_KEY: $API_KEY - Use `openssl rand -hex 16` to generate an api key
 
       # Defaults:
-      # SERVER_PORT: 4545
-      # DHT_PORT: 4545
+      # PORT: 4545
       # EXTERNAL_IP: [automatically set]
       # LISTEN_ADDRESS: 0.0.0.0
       # PUID: 1000

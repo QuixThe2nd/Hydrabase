@@ -20,19 +20,19 @@ const handlers = {
     const signature = query.a?.['signature']?.toString()
     const userAgent = query.a?.['userAgent']?.toString() ?? 'Hydrabase/DHT'
     const username = query.a?.['username']?.toString() ?? 'Unknown'
-    const hostname = query.a?.['hostname']?.toString() ?? `ws://${node.address}:${node.port}`
+    const hostname = query.a?.['hostname']?.toString() ?? `${node.address}:${node.port}`
     if (!address || !signature) {
       warn('DEVWARN:', `[RPC] Auth missing fields from ${key}`)
       return peers.rpc.response({ ...node, host: node.address }, query, { err: 'Missing auth fields', ok: 0 })
     }
-    if (!Signature.fromString(signature).verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.serverPort}`, address)) {
+    if (!Signature.fromString(signature).verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}`, address)) {
       warn('DEVWARN:', `[RPC] Auth failed for ${key} (address: ${address})`)
       return peers.rpc.response({ ...node, host: node.address }, query, { err: 'Invalid signature', ok: 0 })
     }
     log(`[RPC] Authenticated peer ${username} ${address} at ${key}`)
     authenticatedPeers.set(key, { address, userAgent, username })
     peers.rpc.response({ ...node, host: node.address }, query, { address: peers.account.address, ok: 1, signature: peers.account.sign(`I am connecting to ${hostname}`).toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username })
-    if (!connections.has(key)) peers.add(new RPC(`ws://${key}` as `ws://${string}`, peers, { address, hostname: hostname as `ws://${string}`, userAgent, username }))
+    if (!connections.has(key)) peers.add(new RPC(key, peers, { address, hostname, userAgent, username }))
   },
   // eslint-disable-next-line max-statements
   msg: (peers: Peers, query: krpc.KRPCQuery, key: string, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {
@@ -80,7 +80,7 @@ export class RPC implements Socket {
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
-  constructor(private readonly hostname: string, private readonly peers: Peers, knownIdentity?: { address: `0x${string}`, hostname: `ws://${string}`; userAgent: string, username: string, }) {
+  constructor(private readonly hostname: `${string}:${number}`, private readonly peers: Peers, knownIdentity?: { address: `0x${string}`, hostname: string; userAgent: string, username: string, }) {
     log(`[RPC] Connecting to peer ${hostname}`)
     const [host, port] = hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
@@ -129,7 +129,7 @@ export class RPC implements Socket {
     }
     const sig = account.sign(`I am connecting to ${this.node.host}:${this.node.port}`)
     // eslint-disable-next-line max-statements
-    this.peers.socket.query(this.node, { a: { address: account.address, hostname: `${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.serverPort}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, response) => {
+    this.peers.socket.query(this.node, { a: { address: account.address, hostname: `${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.port}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, response) => {
       if (err) {
         warn('DEVWARN:', `[RPC] Auth handshake failed with ${this.hostname}`, { err })
         return this.close()
@@ -141,7 +141,7 @@ export class RPC implements Socket {
         warn('DEVWARN:', `[RPC] Auth response missing fields from ${this.hostname}`)
         return this.close()
       }
-      const valid = Signature.fromString(remoteSig).verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.serverPort}`, addr)
+      const valid = Signature.fromString(remoteSig).verify(`I am connecting to ${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.port}`, addr)
       if (!valid) {
         warn('DEVWARN:', `[RPC] Auth response invalid from ${this.hostname}`)
         return this.close()

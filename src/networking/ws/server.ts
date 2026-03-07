@@ -106,8 +106,8 @@ export const startServer = async (account: Account, peers: Peers) => {
       return new Response(res[1], { status: res[0] })
     },
     hostname: CONFIG.listenAddress,
-    port: CONFIG.serverPort,
-    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerIdentity(account, CONFIG.serverPort) },
+    port: CONFIG.port,
+    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerIdentity(account, CONFIG.port) },
     websocket: {
       close(ws) {
         ws.data = { ...ws.data, isOpened: false }

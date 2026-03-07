@@ -2,13 +2,14 @@ import type { Account } from '../../Crypto/Account'
 import type Peers from '../../Peers'
 import type { Socket } from './peer'
 
+import { CONFIG } from '../../config'
 import { log, warn } from '../../log'
 import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
 import { RPC } from '../rpc'
 
 export interface Connection {
   address: `0x${string}`
-  hostname: string
+  hostname: `${string}:${number}`
   userAgent: string
   username: string
 }
@@ -31,7 +32,8 @@ export default class WebSocketClient implements Socket {
     this._connect(peers.account)
   }
 
-  static readonly init = async (peers: Peers, hostname: string): Promise<false | Socket> => {
+  static readonly init = async (peers: Peers, hostname: `${string}:${number}`): Promise<false | Socket> => {
+    if (hostname === `${CONFIG.domainName ?? CONFIG.externalIp}:${CONFIG.port}`) return false
     peers.add(new RPC(hostname, peers))
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return result
