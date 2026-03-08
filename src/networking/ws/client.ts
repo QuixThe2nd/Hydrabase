@@ -15,11 +15,15 @@ export interface Connection {
   username: string
 }
 
-const getCanonicalHostname = async (hostname: `${string}:${number}`) => {
-  const res = await fetch(`http://${hostname}/auth`)
-  const body = await res.text()
-  const signature = AuthSchema.safeParse(JSON.parse(body)).data?.signature
-  return signature ? Signature.fromString(signature).message.replace('I am ', '') as `${string}:${number}` : undefined
+export const getCanonicalHostname = async (hostname: `${string}:${number}`) => {
+  try {
+    const res = await fetch(`http://${hostname}/auth`)
+    const body = await res.text()
+    const signature = AuthSchema.safeParse(JSON.parse(body)).data?.signature
+    return signature ? Signature.fromString(signature).message.replace('I am ', '') as `${string}:${number}` : hostname
+  } catch (_) {
+    return hostname
+  }
 }
 
 export default class WebSocketClient implements Socket {
@@ -46,7 +50,8 @@ export default class WebSocketClient implements Socket {
     const canonHostname = await getCanonicalHostname(hostname)
     if (canonHostname && hostname !== canonHostname) return await WebSocketClient.init(peers, canonHostname)
     log(`[CLIENT] Attempting to connect to ws://${hostname}`)
-    if (hostname !== '0.0.0.0:0') RPC.fromOutbound(hostname, peers).then(rpc => { if (rpc) peers.add(rpc) })
+    // if (hostname !== '0.0.0.0:0') RPC.fromOutbound(hostname, peers).then(rpc => { if (rpc) peers.add(rpc) })
+    // return RPC.fromOutbound(hostname, peers)
     const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
     if (!result) return warn('DEVWARN:', `[CLIENT] Authentication failed ${hostname}`)
     const { address, userAgent, username } = result

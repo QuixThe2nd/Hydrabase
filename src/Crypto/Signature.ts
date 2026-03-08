@@ -34,7 +34,7 @@ export class Signature implements SignatureObj {
 
   public readonly verify = (message: string, address: string) => {
     debug(`[SIGNATURE] Verifying message ${message} from ${address}`)
-    if (message !== this.message) return warn('DEVWARN:', `[SIGNATURE] Expected '${message}' - Signed ${this.message}`)
+    if (message !== this.message) return warn('DEVWARN:', `[SIGNATURE] Expected '${message}' - Signed '${this.message}'`)
     return `0x${  keccak256(secp256k1.ecdsaRecover(this.signature, this.recid, Account.hash(message), false).slice(1)).slice(-40)}` === address
   }
 }

@@ -95,7 +95,9 @@ declare module 'k-rpc' {
     address?: `0x${string}`;
     e?: [number, string];
     ok: 0 | 1
-    r?: Record<string, unknown>;
+    r?: Record<string, unknown> & {
+      e: [number, Buffer]
+    };
     signature?: string;
     t?: Buffer;
     userAgent?: string;
