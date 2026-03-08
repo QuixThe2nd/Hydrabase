@@ -70,7 +70,7 @@ export default class WebSocketClient implements Socket {
 
   private _connect(account: Account) {
     log(`[CLIENT] Connecting to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
-    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.peer.hostname) })
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: Object.entries(proveClient(account, this.peer.hostname)).map(entry => ([`x-${entry[0]}`, entry[1]])) })
 
     this.socket.addEventListener('open', () => {
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
