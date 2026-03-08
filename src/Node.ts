@@ -55,7 +55,6 @@ class Node {
   }
 }
 
-// eslint-disable-next-line max-statements
 export const startNode = async (): Promise<Node> => {
   log('[STARTUP] 1/14 Using UPnP')
   await upnp()
@@ -88,6 +87,16 @@ export const startNode = async (): Promise<Node> => {
   log('[STARTUP] 14/14 Waiting for peers')
   if (CONFIG.requirePeerConnection) await peers.isConnected()
   peers.isConnected()
+  log('[STARTUP] Startup finished, running test searches')
+  const artists = await node.search('artists', 'jay z')
+  const albums = await node.search('albums', 'made in england')
+  await node.search('tracks', 'dont stop me now')
+  if (artists[0]) {
+    await node.search('artist.tracks', artists[0].soul_id)
+    await node.search('artist.albums', artists[0].soul_id)
+  }
+  if (albums[0]) await node.search('album.tracks', albums[0].soul_id)
+
   return node
 }
 

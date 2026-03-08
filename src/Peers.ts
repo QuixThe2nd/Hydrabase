@@ -99,20 +99,22 @@ export default class Peers {
   }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  // eslint-disable-next-line max-statements
-  public async add(_peer: `${string}:${number}` | RPC | WebSocketServerConnection) {
-    if (typeof _peer === 'string' && this.knownPeers.has(_peer)) return
-    if (typeof _peer !== 'string' && this.knownPeers.has(_peer.peer.hostname)) return
+  public async add(__peer: `${string}:${number}` | RPC | WebSocketServerConnection) {
+    if (typeof __peer === 'string' && this.knownPeers.has(__peer)) return
+    if (typeof __peer !== 'string' && this.knownPeers.has(__peer.peer.hostname)) return
+    this.knownPeers.add(typeof __peer === 'string' ? __peer : __peer.peer.hostname)
+    const _peer = typeof __peer === 'string' ? await getCanonicalHostname(__peer) : __peer
+    if (typeof _peer === 'string') this.knownPeers.add(_peer)
+    if (typeof _peer === 'string' && _peer !== __peer && this.knownPeers.has(_peer)) return
     const socket = await this.toSocket(_peer)
     if (!socket) return
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
-        warn('DEVWARN:', `[PEERS] Tried to connect to existing peer again via ${socket instanceof WebSocketClient ? 'client' : 'server'} ${socket.peer.address} ${socket.peer.hostname}`)
+        warn('DEVWARN:', `[PEERS] Tried to connect to existing peer again via ${socket instanceof WebSocketClient ? 'client' : socket instanceof RPC ? 'RPC' : 'server'} ${socket.peer.address} ${socket.peer.hostname}`)
         socket.close()
       }
       return
     } // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
-    this.knownPeers.add(socket.peer.hostname)
     socket.onClose(() => this.peers.delete(socket.peer.address))
     const peer = new Peer(socket, this, this.db, this.repos, this.metadataManager.installedPlugins, this.search)
     this.peers.set(socket.peer.address, peer)
@@ -183,9 +185,8 @@ export default class Peers {
 
   private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection): Promise<false | Socket> {
     if (peer instanceof WebSocketServerConnection || peer instanceof RPC) return peer
-    const hostname = await getCanonicalHostname(peer)
-    const wsClient = await WebSocketClient.init(hostname, this)
+    const wsClient = await WebSocketClient.init(peer, this)
     if (wsClient) return wsClient
-    return RPC.fromOutbound(hostname, this)
+    return RPC.fromOutbound(peer, this)
   }
 }

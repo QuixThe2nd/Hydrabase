@@ -45,6 +45,7 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
     </div>
     <div style={{ padding: "8px 6px" }}>{peer.connection === undefined ? <span style={{ color: DIM, fontSize: 9 }}>offline</span> : <ActivityBar data={peer.activity} />}</div>
     <div style={{ padding: "8px 6px" }}><span style={{ color: peer.connection !== undefined && peer.connection?.latency ? (peer.connection?.latency < 100 ? GREEN : peer.connection?.latency < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.latency ? `${Math.round(peer.connection?.latency)}ms` : "—"}</span></div>
+    <div style={{ padding: "8px 6px" }}><span style={{ color: peer.connection !== undefined && peer.connection?.lookupTime ? (peer.connection?.lookupTime < 100 ? GREEN : peer.connection?.lookupTime < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.lookupTime ? `${Math.round(peer.connection?.lookupTime)}ms` : "—"}</span></div>
     <div style={{ padding: "8px 8px 8px 4px" }}>
       <div style={{ alignItems: "center", display: "flex", flexDirection: "column", gap: 3 }}>
         <span style={{ color: confColor_, fontSize: 10, fontWeight: 600 }}>{peer.connection?.confidence.toFixed(2)}</span>
@@ -63,6 +64,7 @@ const PeerList = ({ peers, sel, setSel }: { peers: PeerWithCountry[]; sel: ApiPe
     <div style={{ padding: "0 6px" }}>Plugins</div>
     <div style={{ padding: "0 6px" }}>Activity</div>
     <div style={{ padding: "0 6px" }}>Latency</div>
+    <div style={{ padding: "0 6px" }}>Lookup Time</div>
     <div style={{ padding: "0 8px 0 4px" }}>Conf</div>
   </div>
   {peers.length === 0 && <div style={{ color: MUTED, fontSize: 11, padding: "20px 14px", textAlign: "center" }}>No peers yet…</div>}

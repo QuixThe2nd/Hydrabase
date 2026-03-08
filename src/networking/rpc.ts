@@ -29,13 +29,17 @@ export class RPC implements Socket {
     setTimeout(() => this.openHandler?.(), 0)
   }
   static readonly fromInbound = (key: `${string}:${number}`, peers: Peers, identity: { address: `0x${string}`, hostname: `${string}:${number}`; userAgent: string, username: string }): RPC => new RPC(key, peers, identity)
-  // eslint-disable-next-line complexity, max-statements
   static readonly fromOutbound = async (hostname: `${string}:${number}`, peers: Peers): Promise<false | RPC> => {
     const [host, port] = hostname.split(':') as [string, `${number}`]
     const node = { host, port: Number(port) }
     const { account } = peers
     const sig = account.sign(`I am connecting to ${host}:${port}`)
-    const response = await new Promise<krpc.KRPCResponse | null>(resolve => { peers.socket.query(node, { a: { address: account.address, hostname: `${CONFIG.hostname}:${CONFIG.port}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => resolve(err ? null : res)) })
+    const response = await new Promise<krpc.KRPCResponse | null>(resolve => {
+      peers.socket.query(node, { a: { address: account.address, hostname: `${CONFIG.hostname}:${CONFIG.port}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
+        if (err) warn('DEVWARN:', `[RPC] Failed to send auth to ${hostname} - ${err.message}`)
+        resolve(err ? null : res)
+      })
+    })
     if (!response) return warn('DEVWARN:', `[RPC] Auth handshake failed with ${hostname}`)
     const addr = response.r?.['address']?.toString() as `0x${string}` | undefined
     const remoteSig = response?.r?.['signature']?.toString()
@@ -91,7 +95,6 @@ const handlers = {
     peers.rpc.response(node, query, { address: peers.account.address, ok: 1, signature: peers.account.sign(`I am connecting to ${hostname}`).toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username })
     if (!connections.has(hostname)) peers.add(RPC.fromInbound(hostname, peers, { address, hostname, userAgent, username }))
   },
-  // eslint-disable-next-line max-statements
   msg: async (peers: Peers, query: krpc.KRPCQuery, hostname: `${string}:${number}`, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {
     if (!authenticatedPeers.has(hostname)) {
       warn('DEVWARN:', `[RPC] Dropping message from unauthenticated peer ${hostname}`)

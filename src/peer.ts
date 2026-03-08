@@ -224,7 +224,7 @@ export class Peer {
       const { data, nonce, type } = result
       if (type === 'ping') this.handlers[type](data as Ping, nonce)
       else if (type === 'pong') this.handlers[type](data as Ping, nonce)
-      else if (type === 'announce') await this.handlers[type](data as Announce)
+      else if (type === 'announce') this.handlers[type](data as Announce)
       else if (type === 'request') await this.handlers[type](data as Request, nonce)
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)

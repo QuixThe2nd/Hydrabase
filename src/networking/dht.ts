@@ -39,7 +39,7 @@ export class DHT_Node {
       this.loadCache()
     })
     let lastNodes = 0
-    this.dht.on('node', () => {
+    this.dht.on('node', async () => {
       const nodes = this.dht.toJSON().nodes.length
       if (nodes > 1 && !this.resolved.connected) {
         stats(`[DHT] Connected to ${nodes} nodes`)
@@ -49,7 +49,7 @@ export class DHT_Node {
         stats(`[DHT] Connected to ${nodes} nodes`)
         lastNodes = nodes
       }
-      this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
+      if (nodes > 50 || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', peer => {
       debug(`[DHT] Discovered peer ${peer.host}:${peer.port}`)

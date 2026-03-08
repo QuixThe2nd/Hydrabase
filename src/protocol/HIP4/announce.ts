@@ -12,9 +12,9 @@ export type Announce = z.infer<typeof AnnounceSchema>
 export class HIP4_Conn_Announce {
   constructor(private readonly peer: Peer, private readonly peers: Peers) {}
 
-  handleAnnounce(announce: Announce): void {
+  async handleAnnounce(announce: Announce): Promise<void> {
     log(`[HIP4] Discovered server through ${this.peer.address}: ${announce.hostname}`)
-    this.peers.add(announce.hostname)
+    await this.peers.add(announce.hostname)
   }
 
   sendAnnounce(announce: Announce, address: `0x${string}`): void {
