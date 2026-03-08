@@ -10,7 +10,7 @@ import type { Connection } from "./client";
 
 import { CONFIG } from '../../config'
 import { debug, log, warn } from '../../log';
-import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
+import { proveServer, verifyClient } from "../../protocol/HIP3/handshake";
 
 type WebSocketData = Connection & {
   conn?: WebSocketServerConnection
@@ -69,7 +69,7 @@ export class WebSocketServerConnection implements Socket {
 const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: null | SocketAddress): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   log(`[SERVER] Connecting to client ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
-  const peer = await HIP3_CONN_Authentication.verifyClientFromServer(headers)
+  const peer = await verifyClient('x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, })
   if (Array.isArray(peer)) {
     warn('DEVWARN:', `[SERVER] Failed to authenticate peer: ${peer[1]}`)
     return { res: peer }
@@ -105,7 +105,7 @@ export const startServer = (account: Account, peers: Peers) => {
     },
     hostname: CONFIG.listenAddress,
     port: CONFIG.port,
-    routes: { '/auth': () => HIP3_CONN_Authentication.proveServerIdentity(account) },
+    routes: { '/auth': () => new Response(JSON.stringify(proveServer(account))) },
     websocket: {
       close(ws) {
         ws.data = { ...ws.data, isOpened: false }

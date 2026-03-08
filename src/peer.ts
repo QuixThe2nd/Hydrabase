@@ -154,7 +154,7 @@ export class Peer {
   }
 
   private _dl = 0
-  private _ul = 0
+  private _ul = 0 
   private readonly HIP2_Conn_Message: HIP2_Conn_Message
   private readonly HIP4_Conn_Announce: HIP4_Conn_Announce
   private lastPing = {

@@ -84,7 +84,6 @@ const computeConfidence = (artistConfidences: number[], peerConfidences: number[
   return ((numerator / denominator) / 2) + 0.5
 }
 
-// eslint-disable-next-line max-statements
 const matchId = (items: (Album | Artist)[], peers: Peers): undefined | { confidence: number; id: string } => {
   const votes = new Map<string, { itemConfidences: number[]; peerConfidences: number[], }>()
   for (const item of items) {

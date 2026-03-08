@@ -4,7 +4,7 @@ import type Peers from '../../Peers'
 
 import { CONFIG } from '../../config'
 import { log, warn } from '../../log'
-import { HIP3_CONN_Authentication } from '../../protocol/HIP3/authentication'
+import { AuthSchema, proveClient, verifyServer } from '../../protocol/HIP3/handshake'
 
 export interface Connection {
   address: `0x${string}`
@@ -34,9 +34,12 @@ export default class WebSocketClient implements Socket {
   static readonly init = async (hostname: `${string}:${number}`, peers: Peers): Promise<false | Socket> => {
     if (hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
     log(`[CLIENT] Attempting to connect to ws://${hostname}`)
-    const result = await HIP3_CONN_Authentication.verifyServerFromClient(hostname)
-    if (!result) return warn('DEVWARN:', `[CLIENT] Authentication failed ${hostname}`)
-    const { address, userAgent, username } = result
+    const response = await fetch(`http://${hostname}/auth`)
+    const {data:auth} = AuthSchema.safeParse(JSON.parse(await response.text()))
+    if (!auth) return warn('DEVWARN:', `[CLIENT] Invalid authentication provided by ${hostname}`)
+    const res = verifyServer(hostname, auth)
+    if (Array.isArray(res)) return warn('DEVWARN:', `[CLIENT] Authentication failed ${hostname} - ${res[1]}`)
+    const { address, userAgent, username } = auth
     if (peers.has(address)) return warn('DEVWARN:', `[CLIENT] Already connected/connecting to peer ${username} ${address} ws://${hostname}`)
     if (address === peers.account.address) return warn('DEVWARN:', `[CLIENT] Not connecting to self`)
     return new WebSocketClient({ address, hostname, userAgent, username }, peers)
@@ -66,9 +69,8 @@ export default class WebSocketClient implements Socket {
   }
 
   private _connect(account: Account) {
-    const headers = HIP3_CONN_Authentication.proveClientAddress(account, this.peer.hostname)
     log(`[CLIENT] Connecting to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
-    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers })
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.peer.hostname) })
 
     this.socket.addEventListener('open', () => {
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)

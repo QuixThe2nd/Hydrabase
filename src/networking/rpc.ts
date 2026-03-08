@@ -5,12 +5,10 @@ import type { Socket } from '../peer'
 import type Peers from '../Peers'
 
 import { CONFIG } from '../config'
-import { Signature } from '../Crypto/Signature'
 import { error, log, warn } from '../log'
-import { HIP3_CONN_Authentication } from '../protocol/HIP3/authentication'
+import { AuthSchema, proveClient, verifyClient, verifyServer } from '../protocol/HIP3/handshake'
 import { DHT_Node } from './dht'
 import { type Connection } from './ws/client'
-import { version } from "./ws/server";
 
 const authenticatedPeers = new Map<string, { address: `0x${string}`, userAgent: string, username: string }>()
 const connections = new Map<string, RPC>()
@@ -32,25 +30,29 @@ export class RPC implements Socket {
   static readonly fromOutbound = async (hostname: `${string}:${number}`, peers: Peers): Promise<false | RPC> => {
     const [host, port] = hostname.split(':') as [string, `${number}`]
     const node = { host, port: Number(port) }
-    const { account } = peers
-    const sig = account.sign(`I am connecting to ${hostname}`)
     const response = await new Promise<krpc.KRPCResponse | null>(resolve => {
-      peers.socket.query(node, { a: { address: account.address, hostname: `${CONFIG.hostname}:${CONFIG.port}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
+      peers.socket.query(node, { a: proveClient(peers.account, hostname), q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
         if (err) warn('DEVWARN:', `[RPC] Failed to send auth to ${hostname} - ${err.message}`)
         resolve(err ? null : res)
       })
     })
     if (!response) return warn('DEVWARN:', `[RPC] Auth handshake failed with ${hostname}`)
-    const addr = response.r?.['address']?.toString() as `0x${string}` | undefined
-    const remoteSig = response?.r?.['signature']?.toString()
     const err = response.r?.['e']?.[1].toString()
     if (err) return warn('DEVWARN:', `[RPC] Failed to authenticate from outbound - ${err}`)
-    if (!addr || !remoteSig) return warn('DEVWARN:', `[RPC] Auth response missing fields from ${hostname}`)
-    const signature = Signature.fromString(remoteSig)
-    if (!signature.verify(`I am connecting to ${CONFIG.hostname}:${CONFIG.port}`, addr)) return warn('DEVWARN:', `[RPC] Auth response invalid from ${hostname}`) // TODO: move to HIP3
-    log(`[RPC] Mutual auth complete with ${addr} at ${hostname}`)
-    authenticatedPeers.set(`${host}:${port}`, { address: addr, userAgent: response?.r?.['userAgent']?.toString() ?? 'Hydrabase/DHT', username: response?.r?.['username']?.toString() ?? 'Unknown' })
-    return new RPC(hostname, peers, { address: addr, userAgent: response?.r?.['userAgent']?.toString() ?? 'Hydrabase/DHT', username: response?.r?.['username']?.toString() ?? 'Unknown' })
+
+    const { data: auth } = AuthSchema.safeParse({
+      address: response.r?.['address']?.toString(),
+      hostname: response?.r?.['hostname']?.toString(),
+      signature: response?.r?.['signature']?.toString(),
+      userAgent: response?.r?.['userAgent']?.toString(),
+      username: response?.r?.['username']?.toString(),
+    })
+    if (!auth) return warn('DEVWARN:', '[RPC] Invalid auth response')
+    const res = verifyServer(hostname, auth)
+    if (Array.isArray(res)) return warn('DEVWARN:', `[RPC] Failed to verify server ${res[1]}`)
+    log(`[RPC] Mutual auth complete with ${auth.username} ${auth.address} at ${hostname}`)
+    authenticatedPeers.set(`${host}:${port}`, auth)
+    return new RPC(hostname, peers, auth)
   }
   public readonly close = () => {
     // This.isOpened = false
@@ -83,7 +85,7 @@ export class RPC implements Socket {
 
 const handlers = {
   auth: async (peers: Peers, query: krpc.KRPCQuery, unverifiedHostname: `${string}:${number}`, node: { family: "IPv4" | "IPv6"; host: string, port: number, size: number }) => {
-    const res = await HIP3_CONN_Authentication.verifyClientFromServer({ 'x-address': query.a?.['address']?.toString() ?? '0x0', 'x-hostname': unverifiedHostname, 'x-signature': query.a?.['signature']?.toString() ?? '' })
+    const res = await verifyClient({ address: query.a?.['address']?.toString() as `0x${string}`, hostname: unverifiedHostname, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' })
     if (Array.isArray(res)) {
       warn('DEVWARN:', `[RPC] Authentication failed ${unverifiedHostname} - ${res[1]}`)
       peers.rpc.response(node, query, { e: res, ok: 0 })
@@ -92,7 +94,7 @@ const handlers = {
     const { address, hostname, userAgent, username } = res
     log(`[RPC] Authenticated peer ${username} ${address} at ${hostname}`)
     authenticatedPeers.set(hostname, { address, userAgent, username })
-    peers.rpc.response(node, query, { address: peers.account.address, ok: 1, signature: peers.account.sign(`I am connecting to ${hostname}`).toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username })
+    peers.rpc.response(node, query, { ...proveClient(peers.account, hostname), ok: 1 })
     if (!connections.has(hostname)) peers.add(RPC.fromInbound(hostname, peers, { address, hostname, userAgent, username }))
   },
   msg: async (peers: Peers, query: krpc.KRPCQuery, hostname: `${string}:${number}`, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {

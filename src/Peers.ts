@@ -16,7 +16,7 @@ import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer, type Socket } from "./peer";
 import { PeerMap } from './PeerMap';
-import { AuthSchema } from './protocol/HIP3/authentication';
+import { AuthSchema } from './protocol/HIP3/handshake';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
