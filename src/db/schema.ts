@@ -1,11 +1,11 @@
-import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const track = sqliteTable('tracks', {
     address: text('address').notNull(),
     album: text('album').notNull(),
     artist_id: text('artist_id'),
     artists: text('artists').notNull(),
-    confidence: integer('confidence').notNull(),
+    confidence: real('confidence').notNull(),
     duration_ms: integer().notNull(),
     external_urls: text('external_urls').notNull(),
     id: text('id').notNull(),
@@ -19,7 +19,7 @@ export const track = sqliteTable('tracks', {
 
 export const artist = sqliteTable('artists', {
     address: text('address').notNull(),
-    confidence: integer('confidence').notNull(),
+    confidence: real('confidence').notNull(),
     external_urls: text('external_urls').notNull(),
     followers: integer('followers').notNull(),
     genres: text('genres').notNull(),
@@ -36,7 +36,7 @@ export const album = sqliteTable('albums', {
     album_type: text('album_type'),
     artist_id: text('artist_id'),
     artists: text('artists'),
-    confidence: integer('confidence').notNull(),
+    confidence: real('confidence').notNull(),
     external_urls: text('external_urls'),
     id: text('id').notNull(),
     image_url: text('image_url'),
@@ -54,6 +54,6 @@ export const soul = sqliteTable('soul', {
     plugin_idA: text('plugin_idA').notNull(),
     plugin_idB: text('plugin_idB').notNull(),
     soul_id: text('soul_id').notNull(),
-  }, table => [uniqueIndex('idx_plugin_album').on(table.plugin_idA, table.plugin_idB, table.address)])
+  }, table => [uniqueIndex('idx_soul').on(table.plugin_idA, table.plugin_idB, table.address)])
 export const schema = { album, artist, soul, track } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts
