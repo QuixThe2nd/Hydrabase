@@ -34,7 +34,7 @@ export class DHT_Node {
     })
     this.dht.on('error', err => error('ERROR:', '[DHT] An error occurred', {err}))
     this.dht.on('ready', () => {
-      log(`[DHT] Ready with ${this.nodes.length} nodes`)
+      log(`[DHT] Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
       this.resolved.ready = true
       this.loadCache()
     })
@@ -49,7 +49,7 @@ export class DHT_Node {
         stats(`[DHT] Connected to ${nodes} nodes`)
         lastNodes = nodes
       }
-      if (nodes > 50 || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
+      if (nodes > 50 || !(await this.cacheFile.exists()) || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', peer => {
       debug(`[DHT] Discovered peer ${peer.host}:${peer.port}`)
@@ -91,8 +91,8 @@ export class DHT_Node {
     }
     clearTimeout(this.retryTimeout)
     const room = DHT_Node.getRoomId()
-     this.dht.announce(room, CONFIG.port, err => { if (err) {error('ERROR:', '[DHT] An error occurred during announce', {err})} })
-    this.dht.lookup(room, err => { if (err) {error('ERROR:', '[DHT] An error occurred during lookup', {err})} })
+     this.dht.announce(room, CONFIG.port, err => { if (err) {warn('WARN:', `[DHT] An error occurred during announce - ${err.message}`)} })
+    this.dht.lookup(room, err => { if (err) {error('ERROR:', `[DHT] An error occurred during lookup ${err.message}`)} })
   }
 
   private readonly countResolved = () => {
@@ -103,7 +103,6 @@ export class DHT_Node {
 
   private readonly loadCache = async () => {
     this.resolved.cacheLoaded = true
-    log('[DHT] Loading cached nodes...')
     if (!(await this.cacheFile.exists())) return
     const peers: DHTNode[] = await this.cacheFile.json()
     for (const peer of peers) this.add(peer)

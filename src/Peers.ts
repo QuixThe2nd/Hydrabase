@@ -106,6 +106,7 @@ export default class Peers {
     const _peer = typeof __peer === 'string' ? await getCanonicalHostname(__peer) : __peer
     if (typeof _peer === 'string') this.knownPeers.add(_peer)
     if (typeof _peer === 'string' && _peer !== __peer && this.knownPeers.has(_peer)) return
+    if (_peer === `${CONFIG.hostname}:${CONFIG.port}`) return
     const socket = await this.toSocket(_peer)
     if (!socket) return
     if (this.peers.has(socket.peer.address)) {

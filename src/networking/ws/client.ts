@@ -22,7 +22,7 @@ export default class WebSocketClient implements Socket {
   private dontReconnect = false
   private messageHandler?: (message: string) => void
   private openHandler?: () => void
-  private reconnectAttempts = 0
+  private reconnectAttempts = 1
   private reconnectTimer: null | ReturnType<typeof setTimeout> = null
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
@@ -78,7 +78,7 @@ export default class WebSocketClient implements Socket {
     })
 
     this.socket.addEventListener('close', ev => {
-      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`, `- ${ev.reason}`)
+      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${ev.reason}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
       if (!this.peers.isConnectionOpened(this.peer.address)) {this._scheduleReconnect(account)}
@@ -88,14 +88,14 @@ export default class WebSocketClient implements Socket {
       warn('DEVWARN:', `[CLIENT] Connection failed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${(err as unknown as { message: string }).message}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
-    })
+    }) // TODO: peer rate limiting
 
     this.socket.addEventListener('message', message => this.messageHandler?.(message.data))
-  }
+  } // TODO: SSL support
   private _flushQueue() {
     const queue = this.retryQueue.splice(0)
     for (const fn of queue) fn()
-  }
+  } // TODO: unit tests
   private _scheduleReconnect(account: Account) {
     if (this.reconnectTimer) return
     log(`[CLIENT] Reconnecting to ${this.peer.username} ${this.peer.address} ${this.peer.hostname} in ${this.reconnectAttempts*5_000}ms...`)

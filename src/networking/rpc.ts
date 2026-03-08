@@ -33,7 +33,7 @@ export class RPC implements Socket {
     const [host, port] = hostname.split(':') as [string, `${number}`]
     const node = { host, port: Number(port) }
     const { account } = peers
-    const sig = account.sign(`I am connecting to ${host}:${port}`)
+    const sig = account.sign(`I am connecting to ${hostname}`)
     const response = await new Promise<krpc.KRPCResponse | null>(resolve => {
       peers.socket.query(node, { a: { address: account.address, hostname: `${CONFIG.hostname}:${CONFIG.port}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
         if (err) warn('DEVWARN:', `[RPC] Failed to send auth to ${hostname} - ${err.message}`)
