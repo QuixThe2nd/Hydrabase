@@ -1,6 +1,6 @@
 import z from 'zod';
 
-import { log, warn } from '../../log';
+import { debug, log, warn } from '../../log';
 import { type Peer } from '../../networking/ws/peer';
 import { type Request, RequestManager, RequestSchema, type Response, ResponseSchema } from '../../RequestManager';
 import { AnnounceSchema } from '../HIP4/announce';
@@ -28,11 +28,11 @@ export class HIP2_Conn_Message {
   public readonly send = {
     request: async <T extends Request['type']>(request: Request & { type: T }): Promise<Response<T>> => {
       const { nonce, promise } = this.requestManager.register<T>()
-      log(`[HIP2] Sending request ${nonce} to peer ${this.peer.username} ${this.peer.address}`)
+      debug(`[HIP2] Sending request ${nonce} to peer ${this.peer.username} ${this.peer.address}`)
       this.peer.send({ nonce, request })
       const results = await promise
       if (!results) return []
-      log(`[HIP2] Received ${results.length} results from ${this.peer.username} ${this.peer.address}`)
+      debug(`[HIP2] Received ${results.length} results from ${this.peer.username} ${this.peer.address}`)
       return results
     },
     response: <T extends Request['type']>(response: Response<T>, nonce: number) => this.peer.send({ nonce, response })
@@ -56,7 +56,8 @@ export class HIP2_Conn_Message {
     const {data,error} = MessageSchemas[type].safeParse(result[type])
     if (!data) return warn('DEVWARN:', `[HIP2] Unexpected ${type} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`, error ? {error:error.issues, message} : {message})
     
-    log(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
+    if (type === 'ping' || type === 'pong') debug(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
+    else debug(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
 
     return { data, nonce, type }
   }

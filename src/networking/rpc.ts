@@ -2,13 +2,14 @@ import krpc from 'k-rpc'
 import krpcSocket from 'k-rpc-socket'
 
 import type Peers from '../Peers'
-import type { Connection } from './ws/client'
 import type { Socket } from './ws/peer'
 
 import { CONFIG } from '../config'
 import { Signature } from '../Crypto/Signature'
 import { error, log, warn } from '../log'
 import { HIP3_CONN_Authentication } from '../protocol/HIP3/authentication'
+import { DHT_Node } from './dht'
+import { type Connection, getCanonicalHostname } from './ws/client'
 import { version } from "./ws/server";
 
 const authenticatedPeers = new Map<string, { address: `0x${string}`, userAgent: string, username: string }>()
@@ -36,7 +37,7 @@ export class RPC implements Socket {
     const sig = account.sign(`I am connecting to ${host}:${port}`)
     const response = await new Promise<krpc.KRPCResponse | null>(resolve => { peers.socket.query(node, { a: { address: account.address, hostname: `${CONFIG.hostname}:${CONFIG.port}`, signature: sig.toString(), userAgent: `Hydrabase/${version}`, username: CONFIG.username }, q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => resolve(err ? null : res)) })
     if (!response) return warn('DEVWARN:', `[RPC] Auth handshake failed with ${hostname}`)
-    const addr = response?.r?.['address']?.toString() as `0x${string}` | undefined
+    const addr = response.r?.['address']?.toString() as `0x${string}` | undefined
     const remoteSig = response?.r?.['signature']?.toString()
     const err = response.r?.['e'][1].toString()
     if (err) return warn('DEVWARN:', `[RPC] Failed to authenticate from outbound - ${err}`)
@@ -65,7 +66,8 @@ export class RPC implements Socket {
   public readonly send = (message: string) => this.peers.socket.query(this.node, { a: { d: message }, q: `${CONFIG.rpcPrefix}_msg` }, err => {
     if (err) {
       error('ERROR:', '[RPC] Message failed to send', {err})
-      return this.close()
+      this.close()
+      return
     }
     log(`[RPC] Peer acknowledged message ${this.hostname}`)
     if (!this.isOpened) {
@@ -76,11 +78,14 @@ export class RPC implements Socket {
 }
 
 const handlers = {
-  auth: async (peers: Peers, query: krpc.KRPCQuery, unverifiedHostname: `${string}:${number}`, node: { family: "IPv4" | "IPv6"; host: string, port: number, size: number }) => {
-    const res = await HIP3_CONN_Authentication.verifyClientFromServer({ 'x-address': query.a?.['address']?.toString(), 'x-hostname': unverifiedHostname, 'x-signature': query.a?.['signature']?.toString() })
+  // eslint-disable-next-line max-statements
+  auth: async (peers: Peers, query: krpc.KRPCQuery, _unverifiedHostname: `${string}:${number}`, node: { family: "IPv4" | "IPv6"; host: string, port: number, size: number }) => {
+    const unverifiedHostname = await getCanonicalHostname(_unverifiedHostname)
+    const res = await HIP3_CONN_Authentication.verifyClientFromServer({ 'x-address': query.a?.['address']?.toString() ?? '0x0', 'x-hostname': unverifiedHostname, 'x-signature': query.a?.['signature']?.toString() ?? '' })
     if (Array.isArray(res)) {
       warn('DEVWARN:', `[RPC] Authentication failed ${unverifiedHostname} - ${res[1]}`)
-      return peers.rpc.response(node, query, { e: res, ok: 0 })
+      peers.rpc.response(node, query, { e: res, ok: 0 })
+      return
     }
     const { address, hostname, userAgent, username } = res
     log(`[RPC] Authenticated peer ${username} ${address} at ${hostname}`)
@@ -92,7 +97,8 @@ const handlers = {
   msg: async (peers: Peers, query: krpc.KRPCQuery, hostname: `${string}:${number}`, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {
     if (!authenticatedPeers.has(hostname)) {
       warn('DEVWARN:', `[RPC] Dropping message from unauthenticated peer ${hostname}`)
-      return peers.rpc.response({ ...node, host: node.address }, query, { e: [0, 'Not authenticated'], ok: 0 })
+      peers.rpc.response({ ...node, host: node.address }, query, { e: [0, 'Not authenticated'], ok: 0 })
+      return
     }
     const message = query.a?.['d']?.toString()
     if (message) {
@@ -111,8 +117,9 @@ const handlers = {
 }
 
 export const startRPC = (peers: Peers) => {
-  const socket = krpcSocket({ timeout: 60_000 })
-  const rpc = krpc({ krpcSocket: socket, timeout: 60_000 })
+  const socket = krpcSocket({ timeout: 5_000 })
+  socket.on('error', err => error('ERROR:', '[RPC] Socket error', {err}))
+  const rpc = krpc({ id: Buffer.from(DHT_Node.nodeId), krpcSocket: socket, nodes: CONFIG.dhtBootstrapNodes.split(','), timeout: 5_000 })
   rpc.on('query', async (query, node) => {
     const q = query.q.toString()
     const host = `${node.address}:${node.port}` as const

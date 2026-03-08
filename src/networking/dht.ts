@@ -1,4 +1,6 @@
 import DHT, { type DHTNode } from 'bittorrent-dht'
+import { SHA1 } from 'bun';
+import net from 'net'
 
 import type Peers from '../Peers';
 
@@ -7,6 +9,7 @@ import { debug, error, log, stats, warn } from '../log';
 import WebSocketClient from './ws/client';
 
 export class DHT_Node {
+  static readonly nodeId = SHA1.hash(`${CONFIG.hostname}:${CONFIG.port}`, 'hex')
   public readonly resolved = {
     cacheLoaded: false,
     connected: false,
@@ -22,7 +25,7 @@ export class DHT_Node {
   private retryTimeout: NodeJS.Timeout | undefined
 
   constructor (peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
-    this.dht = new DHT({ host: CONFIG.hostname, krpc: peers.rpc })
+    this.dht = new DHT({ bootstrap: CONFIG.dhtBootstrapNodes.split(','), host: net.isIP(CONFIG.hostname) ? CONFIG.hostname : CONFIG.ip, krpc: peers.rpc, nodeId: DHT_Node.nodeId })
     this.dht.listen(CONFIG.port, '0.0.0.0', () => {
       debug(`[DHT] Listening on port ${CONFIG.port}`)
       this.resolved.listening = true
@@ -54,7 +57,7 @@ export class DHT_Node {
       if (`${peer.host}:${peer.port}` === `${CONFIG.hostname}:${CONFIG.port}`) return // TODO: upgrade from external ip to domain if any
       if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
       this.knownPeers.add(`${peer.host}:${peer.port}`)
-      log(`[DHT] Discovered peer ${peer.host}:${peer.port}`)
+      debug(`[DHT] Discovered peer ${peer.host}:${peer.port}`)
       const client = await WebSocketClient.init(peers, `${peer.host}:${peer.port}`)
       if (client === false) return
       peers.add(client)
@@ -111,12 +114,11 @@ export class DHT_Node {
   }
 
   private readonly loadCache = async () => {
+    this.resolved.cacheLoaded = true
     log('[DHT] Loading cached nodes...')
-    const cacheFile = Bun.file('./data/dht-nodes.json')
-    if (!(await cacheFile.exists())) return
-    const peers: DHTNode[] = await cacheFile.json()
+    if (!(await this.cacheFile.exists())) return
+    const peers: DHTNode[] = await this.cacheFile.json()
     for (const peer of peers) this.add(peer)
     log('[DHT] Loaded cached nodes')
-    this.resolved.cacheLoaded = true
   }
 }

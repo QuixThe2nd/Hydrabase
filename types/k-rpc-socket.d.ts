@@ -83,16 +83,10 @@ declare module 'k-rpc-socket' {
 
   type QueryCallback = (
     err: Error | null,
-    response: Response,
+    response: KRPCResponse,
     peer: Peer,
     request: Query
   ) => void;
-
-  interface Response {
-    [key: string]: unknown;
-    r?: Record<string, unknown>;
-    t?: Buffer;
-  }
 
   interface RpcError {
     [key: string]: unknown;
