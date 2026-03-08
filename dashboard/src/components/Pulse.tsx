@@ -80,12 +80,12 @@ const populateCanvas = (ctx: CanvasRenderingContext2D, W: number, H: number, bwH
 
   if (bwHistory.length < 2) return
 
-  const rxData = bwHistory.map(p => p.rx)
-  const txData = bwHistory.map(p => p.tx)
-  const maxVal = Math.max(...rxData, ...txData, 1)
+  const ulData = bwHistory.map(p => p.ul)
+  const dlData = bwHistory.map(p => p.dl)
+  const maxVal = Math.max(...ulData, ...dlData, 1)
 
-  drawSeries(txData, ORANGE,  "rgba(255,140,66,.6)", maxVal, W, H, ctx)
-  drawSeries(rxData, ACCENT,  "rgba(0,200,255,.6)", maxVal, W, H, ctx)
+  drawSeries(dlData, ORANGE,  "rgba(255,140,66,.6)", maxVal, W, H, ctx)
+  drawSeries(ulData, ACCENT,  "rgba(0,200,255,.6)", maxVal, W, H, ctx)
 }
 
 export const NetworkPulseCanvas = ({ bwHistory }: { bwHistory: BwPoint[] }) => {

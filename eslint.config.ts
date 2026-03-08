@@ -37,11 +37,13 @@ export default tseslint.config(
     },
     rules: {
       "camelcase": "off",
+      "complexity": "off",
       "curly": "off",
       "dot-notation": "off",
       "id-length": "off",
       "init-declarations": "off",
       "max-params": "off",
+      "max-statements": "off",
       "no-await-in-loop": "off",
       "no-console": "error",
       "no-continue": "off",

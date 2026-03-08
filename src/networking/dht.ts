@@ -24,7 +24,7 @@ export class DHT_Node {
 
   constructor (peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     this.dht = new DHT({ bootstrap: CONFIG.dhtBootstrapNodes.split(','), host: net.isIP(CONFIG.hostname) ? CONFIG.hostname : CONFIG.ip, krpc: peers.rpc, nodeId: DHT_Node.nodeId })
-    this.dht.listen(CONFIG.port, '0.0.0.0', () => {
+    this.dht.listen(CONFIG.port, CONFIG.listenAddress, () => {
       debug(`[DHT] Listening on port ${CONFIG.port}`)
       this.resolved.listening = true
     })
