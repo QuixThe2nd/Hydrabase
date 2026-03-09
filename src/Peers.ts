@@ -9,14 +9,13 @@ import type MetadataManager from './Metadata'
 import type { Request, Response, SearchResult } from './RequestManager'
 
 import { CONFIG } from './config'
-import { Signature } from './Crypto/Signature';
-import { log, warn } from './log';
+import { debug, log, warn } from './log';
 import { RPC, startRPC } from './networking/rpc';
 import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer, type Socket } from "./peer";
 import { PeerMap } from './PeerMap';
-import { AuthSchema } from './protocol/HIP3/handshake';
+import { type Auth, AuthSchema, verifyServer } from './protocol/HIP3/handshake';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
@@ -34,18 +33,6 @@ const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHas
   } // TODO: Store peer username
   return pluginMatches
 } // TODO: pipe all console.log's to gui
-
-export const getCanonicalHostname = async (hostname: `${string}:${number}`) => {
-  try {
-    const res = await fetch(`http://${hostname}/auth`)
-    const body = await res.text()
-    const signature = AuthSchema.safeParse(JSON.parse(body)).data?.signature
-    return signature ? Signature.fromString(signature).message.replace('I am ', '') as `${string}:${number}` : hostname
-  } catch (err) {
-    warn('WARN:', `[CLIENT] Failed to get canonical hostname from ${hostname} - ${(err as Error).message}`)
-    return hostname
-  }
-}
 
 const calculatePeerConfidence = (pluginMatches: Record<string, { match: number, mismatch: number }>, installedPlugins: Set<string>) => avg(
   Object.entries(pluginMatches)
@@ -74,6 +61,26 @@ const searchPeer = async <T extends Request['type']>(request: Request & { type: 
 const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer => peer ? true : warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
+export const authenticateServer = async (hostname: `${string}:${number}`): Promise<[number, string] | Auth> => {
+  try {
+    debug(`[PEERS] Authenticating server ${hostname}`)
+    const response = await fetch(`http://${hostname}/auth`)
+    const body = await response.text()
+    const auth = AuthSchema.safeParse(JSON.parse(body)).data
+    if (!auth) return [500, 'Failed to parse server authentication']
+    if (auth.hostname !== hostname) {
+      debug(`[PEERS] Upgrading hostname from ${hostname} to ${auth.hostname}`)
+      return await authenticateServer(auth.hostname)
+    }
+    const res = verifyServer(hostname, auth)
+    if (Array.isArray(res)) return res
+    return auth
+  } catch (err) {
+    warn('WARN:', `[CLIENT] Failed to fetch server authentication from ${hostname} - ${(err as Error).message}`)
+    return [500, 'Failed to fetch server authentication']
+  }
+}
+
 export default class Peers {
   public readonly rpc: KRPC
   public readonly socket: RpcSocket
@@ -99,16 +106,7 @@ export default class Peers {
   }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public async add(__peer: `${string}:${number}` | RPC | WebSocketServerConnection) {
-    const _hostname = typeof __peer === 'string' ? __peer : __peer.peer.hostname
-    if (this.knownPeers.has(_hostname)) return
-    this.knownPeers.add(_hostname)
-    const _peer = typeof __peer === 'string' ? await getCanonicalHostname(__peer) : __peer
-    if (typeof _peer === 'string') {
-      this.knownPeers.add(_peer)
-      if (_peer !== __peer && this.knownPeers.has(_peer)) return
-    }
-    if (_peer === `${CONFIG.hostname}:${CONFIG.port}`) return
+  public async add(_peer: `${string}:${number}` | RPC | WebSocketServerConnection) {
     const socket = await this.toSocket(_peer)
     if (!socket) return
     if (this.peers.has(socket.peer.address)) {
@@ -117,7 +115,9 @@ export default class Peers {
         socket.close()
       }
       return
-    } // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
+    }
+
+    // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
     socket.onClose(() => this.peers.delete(socket.peer.address))
     const peer = new Peer(socket, this, this.db, this.repos, this.metadataManager.installedPlugins, this.search)
     this.peers.set(socket.peer.address, peer)
@@ -186,10 +186,32 @@ export default class Peers {
     }
   }
 
+  private async getAuth(hostname: `${string}:${number}`) {
+    if (hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
+    if (hostname === `${CONFIG.ip}:${CONFIG.port}`) return false
+    if (this.knownPeers.has(hostname)) return false
+    this.knownPeers.add(hostname)
+    const auth = await authenticateServer(hostname)
+    if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate server ${auth[1]}`)
+    if (this.has(auth.address)) return warn('DEVWARN:', `[PEERS] Already connected/connecting to peer ${auth.username} ${auth.address} ${auth.hostname}`)
+    if (auth.address === this.account.address) return warn('DEVWARN:', `[PEERS] Not connecting to self`)
+
+    if ('hostname' in auth) {
+      if (auth.hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
+      if (auth.hostname === `${CONFIG.ip}:${CONFIG.port}`) return false
+      if (auth.hostname !== hostname && this.knownPeers.has(auth.hostname)) return false
+      this.knownPeers.add(auth.hostname)
+    }
+
+    return auth
+  }
+
   private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection): Promise<false | Socket> {
     if (peer instanceof WebSocketServerConnection || peer instanceof RPC) return peer
-    const preferredClient = CONFIG.preferTransport === 'TCP' ? await WebSocketClient.init(peer, this) : RPC.fromOutbound(peer, this)
+    const auth = await this.getAuth(peer)
+    if (!auth) return auth
+    const preferredClient = CONFIG.preferTransport === 'TCP' ? new WebSocketClient(auth, this) : RPC.fromOutbound(auth, this)
     if (preferredClient) return preferredClient
-    return CONFIG.preferTransport === 'TCP' ? RPC.fromOutbound(peer, this) : WebSocketClient.init(peer, this)
+    return CONFIG.preferTransport === 'TCP' ? RPC.fromOutbound(auth, this) : new WebSocketClient(auth, this)
   }
 }

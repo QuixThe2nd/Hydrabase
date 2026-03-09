@@ -19,6 +19,7 @@ export class DHT_Node {
     return this.dht.toJSON().nodes
   }
   private readonly dht: DHT
+  private readonly knownPeers: Set<`${string}:${number}`>
   private lastResolved = 0
   private retryTimeout: NodeJS.Timeout | undefined
 
@@ -52,6 +53,8 @@ export class DHT_Node {
       if (nodes > 50 || !(await this.cacheFile.exists()) || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', peer => {
+      if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
+      this.knownPeers.add(`${peer.host}:${peer.port}`)
       debug(`[DHT] Discovered peer ${peer.host}:${peer.port}`)
       peers.add(`${peer.host}:${peer.port}`)
     })
