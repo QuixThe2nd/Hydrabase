@@ -17,33 +17,45 @@ export const AuthSchema = z.object({
 
 export type Auth = z.infer<typeof AuthSchema>
 
-export const proveServer = (account: Account): Auth => ({
-  address: account.address,
-  hostname: `${CONFIG.hostname}:${CONFIG.port}`,
-  signature: account.sign(`I am ${CONFIG.hostname}:${CONFIG.port}`).toString(),
-  userAgent: `Hydrabase/${version}`,
-  username: CONFIG.username
-})
+export const proveServer = (account: Account): Auth => {
+  debug(`[HIP3] Proving server`)
+  return {
+    address: account.address,
+    hostname: `${CONFIG.hostname}:${CONFIG.port}`,
+    signature: account.sign(`I am ${CONFIG.hostname}:${CONFIG.port}`).toString(),
+    userAgent: `Hydrabase/${version}`,
+    username: CONFIG.username
+  }
+}
 
 export const verifyServer = (hostname: `${string}:${number}`, auth: Auth): [number, string] | true => {
-  if (hostname !== auth.hostname) return [500, 'Unexpected hostname']
+  debug(`[HIP3] Verifying server ${hostname}`)
+  if (hostname !== auth.hostname) {
+    warn('DEVWARN:', `[HIP3] Unexpected hostname - Expected ${hostname} - Got ${auth.hostname}`)
+    return [500, 'Unexpected hostname']
+  }
   if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address)) return [500, `Invalid signature`]
   return true
 }
 
-export const proveClient = (account: Account, hostname: string): Auth => ({
-  address: account.address,
-  hostname: `${CONFIG.hostname}:${CONFIG.port}`,
-  signature: account.sign(`I am connecting to ${hostname}`).toString(),
-  userAgent: `Hydrabase/${version}`,
-  username: CONFIG.username
-})
+export const proveClient = (account: Account, hostname: string): Auth => {
+  debug(`[HIP3] Proving client to ${hostname}`)
+  return {
+    address: account.address,
+    hostname: `${CONFIG.hostname}:${CONFIG.port}`,
+    signature: account.sign(`I am connecting to ${hostname}`).toString(),
+    userAgent: `Hydrabase/${version}`,
+    username: CONFIG.username
+  }
+}
 
 export const verifyClient = async (auth: Auth | { apiKey: string }): Promise<[number, string] | { address: `0x${string}`, hostname: `${string}:${number}`, userAgent: string; username: string }> => {
   if ('apiKey' in auth) {
+    debug(`[HIP3] Verifying API`)
     if (auth.apiKey !== CONFIG.apiKey) return [500, 'Invalid API Key']
     return { address: '0x0', hostname: 'API:4545', userAgent: `Hydrabase-API/${version}`, username: CONFIG.username }
   }
+  debug(`[HIP3] Verifying client ${auth.username} ${auth.address} ${auth.hostname}`)
 
   debug(`[HIP3] Verifying client address ${auth.address}`)
   if (!Signature.fromString(auth.signature).verify(`I am connecting to ${CONFIG.hostname}:${CONFIG.port}`, auth.address)) return [403, 'Failed to authenticate address']

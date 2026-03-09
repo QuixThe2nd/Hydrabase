@@ -6,8 +6,8 @@ import type Peers from '../Peers'
 
 import { CONFIG } from '../config'
 import { error, log, warn } from '../log'
-import { getCanonicalHostname } from '../Peers'
-import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from '../protocol/HIP3/handshake'
+import { authenticateServer } from '../Peers'
+import { type Auth, proveClient, proveServer, verifyClient } from '../protocol/HIP3/handshake'
 import { DHT_Node } from './dht'
 import { type Connection } from './ws/client'
 
@@ -20,43 +20,32 @@ export class RPC implements Socket {
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
-  private constructor(private readonly hostname: `${string}:${number}`, private readonly peers: Peers, identity: { address: `0x${string}`, userAgent: string, username: string }) {
-    log(`[RPC] Connecting to peer ${hostname}`)
-    const [host, port] = hostname.split(':') as [string, `${number}`]
+  private constructor(private readonly peers: Peers, private readonly identity: { address: `0x${string}`, hostname: `${string}:${number}`, userAgent: string, username: string }) {
+    log(`[RPC] Connecting to peer ${identity.hostname}`)
+    const [host, port] = identity.hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
-    this.peer = { ...identity, hostname }
+    this.peer = { ...identity, hostname: identity.hostname }
     setTimeout(() => this.openHandler?.(), 0)
   }
-  static readonly fromInbound = (key: `${string}:${number}`, peers: Peers, identity: { address: `0x${string}`, hostname: `${string}:${number}`; userAgent: string, username: string }): RPC => new RPC(key, peers, identity)
-  static readonly fromOutbound = async (hostname: `${string}:${number}`, peers: Peers): Promise<false | RPC> => {
-    const [host, port] = hostname.split(':') as [string, `${number}`]
+  static readonly fromInbound = (peers: Peers, identity: { address: `0x${string}`, hostname: `${string}:${number}`; userAgent: string, username: string }): RPC => new RPC(peers, identity)
+  static readonly fromOutbound = async (auth: Auth, peers: Peers): Promise<false | RPC> => {
+    const [host, port] = auth.hostname.split(':') as [string, `${number}`]
     const node = { host, port: Number(port) }
     const response = await new Promise<krpc.KRPCResponse | null>(resolve => {
-      peers.socket.query(node, { a: proveClient(peers.account, hostname), q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
-        if (err) warn('DEVWARN:', `[RPC] Failed to send auth to ${hostname} - ${err.message}`)
+      peers.socket.query(node, { a: proveClient(peers.account, auth.hostname), q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
+        if (err) warn('DEVWARN:', `[RPC] Failed to send auth to ${auth.hostname} - ${err.message}`)
         resolve(err ? null : res)
       })
     })
-    if (!response) return warn('DEVWARN:', `[RPC] Auth handshake failed with ${hostname}`)
+    if (!response) return warn('DEVWARN:', `[RPC] Auth handshake failed with ${auth.hostname}`)
     const err = response.r?.['e']?.[1].toString()
     if (err) return warn('DEVWARN:', `[RPC] Failed to authenticate from outbound - ${err}`)
 
-    const { data: auth } = AuthSchema.safeParse({
-      address: response.r?.['address']?.toString(),
-      hostname: response?.r?.['hostname']?.toString(),
-      signature: response?.r?.['signature']?.toString(),
-      userAgent: response?.r?.['userAgent']?.toString(),
-      username: response?.r?.['username']?.toString(),
-    })
-    if (!auth) return warn('DEVWARN:', '[RPC] Invalid auth response')
-    const res = verifyServer(hostname, auth)
-    if (Array.isArray(res)) return warn('DEVWARN:', `[RPC] Failed to verify server ${res[1]}`)
-    log(`[RPC] Mutual auth complete with ${auth.username} ${auth.address} at ${hostname}`)
     authenticatedPeers.set(`${host}:${port}`, auth)
-    return new RPC(hostname, peers, auth)
+    return new RPC(peers, auth)
   }
   public readonly close = () => {
-    // This.isOpened = false
+    this.isOpened = false
     connections.delete(`${this.node.host}:${this.node.port}`)
     this.closeHandlers.map(handler => handler())
   }
@@ -72,11 +61,11 @@ export class RPC implements Socket {
   }
   public readonly send = (message: string) => this.peers.socket.query(this.node, { a: { d: message }, q: `${CONFIG.rpcPrefix}_msg` }, err => {
     if (err) {
-      error('ERROR:', '[RPC] Message failed to send', {err})
+      error('ERROR:', `[RPC] Message failed to send ${err.message}`)
       this.close()
       return
     }
-    log(`[RPC] Peer acknowledged message ${this.hostname}`)
+    log(`[RPC] Peer acknowledged message ${this.identity.hostname}`)
     if (!this.isOpened) {
       this.isOpened = true
       this.openHandler?.()
@@ -96,7 +85,7 @@ const handlers = {
     log(`[RPC] Authenticated peer ${username} ${address} at ${hostname}`)
     authenticatedPeers.set(hostname, { address, userAgent, username })
     peers.rpc.response(node, query, { ...proveServer(peers.account), ok: 1 })
-    if (!connections.has(hostname)) peers.add(RPC.fromInbound(hostname, peers, { address, hostname, userAgent, username }))
+    if (!connections.has(hostname)) peers.add(RPC.fromInbound(peers, { address, hostname, userAgent, username }))
   },
   msg: async (peers: Peers, query: krpc.KRPCQuery, hostname: `${string}:${number}`, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {
     if (!authenticatedPeers.has(hostname)) {
@@ -112,8 +101,12 @@ const handlers = {
         else warn('DEVWARN:', `[RPC] Couldn't find message handler ${hostname}`, {connection})
       } else {
         warn('DEVWARN:', `[RPC] Couldn't find connection ${hostname}`)
-        const rpc = await RPC.fromOutbound(await getCanonicalHostname(hostname), peers)
-        if (rpc) peers.add(rpc)
+        const auth = await authenticateServer(hostname)
+        if (Array.isArray(auth)) warn('DEVWARN:', `[RPC] Failed to authenticate server ${auth[1]}`)
+        else {
+          const rpc = await RPC.fromOutbound(auth, peers)
+          if (rpc) peers.add(rpc)
+        }
       }
     }
     peers.rpc.response({ ...node, host: node.address }, query, { ok: 1 })
