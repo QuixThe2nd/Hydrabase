@@ -6,7 +6,7 @@ import type Peers from '../Peers'
 
 import { CONFIG } from '../config'
 import { error, log, warn } from '../log'
-import { AuthSchema, proveClient, verifyClient, verifyServer } from '../protocol/HIP3/handshake'
+import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from '../protocol/HIP3/handshake'
 import { DHT_Node } from './dht'
 import { type Connection } from './ws/client'
 
@@ -94,7 +94,7 @@ const handlers = {
     const { address, hostname, userAgent, username } = res
     log(`[RPC] Authenticated peer ${username} ${address} at ${hostname}`)
     authenticatedPeers.set(hostname, { address, userAgent, username })
-    peers.rpc.response(node, query, { ...proveClient(peers.account, hostname), ok: 1 })
+    peers.rpc.response(node, query, { ...proveServer(peers.account), ok: 1 })
     if (!connections.has(hostname)) peers.add(RPC.fromInbound(hostname, peers, { address, hostname, userAgent, username }))
   },
   msg: async (peers: Peers, query: krpc.KRPCQuery, hostname: `${string}:${number}`, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {

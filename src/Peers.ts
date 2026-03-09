@@ -100,12 +100,14 @@ export default class Peers {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(__peer: `${string}:${number}` | RPC | WebSocketServerConnection) {
-    if (typeof __peer === 'string' && this.knownPeers.has(__peer)) return
-    if (typeof __peer !== 'string' && this.knownPeers.has(__peer.peer.hostname)) return
-    this.knownPeers.add(typeof __peer === 'string' ? __peer : __peer.peer.hostname)
+    const _hostname = typeof __peer === 'string' ? __peer : __peer.peer.hostname
+    if (this.knownPeers.has(_hostname)) return
+    this.knownPeers.add(_hostname)
     const _peer = typeof __peer === 'string' ? await getCanonicalHostname(__peer) : __peer
-    if (typeof _peer === 'string') this.knownPeers.add(_peer)
-    if (typeof _peer === 'string' && _peer !== __peer && this.knownPeers.has(_peer)) return
+    if (typeof _peer === 'string') {
+      this.knownPeers.add(_peer)
+      if (_peer !== __peer && this.knownPeers.has(_peer)) return
+    }
     if (_peer === `${CONFIG.hostname}:${CONFIG.port}`) return
     const socket = await this.toSocket(_peer)
     if (!socket) return
@@ -186,8 +188,8 @@ export default class Peers {
 
   private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection): Promise<false | Socket> {
     if (peer instanceof WebSocketServerConnection || peer instanceof RPC) return peer
-    const wsClient = await WebSocketClient.init(peer, this)
-    if (wsClient) return wsClient
-    return RPC.fromOutbound(peer, this)
+    const preferredClient = CONFIG.preferTransport === 'TCP' ? await WebSocketClient.init(peer, this) : RPC.fromOutbound(peer, this)
+    if (preferredClient) return preferredClient
+    return CONFIG.preferTransport === 'TCP' ? RPC.fromOutbound(peer, this) : WebSocketClient.init(peer, this)
   }
 }
