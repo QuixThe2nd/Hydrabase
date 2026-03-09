@@ -83,7 +83,7 @@ const handlers = {
     const identity = await verifyClient({ address: query.a?.['address']?.toString() as `0x${string}`, hostname: unverifiedHostname, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' })
     if (Array.isArray(identity)) {
       warn('DEVWARN:', `[RPC] Authentication failed ${unverifiedHostname} - ${identity[1]}`)
-      peers.rpc.response(node, query, { e: identity, ok: 0 })
+      peers.rpc.response(node, query, { e: [500, 'Failed to verify client'], ok: 0 })
       return
     }
     log(`[RPC] Authenticated peer ${identity.username} ${identity.address} at ${identity.hostname}`)
@@ -99,9 +99,8 @@ const handlers = {
         warn('DEVWARN:', `[RPC] Failed to authenticate server ${auth[1]}`)
         return
       } 
-        const rpc = await RPC.fromOutbound(auth, peers)
-        if (!rpc || !await peers.add(rpc)) return
-      
+      const rpc = await RPC.fromOutbound(auth, peers)
+      if (!rpc || !await peers.add(rpc)) return
     }
     const message = query.a?.['d']?.toString()
     if (message) {

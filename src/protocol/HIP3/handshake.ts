@@ -6,6 +6,7 @@ import { CONFIG } from "../../config";
 import { Signature } from "../../Crypto/Signature";
 import { debug, warn } from "../../log";
 import { version } from "../../networking/ws/server";
+import { authenticatedPeers } from "../../networking/rpc";
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
@@ -64,8 +65,12 @@ export const verifyClient = async (auth: Auth | { apiKey: string }): Promise<[nu
   debug(`[HIP3] Verifying client address ${auth.address}`)
   if (!Signature.fromString(auth.signature).verify(`I am connecting to ${CONFIG.hostname}:${CONFIG.port}`, auth.address)) return [403, 'Failed to authenticate address']
 
-  debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
   const isHostnameValid = await new Promise<[number, string] | true>(resolve => {
+    if (authenticatedPeers.get(auth.hostname)?.address === auth.address) {
+      resolve(true)
+      return
+    }
+    debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
     fetch(`http://${auth.hostname}/auth`).then(async response => { // TODO: UDP mode
       const serverAuth = AuthSchema.parse(JSON.parse(await response.text()))
       if (serverAuth.address === auth.address) return resolve(true)
