@@ -35,7 +35,7 @@ const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHas
   return pluginMatches
 } // TODO: pipe all console.log's to gui
 
-const getCanonicalHostname = async (hostname: `${string}:${number}`) => {
+export const getCanonicalHostname = async (hostname: `${string}:${number}`) => {
   try {
     const res = await fetch(`http://${hostname}/auth`)
     const body = await res.text()

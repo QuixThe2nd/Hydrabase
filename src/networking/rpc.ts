@@ -6,6 +6,7 @@ import type Peers from '../Peers'
 
 import { CONFIG } from '../config'
 import { error, log, warn } from '../log'
+import { getCanonicalHostname } from '../Peers'
 import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from '../protocol/HIP3/handshake'
 import { DHT_Node } from './dht'
 import { type Connection } from './ws/client'
@@ -28,8 +29,6 @@ export class RPC implements Socket {
   }
   static readonly fromInbound = (key: `${string}:${number}`, peers: Peers, identity: { address: `0x${string}`, hostname: `${string}:${number}`; userAgent: string, username: string }): RPC => new RPC(key, peers, identity)
   static readonly fromOutbound = async (hostname: `${string}:${number}`, peers: Peers): Promise<false | RPC> => {
-    console.log(hostname)
-    console.trace()
     const [host, port] = hostname.split(':') as [string, `${number}`]
     const node = { host, port: Number(port) }
     const response = await new Promise<krpc.KRPCResponse | null>(resolve => {
@@ -113,7 +112,7 @@ const handlers = {
         else warn('DEVWARN:', `[RPC] Couldn't find message handler ${hostname}`, {connection})
       } else {
         warn('DEVWARN:', `[RPC] Couldn't find connection ${hostname}`)
-        const rpc = await RPC.fromOutbound(hostname, peers)
+        const rpc = await RPC.fromOutbound(await getCanonicalHostname(hostname), peers)
         if (rpc) peers.add(rpc)
       }
     }
