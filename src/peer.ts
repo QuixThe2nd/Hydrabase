@@ -251,7 +251,7 @@ export class Peer {
     }
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))
-    debug(`[PEER] [${this.type}] ${keys.join(',')} to ${this.username} ${this.address} ${this.hostname}`)
+    debug(`[PEER] [${this.type}] Sending ${keys.join(',')} to ${this.username} ${this.address} ${this.hostname}`)
     this.socket.send(message)
   }
 

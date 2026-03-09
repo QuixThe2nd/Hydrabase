@@ -6,6 +6,7 @@ import type Peers from '../Peers';
 
 import { CONFIG } from '../config';
 import { debug, error, log, stats, warn } from '../log';
+import { ipToHostname } from './rpc';
 
 export class DHT_Node {
   static readonly nodeId = SHA1.hash(`${CONFIG.hostname}:${CONFIG.port}`, 'hex')
@@ -21,7 +22,6 @@ export class DHT_Node {
   private readonly dht: DHT
   private readonly knownPeers = new Set<`${string}:${number}`>([`${CONFIG.hostname}:${CONFIG.port}`,`${CONFIG.ip}:${CONFIG.port}`])
   private lastResolved = 0
-  private retryTimeout: NodeJS.Timeout | undefined
 
   constructor (peers: Peers, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     this.dht = new DHT({ bootstrap: CONFIG.dhtBootstrapNodes.split(','), host: net.isIP(CONFIG.hostname) ? CONFIG.hostname : CONFIG.ip, krpc: peers.rpc, nodeId: DHT_Node.nodeId })
@@ -53,17 +53,19 @@ export class DHT_Node {
       if (nodes > 50 || !(await this.cacheFile.exists()) || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', peer => {
-      if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
-      this.knownPeers.add(`${peer.host}:${peer.port}`)
-      debug(`[DHT] Discovered peer ${peer.host}:${peer.port}`)
-      peers.add(`${peer.host}:${peer.port}`)
+      const hostname = ipToHostname.get(`${peer.host}:${peer.port}`) ?? `${peer.host}:${peer.port}`
+      if (this.knownPeers.has(hostname)) return
+      this.knownPeers.add(hostname)
+      debug(`[DHT] Discovered peer ${hostname}`)
+      peers.add(hostname)
     })
     this.dht.on('announce', (peer, _infoHash) => {
+      const hostname = ipToHostname.get(`${peer.host}:${peer.port}`) ?? `${peer.host}:${peer.port}`
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId()) return
-      if (this.knownPeers.has(`${peer.host}:${peer.port}`)) return
-      this.knownPeers.add(`${peer.host}:${peer.port}`)
-      log(`[DHT] Received announce from ${peer.host}:${peer.port}`)
-      peers.add(`${peer.host}:${peer.port}`)
+      if (this.knownPeers.has(hostname)) return
+      this.knownPeers.add(hostname)
+      log(`[DHT] Received announce from ${hostname}`)
+      peers.add(hostname)
     })
   }
 
@@ -89,12 +91,6 @@ export class DHT_Node {
   })
 
   private readonly announce = () => {
-    if (this.nodes.length <= 1) {
-      warn('WARN:', '[DHT] Waiting for nodes...')
-      this.retryTimeout = setTimeout(() => this.announce(), 10_000)
-      return
-    }
-    clearTimeout(this.retryTimeout)
     const room = DHT_Node.getRoomId()
      this.dht.announce(room, CONFIG.port, err => { if (err) {warn('WARN:', `[DHT] An error occurred during announce - ${err.message}`)} })
     this.dht.lookup(room, err => { if (err) {error('ERROR:', `[DHT] An error occurred during lookup ${err.message}`)} })

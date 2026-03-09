@@ -9,12 +9,12 @@ import type { Request, Response, SearchResult } from './RequestManager'
 
 import { CONFIG } from './config'
 import { debug, log, warn } from './log';
-import { ipToHostname, RPC, startRPC } from './networking/rpc';
+import { authenticatedPeers, ipToHostname, RPC, startRPC } from './networking/rpc';
 import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer, type Socket } from "./peer";
 import { PeerMap } from './PeerMap';
-import { type Auth, AuthSchema, verifyServer } from './protocol/HIP3/handshake';
+import { AuthSchema, type Identity, verifyServer } from './protocol/HIP3/handshake';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
@@ -60,7 +60,9 @@ const searchPeer = async <T extends Request['type']>(request: Request & { type: 
 const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer => peer ? true : warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
-export const authenticateServer = async (hostname: `${string}:${number}`): Promise<[number, string] | Auth> => {
+export const authenticateServer = async (hostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
+  const cache = authenticatedPeers.get(hostname)
+  if (cache) return cache
   try {
     debug(`[PEERS] Authenticating server ${hostname}`)
     const response = await fetch(`http://${hostname}/auth`)
@@ -178,6 +180,7 @@ export default class Peers {
     if (hostname === `${CONFIG.ip}:${CONFIG.port}`) return false
     if (this.knownPeers.has(hostname)) return false
     this.knownPeers.add(hostname)
+
     const auth = await authenticateServer(hostname)
     if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate server ${auth[1]}`)
     if (this.has(auth.address)) return warn('DEVWARN:', `[PEERS] Already connected/connecting to peer ${auth.username} ${auth.address} ${auth.hostname}`)
@@ -195,10 +198,10 @@ export default class Peers {
 
   private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection): Promise<false | Socket> {
     if (peer instanceof WebSocketServerConnection || peer instanceof RPC) return peer
-    const auth = await this.getAuth(peer)
-    if (!auth) return auth
-    const preferredClient = CONFIG.preferTransport === 'TCP' ? new WebSocketClient(auth, this) : RPC.fromOutbound(auth, this)
+    const identity = await this.getAuth(authenticatedPeers.get(peer)?.hostname ?? peer)
+    if (!identity) return identity
+    const preferredClient = CONFIG.preferTransport === 'TCP' ? new WebSocketClient(identity, this) : RPC.fromOutbound(identity, this)
     if (preferredClient) return preferredClient
-    return CONFIG.preferTransport === 'TCP' ? RPC.fromOutbound(auth, this) : new WebSocketClient(auth, this)
+    return CONFIG.preferTransport === 'TCP' ? RPC.fromOutbound(identity, this) : new WebSocketClient(identity, this)
   }
 }

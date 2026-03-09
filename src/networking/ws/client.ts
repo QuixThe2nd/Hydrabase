@@ -3,7 +3,7 @@ import type { Socket } from '../../peer'
 import type Peers from '../../Peers'
 
 import { log, warn } from '../../log'
-import { type Auth, proveClient } from '../../protocol/HIP3/handshake'
+import { type Identity, proveClient } from '../../protocol/HIP3/handshake'
 
 export interface Connection {
   address: `0x${string}`
@@ -26,7 +26,7 @@ export default class WebSocketClient implements Socket {
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
 
-  constructor(public readonly peer: Auth, private readonly peers: Peers) {
+  constructor(public readonly peer: Identity, private readonly peers: Peers) {
     this._connect(peers.account)
   }
 

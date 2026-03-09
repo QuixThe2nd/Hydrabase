@@ -7,15 +7,19 @@ import { Signature } from "../../Crypto/Signature";
 import { debug, warn } from "../../log";
 import { version } from "../../networking/ws/server";
 
-export const AuthSchema = z.object({
+export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
   hostname: z.string().includes(':').transform(h => h as `${string}:${number}`),
-  signature: z.string(),
   userAgent: z.string(),
   username: z.string()
 })
 
+export const AuthSchema = IdentitySchema.extend({
+  signature: z.string()
+})
+
 export type Auth = z.infer<typeof AuthSchema>
+export type Identity = z.infer<typeof IdentitySchema>
 
 export const proveServer = (account: Account): Auth => {
   debug(`[HIP3] Proving server`)
@@ -49,7 +53,7 @@ export const proveClient = (account: Account, hostname: string): Auth => {
   }
 }
 
-export const verifyClient = async (auth: Auth | { apiKey: string }): Promise<[number, string] | { address: `0x${string}`, hostname: `${string}:${number}`, userAgent: string; username: string }> => {
+export const verifyClient = async (auth: Auth | { apiKey: string }): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
     debug(`[HIP3] Verifying API`)
     if (auth.apiKey !== CONFIG.apiKey) return [500, 'Invalid API Key']
