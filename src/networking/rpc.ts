@@ -28,6 +28,8 @@ export class RPC implements Socket {
   }
   static readonly fromInbound = (key: `${string}:${number}`, peers: Peers, identity: { address: `0x${string}`, hostname: `${string}:${number}`; userAgent: string, username: string }): RPC => new RPC(key, peers, identity)
   static readonly fromOutbound = async (hostname: `${string}:${number}`, peers: Peers): Promise<false | RPC> => {
+    console.log(hostname)
+    console.trace()
     const [host, port] = hostname.split(':') as [string, `${number}`]
     const node = { host, port: Number(port) }
     const response = await new Promise<krpc.KRPCResponse | null>(resolve => {
