@@ -12,7 +12,7 @@ import { DHT_Node } from './dht'
 import { type Connection } from './ws/client'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
-const connections = new Map<string, RPC>()
+const connections = new Map<`${string}:${number}`, RPC>()
 
 export class RPC implements Socket {
   public isOpened = true
@@ -21,16 +21,15 @@ export class RPC implements Socket {
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
   private constructor(private readonly peers: Peers, private readonly identity: { address: `0x${string}`, hostname: `${string}:${number}`, userAgent: string, username: string }) {
+    authenticatedPeers.set(`${identity.hostname}`, identity)
+    connections.set(identity.hostname, this)
     log(`[RPC] Connecting to peer ${identity.hostname}`)
     const [host, port] = identity.hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
     this.peer = { ...identity, hostname: identity.hostname }
     setTimeout(() => this.openHandler?.(), 0)
   }
-  static readonly fromInbound = (peers: Peers, identity: Identity): RPC => {
-    authenticatedPeers.set(identity.hostname, identity)
-    return new RPC(peers, identity)
-  }
+  static readonly fromInbound = (peers: Peers, identity: Identity): RPC => new RPC(peers, identity)
   static readonly fromOutbound = async (identity: Identity, peers: Peers): Promise<false | RPC> => {
     const response = await new Promise<krpc.KRPCResponse | undefined>(resolve => {
       const [host, port] = identity.hostname.split(':') as [string, `${number}`]
@@ -43,7 +42,6 @@ export class RPC implements Socket {
     const err = response.r?.['e']?.[1].toString()
     if (err) return warn('DEVWARN:', `[RPC] Failed to authenticate from outbound - ${err}`)
 
-    authenticatedPeers.set(`${identity.hostname}`, identity)
     return new RPC(peers, identity)
   }
   public readonly close = () => {
