@@ -6,7 +6,7 @@ import type Peers from '../Peers';
 
 import { CONFIG } from '../config';
 import { debug, error, log, stats, warn } from '../log';
-import { ipToHostname } from './rpc';
+import { authenticatedPeers } from './rpc';
 
 export class DHT_Node {
   static readonly nodeId = SHA1.hash(`${CONFIG.hostname}:${CONFIG.port}`, 'hex')
@@ -53,14 +53,14 @@ export class DHT_Node {
       if (nodes > 50 || !(await this.cacheFile.exists()) || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
     })
     this.dht.on('peer', peer => {
-      const hostname = ipToHostname.get(`${peer.host}:${peer.port}`) ?? `${peer.host}:${peer.port}`
+      const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
       debug(`[DHT] Discovered peer ${hostname}`)
       peers.add(hostname)
     })
     this.dht.on('announce', (peer, _infoHash) => {
-      const hostname = ipToHostname.get(`${peer.host}:${peer.port}`) ?? `${peer.host}:${peer.port}`
+      const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId()) return
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
@@ -92,8 +92,8 @@ export class DHT_Node {
 
   private readonly announce = () => {
     const room = DHT_Node.getRoomId()
-     this.dht.announce(room, CONFIG.port, err => { if (err) {warn('WARN:', `[DHT] An error occurred during announce - ${err.message}`)} })
-    this.dht.lookup(room, err => { if (err) {error('ERROR:', `[DHT] An error occurred during lookup ${err.message}`)} })
+    this.dht.announce(room, CONFIG.port, err => { if (err) warn('WARN:', `[DHT] An error occurred during announce - ${err.message} ${this.dht.toJSON().nodes.length}`) })
+    this.dht.lookup(room, err => { if (err) error('ERROR:', `[DHT] An error occurred during lookup ${err.message}`) })
   }
 
   private readonly countResolved = () => {

@@ -5,8 +5,9 @@ import type { Account } from "../../Crypto/Account";
 import { CONFIG } from "../../config";
 import { Signature } from "../../Crypto/Signature";
 import { debug, warn } from "../../log";
-import { version } from "../../networking/ws/server";
 import { authenticatedPeers } from "../../networking/rpc";
+import { version } from "../../networking/ws/server";
+import { authenticateServer } from "../../Peers";
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
@@ -33,16 +34,6 @@ export const proveServer = (account: Account): Auth => {
   }
 }
 
-export const verifyServer = (hostname: `${string}:${number}`, auth: Auth): [number, string] | true => {
-  debug(`[HIP3] Verifying server ${hostname}`)
-  if (hostname !== auth.hostname) {
-    warn('DEVWARN:', `[HIP3] Unexpected hostname - Expected ${hostname} - Got ${auth.hostname}`)
-    return [500, 'Unexpected hostname']
-  }
-  if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address)) return [500, `Invalid signature`]
-  return true
-}
-
 export const proveClient = (account: Account, hostname: string): Auth => {
   debug(`[HIP3] Proving client to ${hostname}`)
   return {
@@ -66,19 +57,14 @@ export const verifyClient = async (auth: Auth | { apiKey: string }): Promise<[nu
   if (!Signature.fromString(auth.signature).verify(`I am connecting to ${CONFIG.hostname}:${CONFIG.port}`, auth.address)) return [403, 'Failed to authenticate address']
 
   const isHostnameValid = await new Promise<[number, string] | true>(resolve => {
-    if (authenticatedPeers.get(auth.hostname)?.address === auth.address) {
-      resolve(true)
-      return
-    }
     debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
-    fetch(`http://${auth.hostname}/auth`).then(async response => { // TODO: UDP mode
-      const serverAuth = AuthSchema.parse(JSON.parse(await response.text()))
-      if (serverAuth.address === auth.address) return resolve(true)
-      warn('DEVWARN:', "[HIP3] Invalid Address", {expected:auth.address,got:serverAuth.address})
-      return resolve([500, `Invalid address`])
-    }).catch(err => {
-      warn('DEVWARN:', "[HIP3] Failed to authenticate client's hostname", {err})
-      resolve([500, `Failed to verify hostname`])
+    authenticateServer(auth.hostname).then(identity => { // TODO: udp mode
+      if (Array.isArray(identity)) return resolve(identity)
+      if (identity.address !== auth.address) {
+        warn('DEVWARN:', "[HIP3] Invalid Address", {expected:auth.address,got:identity.address})
+        return resolve([500, `Invalid address`])
+      }
+      return resolve(true)
     })
   })
   if (Array.isArray(isHostnameValid)) return isHostnameValid

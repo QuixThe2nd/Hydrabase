@@ -8,13 +8,14 @@ import type MetadataManager from './Metadata'
 import type { Request, Response, SearchResult } from './RequestManager'
 
 import { CONFIG } from './config'
+import { Signature } from './Crypto/Signature';
 import { debug, log, warn } from './log';
-import { authenticatedPeers, ipToHostname, RPC, startRPC } from './networking/rpc';
+import { authenticatedPeers, RPC, startRPC } from './networking/rpc';
 import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer, type Socket } from "./peer";
 import { PeerMap } from './PeerMap';
-import { AuthSchema, type Identity, verifyServer } from './protocol/HIP3/handshake';
+import { AuthSchema, type Identity } from './protocol/HIP3/handshake';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
@@ -61,21 +62,20 @@ const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer =>
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
 export const authenticateServer = async (hostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
+  debug(`[PEERS] Authenticating server ${hostname}`)
   const cache = authenticatedPeers.get(hostname)
   if (cache) return cache
   try {
-    debug(`[PEERS] Authenticating server ${hostname}`)
     const response = await fetch(`http://${hostname}/auth`)
     const body = await response.text()
     const auth = AuthSchema.safeParse(JSON.parse(body)).data
     if (!auth) return [500, 'Failed to parse server authentication']
-    ipToHostname.set(hostname, auth.hostname)
     if (auth.hostname !== hostname) {
       debug(`[PEERS] Upgrading hostname from ${hostname} to ${auth.hostname}`)
       return await authenticateServer(auth.hostname)
     }
-    const res = verifyServer(hostname, auth)
-    if (Array.isArray(res)) return res
+    if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address)) return [500, 'Server provided invalid signature']
+    authenticatedPeers.set(hostname, auth)
     return auth
   } catch (err) {
     warn('WARN:', `[CLIENT] Failed to fetch server authentication from ${hostname} - ${(err as Error).message}`)

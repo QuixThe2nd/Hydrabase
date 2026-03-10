@@ -75,8 +75,6 @@ export class RPC implements Socket {
   })
 }
 
-export const ipToHostname = new FSMap<string, `${string}:${number}`>('./data/hostnames.json')
-
 const handlers = {
   auth: async (peers: Peers, query: krpc.KRPCQuery, unverifiedHostname: `${string}:${number}`, node: { family: "IPv4" | "IPv6"; host: string, port: number, size: number }) => {
     log(`[RPC] Received auth from ${unverifiedHostname}`)
@@ -128,8 +126,8 @@ export const startRPC = (peers: Peers) => {
     const q = query.q.toString()
     if (!q.startsWith(CONFIG.rpcPrefix)) return
     const _host = `${node.address}:${node.port}` as const
-    if (!ipToHostname.has(_host)) await authenticateServer(_host)
-    const host = ipToHostname.get(_host) ?? _host
+    if (!authenticatedPeers.has(_host)) await authenticateServer(_host)
+    const host = authenticatedPeers.get(_host)?.hostname ?? _host
     log(`[RPC] Received message ${q} from ${host}`)
     if (q === `${CONFIG.rpcPrefix}_auth`) await handlers.auth(peers, query, host, { ...node, host })
     else if (q === `${CONFIG.rpcPrefix}_msg`) await handlers.msg(peers, query, host, node)

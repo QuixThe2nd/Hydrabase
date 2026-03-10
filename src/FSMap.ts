@@ -7,6 +7,7 @@ export class FSMap<K, V> implements Map<K, V> {
     return this.map[Symbol.iterator].bind(this.map);
   }
 
+  // eslint-disable-next-line @typescript-eslint/class-literal-property-style, class-methods-use-this
   get [Symbol.toStringTag]() {
     return 'FSMap';
   }
@@ -29,10 +30,23 @@ export class FSMap<K, V> implements Map<K, V> {
     return status;
   }
   entries = () => this.map.entries();
-  forEach = (callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any) => this.map.forEach(callbackfn, thisArg);
+  forEach = (callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown) => this.map.forEach(callbackfn, thisArg);
 
   // Read
   get = (key: K) => this.map.get(key);
+  getOrInsert = (key: K, defaultValue: V): V => {
+    const v = this.map.get(key)
+    if (v) return v
+    this.map.set(key, defaultValue)
+    return defaultValue
+  };
+  getOrInsertComputed = (key: K, callback: (key: K) => V): V => {
+    const v = this.map.get(key)
+    if (v) return v
+    const newValue = callback(key)
+    this.map.set(key, newValue)
+    return newValue
+  };
   has = (key: K) => this.map.has(key);
   keys = () => this.map.keys();
 
