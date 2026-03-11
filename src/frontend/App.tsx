@@ -162,9 +162,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   }, [playingId])
 
   const tLabels = Array.from({ length: 60 }, (_, i) => `${60 - i}s`).toReversed()
-  const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
-    onPeerStatsRef.current = onPeerStats
-  }
+  // const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
+  //   onPeerStatsRef.current = onPeerStats
+  // }
 
   return <div style={{ background: BG, color: TEXT, display: "flex", fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: "100vh" }}>
     <style>{GLOBAL_STYLES}</style>
@@ -176,7 +176,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === "votes" && <VotesTab peers={peers} stats={stats} />}
       {tab === "search" && <SearchTab onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} />}
     </div>
-    <PeerDetail callback={onPeerStatsCallback} onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
+    <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
     <ActivityFeed eventLog={eventLog} />
     <StatusBar dhtNodes={dhtNodes} peers={peers} uptime={uptime} wsState={wsState} />
   </div>
