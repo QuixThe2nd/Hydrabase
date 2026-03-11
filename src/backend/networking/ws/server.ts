@@ -90,7 +90,7 @@ export const startServer = (account: Account, peers: Peers, port: number, listen
     fetch: async (req, server) =>  {
       const url = new URL(req.url)
       if (req.headers.get("upgrade") !== "websocket") {
-        return url.pathname === "/" ? new Response(Bun.file(`./dashboard/index.html`))
+        return url.pathname === "/" ? new Response(Bun.file(`./src/frontend/index.html`))
              : url.pathname === "/src/main.tsx" ? new Response(Bun.file(`./dist/main.js`))
              : url.pathname === "/logo-white.svg" ? new Response(Bun.file(`./public/logo-white.svg`))
              : new Response('Page not found', { status: 404 })
