@@ -48,6 +48,7 @@ export default tseslint.config(
       "no-await-in-loop": "off",
       "no-console": "error",
       "no-continue": "off",
+      "no-duplicate-imports": "off",
       "no-inline-comments": "off",
       "no-magic-numbers": "off",
       "no-nested-ternary": "off",

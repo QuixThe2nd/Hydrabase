@@ -98,8 +98,8 @@ export default class ITunes implements MetadataPlugin {
     });
 
     const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`);
-    const data = await response.json();
-    data.results = data.results.filter((result: {wrapperType:string}) => result.wrapperType === 'track')
+    const data = await response.json() as { results: { wrapperType: string }[] };
+    data.results = data.results.filter(result => result.wrapperType === 'track')
     const parsed = iTunesTrackLookupResponseSchema.safeParse(data);
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 
@@ -128,8 +128,8 @@ export default class ITunes implements MetadataPlugin {
     });
 
     const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`);
-    const data = await response.json();
-    data.results = data.results.filter((result: {wrapperType:string}) => result.wrapperType === 'album')
+    const data = await response.json() as { results: { wrapperType: string }[] };
+    data.results = data.results.filter(result => result.wrapperType === 'album')
     const parsed = iTunesAlbumLookupResponseSchema.safeParse(data);
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 
@@ -162,8 +162,8 @@ export default class ITunes implements MetadataPlugin {
     });
 
     const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`);
-    const data = await response.json();
-    data.results = data.results.filter((result: {wrapperType:string}) => result.wrapperType === 'track')
+    const data = await response.json() as { results: { wrapperType: string }[] };
+    data.results = data.results.filter(result => result.wrapperType === 'track')
     const parsed = iTunesTrackLookupResponseSchema.safeParse(data);
     if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
 

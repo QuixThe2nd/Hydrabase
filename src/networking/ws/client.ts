@@ -55,7 +55,7 @@ export default class WebSocketClient implements Socket {
 
   private _connect(account: Account) {
     log(`[CLIENT] Connecting to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
-    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: Object.entries(proveClient(account, this.peer.hostname, this.peers.hostname, true)) })
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.peer.hostname, this.peers.hostname, true) })
 
     this.socket.addEventListener('open', () => {
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
