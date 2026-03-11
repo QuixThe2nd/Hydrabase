@@ -1,7 +1,5 @@
 import z from 'zod'
 
-import type Peers from '../backend/Peers'
-
 export const TrackSearchResultSchema = z.object({
   address: z.string().startsWith('0x').transform(v => v as `0x${string}`),
   album: z.string(),
@@ -54,9 +52,9 @@ export const AlbumSearchResultSchema = z.object({
 })
 
 export interface MetadataPlugin {
-  albumTracks: (id: string, peers: Peers) => Promise<Omit<Track, 'address' | 'soul_id'>[]>
-  artistAlbums: (id: string, peers: Peers) => Promise<Omit<Album, 'address' | 'soul_id'>[]>
-  artistTracks: (id: string, peers: Peers) => Promise<Omit<Track, 'address' | 'soul_id'>[]>
+  albumTracks: (id: string) => Promise<Omit<Track, 'address' | 'soul_id'>[]>
+  artistAlbums: (id: string) => Promise<Omit<Album, 'address' | 'soul_id'>[]>
+  artistTracks: (id: string) => Promise<Omit<Track, 'address' | 'soul_id'>[]>
   id: string
   searchAlbums: (query: string) => Promise<Omit<Album, 'address' | 'soul_id'>[]>
   searchArtists: (query: string) => Promise<Omit<Artist, 'address' | 'soul_id'>[]>
@@ -96,7 +94,6 @@ export interface SearchResult {
   artists: Artist
   tracks: Track
 }
-
 
 export interface SearchResultsProps {
   onTogglePlay: (id: string, previewUrl: string) => void

@@ -1,6 +1,6 @@
 import { type JSX, useState } from "react";
 
-import type { Album, Artist, Props, Request, SearchResult, Track } from "../../types/hydrabase-schemas";
+import type { Album, Artist, Props, Request, SearchResult, SearchResultsProps, Track } from "../../types/hydrabase-schemas";
 
 import { BORD, MUTED, panel, SURF, TEXT } from "../theme";
 

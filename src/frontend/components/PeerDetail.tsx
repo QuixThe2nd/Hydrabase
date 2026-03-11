@@ -144,7 +144,7 @@ export const PeerDetail = ({ callback, onClose, peer, wsRef }: Props) => {
   const nonceRef = useRef(Math.floor(nonceRoot * 90_000) + 10_000)
   const pending = useRef(new Map<number, (d: PeerStats) => void>())
 
-  const onPeerStats = ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => {
+  const onPeerStats = ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats }) => {
     const resolve = pending.current.get(nonce)
     if (!resolve) return
     pending.current.delete(nonce)

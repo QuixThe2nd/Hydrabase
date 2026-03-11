@@ -17,6 +17,7 @@ import { PeersTab } from "./tabs/Peers"
 import { SearchTab } from "./tabs/Search"
 import { VotesTab } from "./tabs/votes"
 import { BG, GLOBAL_STYLES, TEXT } from "./theme"
+import { getCountry } from "./utils";
 
 
 export interface BwPoint { dl: number; ul: number }
