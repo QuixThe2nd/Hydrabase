@@ -7,11 +7,10 @@ import { AnnounceSchema } from '../HIP3/announce';
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
 
-const PingSchema = z.object({
+export const PingSchema = z.object({
   time: z.number()
 })
 export type Ping = z.infer<typeof PingSchema>
-
 
 const MessageSchemas = {
   announce: AnnounceSchema,
