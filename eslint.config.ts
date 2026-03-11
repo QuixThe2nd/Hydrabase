@@ -37,6 +37,7 @@ export default tseslint.config(
     },
     rules: {
       "camelcase": "off",
+      "capitalized-comments": "off",
       "complexity": "off",
       "curly": "off",
       "dot-notation": "off",

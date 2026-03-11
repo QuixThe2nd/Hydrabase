@@ -7,7 +7,7 @@ import { CONFIG } from '../config'
 import { FSMap } from '../FSMap'
 import { debug, error, log, warn } from '../log'
 import { authenticateServer } from '../Peers'
-import { type Identity, proveClient, proveServer, verifyClient } from '../protocol/HIP3/handshake'
+import { type Identity, proveClient, proveServer, verifyClient } from '../protocol/HIP1/handshake'
 import { DHT_Node } from './dht'
 import { type Connection } from './ws/client'
 
@@ -33,7 +33,7 @@ export class RPC implements Socket {
   static readonly fromOutbound = async (identity: Identity, peers: Peers): Promise<false | RPC> => {
     const response = await new Promise<krpc.KRPCResponse | undefined>(resolve => {
       const [host, port] = identity.hostname.split(':') as [string, `${number}`]
-      peers.rpc.query({ host, port: Number(port) }, { a: proveClient(peers.account, identity.hostname), q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
+      peers.rpc.query({ host, port: Number(port) }, { a: proveClient(peers.account, identity.hostname, peers.hostname), q: `${CONFIG.rpcPrefix}_auth` }, (err, res) => {
         if (err) warn('DEVWARN:', `[RPC] Failed to send auth to ${identity.hostname} - ${err.message}`)
         resolve(res)
       })
@@ -76,14 +76,14 @@ export class RPC implements Socket {
 const handlers = {
   auth: async (peers: Peers, query: krpc.KRPCQuery, unverifiedHostname: `${string}:${number}`, node: { family: "IPv4" | "IPv6"; host: string, port: number, size: number }) => {
     log(`[RPC] Received auth from ${unverifiedHostname}`)
-    const identity = await verifyClient({ address: query.a?.['address']?.toString() as `0x${string}`, hostname: unverifiedHostname, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' })
+    const identity = await verifyClient({ address: query.a?.['address']?.toString() as `0x${string}`, hostname: unverifiedHostname, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' }, peers.hostname)
     if (Array.isArray(identity)) {
       warn('DEVWARN:', `[RPC] Authentication failed ${unverifiedHostname} - ${identity[1]}`)
       peers.rpc.response(node, query, { e: [500, 'Failed to verify client'], ok: 0 })
       return
     }
     log(`[RPC] Authenticated peer ${identity.username} ${identity.address} at ${identity.hostname}`)
-    peers.rpc.response(node, query, { ...proveServer(peers.account), ok: 1 })
+    peers.rpc.response(node, query, { ...proveServer(peers.account, peers.hostname), ok: 1 })
     if (!connections.has(identity.hostname)) peers.add(RPC.fromInbound(peers, identity))
   },
   msg: async (peers: Peers, query: krpc.KRPCQuery, hostname: `${string}:${number}`, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => {

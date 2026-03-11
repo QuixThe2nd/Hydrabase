@@ -3,7 +3,7 @@ import type { Socket } from '../../peer'
 import type Peers from '../../Peers'
 
 import { log, warn } from '../../log'
-import { type Identity, proveClient } from '../../protocol/HIP3/handshake'
+import { type Identity, proveClient } from '../../protocol/HIP1/handshake'
 
 export interface Connection {
   address: `0x${string}`
@@ -55,7 +55,7 @@ export default class WebSocketClient implements Socket {
 
   private _connect(account: Account) {
     log(`[CLIENT] Connecting to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
-    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: Object.entries(proveClient(account, this.peer.hostname)).map(entry => ([`x-${entry[0]}`, entry[1]])) })
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: Object.entries(proveClient(account, this.peer.hostname, this.peers.hostname, true)) })
 
     this.socket.addEventListener('open', () => {
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)

@@ -5,7 +5,7 @@ import secp256k1 from 'secp256k1'
 import { log } from '../log'
 import { Signature } from "./Signature"
 
-const generatePrivateKey = (): Buffer => {
+export const generatePrivateKey = (): Buffer => {
   const key = crypto.randomBytes(32);
   return secp256k1.privateKeyVerify(key) ? key : generatePrivateKey();
 }
