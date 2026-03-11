@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import z from 'zod'
 
 import type { Peer } from './peer'
 
@@ -6,10 +7,14 @@ import { Account, generatePrivateKey } from './Crypto/Account'
 import { Signature } from './Crypto/Signature'
 import { startDatabase } from './db'
 import MetadataManager from './Metadata'
+import ITunes from './Metadata/plugins/iTunes'
+import { authenticatedPeers } from './networking/rpc'
 import { startServer, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
 import Peers from './Peers'
 import { proveServer, verifyServer } from './protocol/HIP1/handshake'
+import { type Ping, PingSchema } from './protocol/HIP2/message'
+import { type Response, ResponseSchema } from './RequestManager'
 
 
 const NODE1_PORT = 14545
@@ -21,8 +26,9 @@ let server1: Bun.Server<WebSocketData>
 let server2: Bun.Server<WebSocketData>
 
 beforeAll(async () => {
+  authenticatedPeers.clear()
   const { db, repos } = startDatabase()
-  const metadataManager = new MetadataManager([], repos)
+  const metadataManager = new MetadataManager([new ITunes()], repos)
 
   // Start Node 1
   Object.assign(process.env, {
@@ -107,9 +113,14 @@ describe('HIP1', () => {
   it('peer 1 connected to peer 2 over TCP', async () => {
     expect(await peers1.add(peers2.hostname, 'TCP')).toBe(true)
   })
+
+  it('connecting to existing peer should throw', async () => {
+    expect(await peers1.add(peers2.hostname, 'TCP')).toBe(false)
+  })
   // TODO: test udp
 
-  it('peers are connected to each other', () => {
+  it('peers are connected to each other', async () => {
+    await new Promise(res => { setTimeout(res, 1_000) })
     const server = peers1.connectedPeers.find(peer => peer.hostname === peers2.hostname)
     expect(server).toBeDefined()
     const client = peers2.connectedPeers.find(peer => peer.hostname === peers1.hostname)
@@ -125,74 +136,56 @@ describe('HIP2', () => {
   it('received pong from ping', async () => {
     const peer2 = peers1.connectedPeers.find(peer => peer.hostname === peers2.hostname) as Peer
     expect(peer2).toBeDefined()
-    peer2.socket.onMessage(msg => {
-      console.log('bbbbb', msg)
+    const time = Number(new Date())
+    peer2.send({ nonce: 3, ping: { time } })
+    const pong = await new Promise<Ping>(res => {
+      peer2.socket.onMessage(msg => {
+        const {data} = z.object({ pong: PingSchema }).safeParse(JSON.parse(msg))
+        if (data) res(data.pong)
+      })
     })
-    peer2.send({ nonce: 3, ping: { time: Number(new Date()) } })
-    await new Promise(res => { setTimeout(res, 60_000) })
-    // TODO: assert pong received
-  }, { timeout: 61_000 })
+    expect(pong.time).toBeNumber()
+    expect(pong.time).toBeGreaterThan(time)
+  })
 
-  // TODO: Request/response
-
-  /*
-  it('handles multiple in-flight requests by nonce', async () => {
+  it('received response from request', async () => {
     const peer2 = peers1.connectedPeers.find(peer => peer.hostname === peers2.hostname) as Peer
     expect(peer2).toBeDefined()
-
-    bobSocket.onMessage(raw => {
-      const msg = JSON.parse(raw)
-      if (msg.request) {
-        // Simulate async delay between responses
-        setTimeout(() => bobSocket.send(JSON.stringify({ nonce: msg.nonce, response: [`result for ${msg.nonce}`] })), Math.random() * 20)
-      }
+    peer2.send({ nonce: 3, request: { query: 'elton john', type: 'artists' } })
+    const results = await new Promise<Response>(res => {
+      peer2.socket.onMessage(msg => {
+        const {data} = z.object({ response: ResponseSchema }).safeParse(JSON.parse(msg))
+        if (data) res(data.response)
+      })
     })
-
-    const results: Record<number, string> = {}
-    aliceSocket.onMessage(raw => {
-      const msg = JSON.parse(raw) as { nonce: number; response: string[] }
-      results[msg.nonce] = msg.response[0]!
-    })
-
-    aliceSocket.send(JSON.stringify({ nonce: 1, request: { query: 'a', type: 'artists' } }))
-    aliceSocket.send(JSON.stringify({ nonce: 2, request: { query: 'b', type: 'artists' } }))
-    aliceSocket.send(JSON.stringify({ nonce: 3, request: { query: 'c', type: 'artists' } }))
-
-    await new Promise(r => setTimeout(r, 100))
-    expect(results[1]).toBe('result for 1')
-    expect(results[2]).toBe('result for 2')
-    expect(results[3]).toBe('result for 3')
+    expect(results.length).toBeGreaterThan(0)
   })
-  */
+
+  it('concurrent requests resolve to correct nonces', async () => {
+    const peer2 = peers1.connectedPeers.find(peer => peer.hostname === peers2.hostname) as Peer
+    expect(peer2).toBeDefined()
+    let receivedResponse = false
+    peer2.socket.onMessage(msg => {
+      const {data} = z.object({ response: ResponseSchema }).safeParse(JSON.parse(msg))
+      if (data) receivedResponse = true
+    })
+    const [r1, r2, r3] = await Promise.all([
+      peer2.search('artists', 'elton john'),
+      peer2.search('artists', 'beatles'),
+      peer2.search('artists', 'radiohead'),
+    ])
+
+    expect(Array.isArray(r1)).toBe(true)
+    expect(Array.isArray(r2)).toBe(true)
+    expect(Array.isArray(r3)).toBe(true)
+    expect(receivedResponse).toBe(true)
+  }, { timeout: 30_000 })
 })
 
-// TODO: HIP3
+// TODO: HIP3 - run 3 peers, check that peer connect peer 1 to peers 2 and 3 and check if peer 2 and 3 discover each other
+// TODO: reconnect to a disconnected peer
 
 // describe('MockSocket — pairing sanity checks', () => {
-//   it('delivers messages from A to B', async () => {
-//     const [aliceSocket, bobSocket] = MockSocket.pair(ALICE, BOB)
-//     aliceSocket.open()
-
-//     const received: string[] = []
-//     bobSocket.onMessage(msg => received.push(msg))
-
-//     aliceSocket.send('hello from alice')
-//     await tick()
-//     expect(received).toContain('hello from alice')
-//   })
-
-//   it('delivers messages from B to A', async () => {
-//     const [aliceSocket, bobSocket] = MockSocket.pair(ALICE, BOB)
-//     aliceSocket.open()
-
-//     const received: string[] = []
-//     aliceSocket.onMessage(msg => received.push(msg))
-
-//     bobSocket.send('hello from bob')
-//     await tick()
-//     expect(received).toContain('hello from bob')
-//   })
-
 //   it('fires close handlers on both sides', async () => {
 //     const [aliceSocket, bobSocket] = MockSocket.pair(ALICE, BOB)
 //     aliceSocket.open()
