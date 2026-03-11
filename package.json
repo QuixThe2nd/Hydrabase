@@ -41,8 +41,7 @@
     "zod": "^4.3.6"
   },
   "scripts": {
-    "start": "bun src/index.ts",
-    "dev:node": "bun --watch src/index.ts",
-    "dev:dashboard": "vite --config dashboard/vite.config.ts"
+    "start": "bun src/backend/index.ts",
+    "dev": "bun --watch src/backend/index.ts"
   }
 }

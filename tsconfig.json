@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		// Environment setup & latest features
-		"lib": ["ESNext", "dom"],
+		"lib": [],
 		"target": "ESNext",
 		"module": "Preserve",
 		"moduleDetection": "force",
@@ -12,6 +12,7 @@
 		"moduleResolution": "bundler",
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
+		"composite": true,
 		"noEmit": true,
 
 		// Best practices
@@ -31,8 +32,7 @@
 		"noImplicitReturns": true,
 		"noUncheckedSideEffectImports": true,
 		"allowUnreachableCode": false,
-		"allowUnusedLabels": false,
-
-		"types": ["bun"]
-	}
+		"allowUnusedLabels": false
+	},
+	"references": [{"path": "./src"}, {"path": "./dashboard"}]
 }
