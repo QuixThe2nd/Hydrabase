@@ -8,11 +8,10 @@ import type { Socket } from "../../peer";
 import type Peers from '../../Peers';
 import type { Connection } from "./client";
 
-import { CONFIG } from '../../config'
 import { debug, log, warn } from '../../log';
-import { proveServer, verifyClient } from "../../protocol/HIP3/handshake";
+import { proveServer, verifyClient } from "../../protocol/HIP1/handshake";
 
-type WebSocketData = Connection & {
+export type WebSocketData = Connection & {
   conn?: WebSocketServerConnection
   isOpened: boolean
 }
@@ -66,10 +65,10 @@ export class WebSocketServerConnection implements Socket {
   }
 }
 
-const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: null | SocketAddress): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
+const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: null | SocketAddress, selfHostname: `${string}:${number}`): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   log(`[SERVER] Connecting to client ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
-  const peer = await verifyClient('x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, })
+  const peer = await verifyClient('x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, }, selfHostname)
   if (Array.isArray(peer)) {
     warn('DEVWARN:', `[SERVER] Failed to authenticate peer: ${peer[1]}`)
     return { res: peer }
@@ -87,7 +86,7 @@ export const buildWebUI = async () => await Bun.build({
   target: "browser",
 })
 
-export const startServer = (account: Account, peers: Peers) => {
+export const startServer = (account: Account, peers: Peers, port: number, listenAddress: string, selfHostname: `${string}:${number}`) => {
   const server = Bun.serve({
     fetch: async (req, server) =>  {
       const url = new URL(req.url)
@@ -97,15 +96,15 @@ export const startServer = (account: Account, peers: Peers) => {
              : url.pathname === "/logo-white.svg" ? new Response(Bun.file(`./public/logo-white.svg`))
              : new Response('Page not found', { status: 404 })
       }
-      const response = await handleConnection(server, req, server.requestIP(req))
+      const response = await handleConnection(server, req, server.requestIP(req), selfHostname)
       if (response === undefined) return response
       const {address, hostname, res} = response
       warn('DEVWARN:', `[SERVER] Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
       return new Response(res[1], { status: res[0] })
     },
-    hostname: CONFIG.listenAddress,
-    port: CONFIG.port,
-    routes: { '/auth': () => new Response(JSON.stringify(proveServer(account))) },
+    hostname: listenAddress,
+    port,
+    routes: { '/auth': () => new Response(JSON.stringify(proveServer(account, selfHostname))) },
     websocket: {
       close(ws) {
         ws.data = { ...ws.data, isOpened: false }
@@ -125,4 +124,5 @@ export const startServer = (account: Account, peers: Peers) => {
     }
   })
   debug(`[SERVER] Listening on port ${server.port}`)
+  return server
 }

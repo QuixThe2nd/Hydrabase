@@ -7,15 +7,14 @@ import type { DB, Repositories } from './db'
 import type MetadataManager from './Metadata'
 import type { Request, Response, SearchResult } from './RequestManager'
 
-import { CONFIG } from './config'
-import { Signature } from './Crypto/Signature';
+import { CONFIG } from './config';
 import { debug, log, warn } from './log';
 import { authenticatedPeers, RPC, startRPC } from './networking/rpc';
 import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer, type Socket } from "./peer";
 import { PeerMap } from './PeerMap';
-import { AuthSchema, type Identity } from './protocol/HIP3/handshake';
+import { AuthSchema, type Identity, verifyServer } from './protocol/HIP1/handshake';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
@@ -74,7 +73,8 @@ export const authenticateServer = async (hostname: `${string}:${number}`): Promi
       debug(`[PEERS] Upgrading hostname from ${hostname} to ${auth.hostname}`)
       return await authenticateServer(auth.hostname)
     }
-    if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address)) return [500, 'Server provided invalid signature']
+    const authResults = verifyServer(auth, hostname)
+    if (authResults !== true) return authResults
     authenticatedPeers.set(hostname, auth)
     return auth
   } catch (err) {
@@ -100,14 +100,14 @@ export default class Peers {
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly peers = new PeerMap()
 
-  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>) {
+  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>, public readonly hostname: `${string}:${number}`) {
     const { rpc } = startRPC(this)
     this.rpc = rpc
   }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public async add(_peer: `${string}:${number}` | RPC | WebSocketServerConnection): Promise<boolean> {
-    const socket = await this.toSocket(_peer)
+  public async add(_peer: `${string}:${number}` | RPC | WebSocketServerConnection, preferTransport = CONFIG.preferTransport): Promise<boolean> {
+    const socket = await this.toSocket(_peer, preferTransport)
     if (!socket) return false
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
@@ -141,8 +141,7 @@ export default class Peers {
     return peer.isOpened
   }
 
-  public async loadCache() {
-    const bootstrapPeers = CONFIG.bootstrapPeers.split(',')
+  public async loadCache(bootstrapPeers: string[]) {
     await Promise.all(bootstrapPeers.map(async node => {
       await this.add(node as `${string}:${number}`)
     }))
@@ -176,7 +175,7 @@ export default class Peers {
   }
 
   private async getAuth(hostname: `${string}:${number}`) {
-    if (hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
+    if (hostname === this.hostname) return false
     if (hostname === `${CONFIG.ip}:${CONFIG.port}`) return false
     if (this.knownPeers.has(hostname)) return false
     this.knownPeers.add(hostname)
@@ -187,7 +186,7 @@ export default class Peers {
     if (auth.address === this.account.address) return warn('DEVWARN:', `[PEERS] Not connecting to self`)
 
     if ('hostname' in auth) {
-      if (auth.hostname === `${CONFIG.hostname}:${CONFIG.port}`) return false
+      if (auth.hostname === this.hostname) return false
       if (auth.hostname === `${CONFIG.ip}:${CONFIG.port}`) return false
       if (auth.hostname !== hostname && this.knownPeers.has(auth.hostname)) return false
       this.knownPeers.add(auth.hostname)
@@ -196,12 +195,12 @@ export default class Peers {
     return auth
   }
 
-  private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection): Promise<false | Socket> {
+  private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection, preferTransport: 'TCP' | 'UDP'): Promise<false | Socket> {
     if (peer instanceof WebSocketServerConnection || peer instanceof RPC) return peer
     const identity = await this.getAuth(authenticatedPeers.get(peer)?.hostname ?? peer)
     if (!identity) return identity
-    const preferredClient = CONFIG.preferTransport === 'TCP' ? new WebSocketClient(identity, this) : RPC.fromOutbound(identity, this)
+    const preferredClient = preferTransport === 'TCP' ? new WebSocketClient(identity, this) : RPC.fromOutbound(identity, this)
     if (preferredClient) return preferredClient
-    return CONFIG.preferTransport === 'TCP' ? RPC.fromOutbound(identity, this) : new WebSocketClient(identity, this)
+    return preferTransport === 'TCP' ? RPC.fromOutbound(identity, this) : new WebSocketClient(identity, this)
   }
 }

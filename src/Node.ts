@@ -28,7 +28,7 @@ try {
 
 const {SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET} = process.env
 
-class Node {
+export class Node {
   constructor(private readonly metadataManager: MetadataManager, private readonly getPeers: () => Peers) {}
 
   public readonly search = async <T extends Request['type']>(type: T, query: string, searchPeers = true): Promise<Response<T>> => {
@@ -71,11 +71,11 @@ export const startNode = async (): Promise<Node> => {
   let peers: Peers
   const node = new Node(metadataManager, () => peers)
   log('[STARTUP] 7/14 Starting peer manager')
-  peers = new Peers(account, metadataManager, repos, db, async <T extends Request['type']>(type: T, query: string, searchPeers?: boolean): Promise<Response<T>> => node ? await node.search(type, query, searchPeers) : [])
+  peers = new Peers(account, metadataManager, repos, db, async (type, query, searchPeers) => node ? await node.search(type, query, searchPeers) : [], `${CONFIG.hostname}:${CONFIG.port}`)
   log('[STARTUP] 8/14 Building Web UI')
   await buildWebUI()
   log('[STARTUP] 9/14 Starting server')
-  startServer(account, peers)
+  startServer(account, peers, CONFIG.port, CONFIG.listenAddress, `${CONFIG.hostname}:${CONFIG.port}`)
   log('[STARTUP] 10/14 Starting DHT node')
   const dhtNode = new DHT_Node(peers)
   log('[STARTUP] 11/14 Starting stats reporter')
@@ -83,7 +83,7 @@ export const startNode = async (): Promise<Node> => {
   log('[STARTUP] 12/14 Waiting for DHT')
   await dhtNode.isReady()
   log('[STARTUP] 13/14 Loading cached peers')
-  await peers.loadCache()
+  await peers.loadCache(CONFIG.bootstrapPeers.split(','))
   log('[STARTUP] Startup finished, running test searches')
   const artists = await node.search('artists', 'jay z')
   const albums = await node.search('albums', 'made in england')

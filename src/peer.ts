@@ -11,7 +11,7 @@ import { debug, stats, warn } from "./log";
 import { RPC } from './networking/rpc';
 import WebSocketClient, { type Connection } from './networking/ws/client';
 import { HIP2_Conn_Message, type Ping } from "./protocol/HIP2/message";
-import { type Announce, HIP4_Conn_Announce } from "./protocol/HIP4/announce";
+import { type Announce, HIP3_Conn_Announce } from "./protocol/HIP3/announce";
 import { type Album, type Artist, type Request, RequestManager, type Response, type Track } from "./RequestManager";
 
 export interface PeerStats {
@@ -156,7 +156,7 @@ export class Peer {
   private _dl = 0
   private _ul = 0 
   private readonly HIP2_Conn_Message: HIP2_Conn_Message
-  private readonly HIP4_Conn_Announce: HIP4_Conn_Announce
+  private readonly HIP4_Conn_Announce: HIP3_Conn_Announce
   private lastPing = {
     nonce: -1,
     time: 0
@@ -183,7 +183,7 @@ export class Peer {
       const latency = Number(new Date()) - this.lastPing.time
       this.totalLatency += latency
       this.totalPongs++
-      stats(`[PEER] Current latency ${latency}ms (${this.latency}ms AVG) ${this.username} ${this.address} ${this.hostname}`)
+      stats(`[PEER] Current latency ${latency}ms (${Math.ceil(this.latency*10)/10}ms AVG) ${this.username} ${this.address} ${this.hostname}`)
     },
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => this.HIP2_Conn_Message.send.response(await this.searchNode(request.type, request.query, this.address === '0x0'), nonce),
     response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.peer.address}`)}
@@ -192,7 +192,7 @@ export class Peer {
   private startTime?: number
 
   constructor(
-    private readonly socket: Socket,
+    public readonly socket: Socket,
     peers: Peers,
     private readonly db: DB,
     private readonly repos: Repositories,
@@ -201,7 +201,7 @@ export class Peer {
   ) {
     this.requestManager = new RequestManager()
     this.HIP2_Conn_Message = new HIP2_Conn_Message(this, this.requestManager)
-    this.HIP4_Conn_Announce = new HIP4_Conn_Announce(this, peers)
+    this.HIP4_Conn_Announce = new HIP3_Conn_Announce(this, peers)
     // Log(`Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     let id: NodeJS.Timeout | undefined
     this.socket.onOpen(() => {

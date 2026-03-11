@@ -9,7 +9,7 @@ import { log } from '../../log'
 export const AnnounceSchema = z.object({ hostname: z.string().transform(a => a as `${string}:${number}`) })
 export type Announce = z.infer<typeof AnnounceSchema>
 
-export class HIP4_Conn_Announce {
+export class HIP3_Conn_Announce {
   constructor(private readonly peer: Peer, private readonly peers: Peers) {}
 
   async handleAnnounce(announce: Announce): Promise<void> {

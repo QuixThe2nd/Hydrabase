@@ -3,7 +3,7 @@ import z from 'zod';
 import { debug, warn } from '../../log';
 import { type Peer } from '../../peer';
 import { type Request, RequestManager, RequestSchema, type Response, ResponseSchema } from '../../RequestManager';
-import { AnnounceSchema } from '../HIP4/announce';
+import { AnnounceSchema } from '../HIP3/announce';
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
 

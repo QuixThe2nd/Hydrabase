@@ -19,7 +19,8 @@ export class DHT_Node {
   get nodes() {
     return this.dht.toJSON().nodes
   }
-  private readonly dht: DHT
+  private cacheSize = 0
+  private readonly dht: DHT // TODO: why arent we receiving pings, only sending pongs
   private readonly knownPeers = new Set<`${string}:${number}`>([`${CONFIG.hostname}:${CONFIG.port}`,`${CONFIG.ip}:${CONFIG.port}`])
   private lastResolved = 0
 
@@ -41,7 +42,7 @@ export class DHT_Node {
     })
     let lastNodes = 0
     this.dht.on('node', async () => {
-      const nodes = this.dht.toJSON().nodes.length
+      const nodes = this.nodes.length
       if (nodes > 1 && !this.resolved.connected) {
         stats(`[DHT] Connected to ${nodes} nodes`)
         this.resolved.connected = true
@@ -50,7 +51,10 @@ export class DHT_Node {
         stats(`[DHT] Connected to ${nodes} nodes`)
         lastNodes = nodes
       }
-      if (nodes > 50 || !(await this.cacheFile.exists()) || nodes > JSON.parse(await this.cacheFile.text()).length) this.cacheFile.write(JSON.stringify(this.dht.toJSON().nodes))
+      if (nodes > 50 || !(await this.cacheFile.exists()) || (nodes > this.cacheSize && this.cacheSize !== 0)) {
+        this.cacheFile.write(JSON.stringify(this.nodes))
+        this.cacheSize = nodes
+      }
     })
     this.dht.on('peer', peer => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
@@ -92,7 +96,7 @@ export class DHT_Node {
 
   private readonly announce = () => {
     const room = DHT_Node.getRoomId()
-    this.dht.announce(room, CONFIG.port, err => { if (err) warn('WARN:', `[DHT] An error occurred during announce - ${err.message} ${this.dht.toJSON().nodes.length}`) })
+    this.dht.announce(room, CONFIG.port, err => { if (err) warn('WARN:', `[DHT] An error occurred during announce - ${err.message} ${this.nodes.length}`) })
     this.dht.lookup(room, err => { if (err) error('ERROR:', `[DHT] An error occurred during lookup ${err.message}`) })
   }
 
