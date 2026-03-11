@@ -43,7 +43,7 @@ const matchId = (items: (Album | Artist)[], peers: Peers): undefined | { confide
   return id ? { confidence: id[1], id: id[0] } : undefined
 }
 
-export default class MetadataManager implements MetadataPlugin {
+export default class MetadataManager {
   public readonly id = 'Hydrabase'
   public get installedPlugins(): SafeMetadataPlugin[] { return this.plugins }
   private readonly plugins: SafeMetadataPlugin[]
@@ -65,13 +65,13 @@ export default class MetadataManager implements MetadataPlugin {
       const {id} = pluginAlbums.find(({address}) => address === '0x0') ?? {}
       if (id) {
         albumIds.set(p.id, id)
-        return (await p.albumTracks(id, peers)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
+        return (await p.albumTracks(id)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
       }
 
       const bestId = matchId(pluginAlbums, peers)
       if (bestId) {
         albumIds.set(p.id, bestId.id)
-        return (await p.albumTracks(bestId.id, peers)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
+        return (await p.albumTracks(bestId.id)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
       }
       return []
     }))
@@ -89,13 +89,13 @@ export default class MetadataManager implements MetadataPlugin {
       const { id } = pluginArtists.find(({address}) => address === '0x0') ?? {}
       if (id) {
         artistIds.set(p.id, id)
-        return (await p.artistAlbums(id, peers)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
+        return (await p.artistAlbums(id)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
       }
 
       const bestId = matchId(pluginArtists, peers)
       if (bestId) {
         artistIds.set(p.id, bestId.id)
-        return (await p.artistAlbums(bestId.id, peers)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
+        return (await p.artistAlbums(bestId.id)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
       }
       return []
     })))
@@ -113,13 +113,13 @@ export default class MetadataManager implements MetadataPlugin {
       const { id } = pluginArtists.find(({address}) => address === '0x0') ?? {}
       if (id) {
         artistIds.set(p.id, id)
-        return (await p.artistTracks(id, peers)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
+        return (await p.artistTracks(id)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
       }
 
       const bestId = matchId(pluginArtists, peers)
       if (bestId) {
         artistIds.set(p.id, bestId.id)
-        return (await p.artistTracks(bestId.id, peers)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
+        return (await p.artistTracks(bestId.id)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, CONFIG.soulIdCutoff))}` }))
       }
       return []
     })))

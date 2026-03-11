@@ -1,5 +1,4 @@
 import type { MetadataPlugin } from "../../types/hydrabase-schemas";
-import type Peers from "../Peers";
 
 import { error } from "../../utils/log";
 
@@ -10,25 +9,25 @@ export class SafeMetadataPlugin implements MetadataPlugin {
   
   constructor(private readonly plugin: MetadataPlugin) {}
 
-  public readonly albumTracks = async (id: string, peers: Peers) => {
+  public readonly albumTracks = async (id: string) => {
     try {
-      return await this.plugin.albumTracks(id, peers)
+      return await this.plugin.albumTracks(id)
     } catch (e) {
       error('ERROR:', `[${this.id}] albumTracks() failed`, {e})
       return []
     }
   }
-  public readonly artistAlbums = async (id: string, peers: Peers) => {
+  public readonly artistAlbums = async (id: string) => {
     try {
-      return await this.plugin.artistAlbums(id, peers)
+      return await this.plugin.artistAlbums(id)
     } catch (e) {
       error('ERROR:', `[${this.id}] artistAlbums() failed`, {e})
       return []
     }
   }
-  public readonly artistTracks = async (id: string, peers: Peers) => {
+  public readonly artistTracks = async (id: string) => {
     try {
-      return await this.plugin.artistTracks(id, peers)
+      return await this.plugin.artistTracks(id)
     } catch (e) {
       error('ERROR:', `[${this.id}] artistTracks() failed`, {e})
       return []
