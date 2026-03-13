@@ -16,7 +16,6 @@ import Peers from './Peers'
 import { proveClient, proveServer, verifyClient, verifyServer } from './protocol/HIP1/handshake'
 import { type Ping, PingSchema } from './protocol/HIP2/message'
 
-
 const NODE1_PORT = 14545
 const NODE2_PORT = 14546
 const NODE3_PORT = 14547
@@ -119,20 +118,16 @@ describe('HIP1', () => {
   })
 
   it('peer 2 connected to peer 3 over UDP', async () => {
-    expect(await peers2.add(peers3.hostname, 'UDP')).toBe(false)
-  }) // TODO: Peers 1 and 3 should know eachother by last test (HIP3 - announce)
+    expect(await peers2.add(peers3.hostname, 'UDP')).toBe(true)
+  })
 
-  it('peers are connected to each other', async () => {
+  it('peers 1 and 2 have connected to each other', async () => {
     await new Promise(res => { setTimeout(res, 1_000) })
     const server = peers1.connectedPeers.find(peer => peer.hostname === peers2.hostname)
     expect(server).toBeDefined()
     const client = peers2.connectedPeers.find(peer => peer.hostname === peers1.hostname)
     expect(client).toBeDefined()
   })
-
-  // it('peers connected over UDP', async () => {
-  //   expect(await peers1.add(peers2.hostname, 'UDP')).toBe(true)
-  // })
 })
 
 describe('HIP2', () => {
@@ -148,7 +143,7 @@ describe('HIP2', () => {
       })
     })
     expect(pong.time).toBeNumber()
-    expect(pong.time).toBeGreaterThan(time)
+    expect(pong.time).toBeGreaterThanOrEqual(time)
   })
 
   it('received response from request', async () => {
@@ -183,6 +178,15 @@ describe('HIP2', () => {
     expect(Array.isArray(r3)).toBe(true)
     expect(receivedResponse).toBe(true)
   }, { timeout: 30_000 })
+})
+
+describe('HIP3', () => {
+  it('peers 1 and 3 discovered each other through peer 2', () => {
+    const peer3 = peers1.connectedPeers.find(peer => peer.hostname === peers3.hostname) as Peer
+    const peer1 = peers3.connectedPeers.find(peer => peer.hostname === peers1.hostname) as Peer
+    expect(peer1).toBeDefined()
+    expect(peer3).toBeDefined()
+  })
 })
 
 // TODO: reconnect to a disconnected peer

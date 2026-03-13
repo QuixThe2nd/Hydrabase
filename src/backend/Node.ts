@@ -96,5 +96,3 @@ export const startNode = async (): Promise<Node> => {
 
   return node
 }
-
-// TODO: show usernames in peers tab
