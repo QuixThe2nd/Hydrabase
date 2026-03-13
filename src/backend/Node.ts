@@ -63,7 +63,7 @@ export const startNode = async (): Promise<Node> => {
   log('[STARTUP] 3/14 Initialising account')
   const account = new Account(key)
   log('[STARTUP] 4/14 Starting database')
-  const { db, repos } = startDatabase()
+  const repos = startDatabase()
   log('[STARTUP] 5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos)
   log('[STARTUP] 6/14 Starting node')
@@ -71,7 +71,7 @@ export const startNode = async (): Promise<Node> => {
   let peers: Peers
   const node = new Node(metadataManager, () => peers)
   log('[STARTUP] 7/14 Starting peer manager')
-  peers = new Peers(account, metadataManager, repos, db, async (type, query, searchPeers) => node ? await node.search(type, query, searchPeers) : [], `${CONFIG.hostname}:${CONFIG.port}`)
+  peers = new Peers(account, metadataManager, repos, async (type, query, searchPeers) => node ? await node.search(type, query, searchPeers) : [], `${CONFIG.hostname}:${CONFIG.port}`)
   log('[STARTUP] 8/14 Building Web UI')
   await buildWebUI()
   log('[STARTUP] 9/14 Starting server')
@@ -79,7 +79,7 @@ export const startNode = async (): Promise<Node> => {
   log('[STARTUP] 10/14 Starting DHT node')
   const dhtNode = new DHT_Node(peers)
   log('[STARTUP] 11/14 Starting stats reporter')
-  new StatsReporter(account.address, metadataManager.installedPlugins, peers, dhtNode, db)
+  new StatsReporter(account.address, metadataManager.installedPlugins, peers, dhtNode, repos)
   log('[STARTUP] 12/14 Waiting for DHT')
   await dhtNode.isReady()
   log('[STARTUP] 13/14 Loading cached peers')
@@ -98,4 +98,3 @@ export const startNode = async (): Promise<Node> => {
 }
 
 // TODO: show usernames in peers tab
-

@@ -75,7 +75,7 @@ export default class WebSocketClient implements Socket {
   private _flushQueue() {
     const queue = this.retryQueue.splice(0)
     for (const fn of queue) fn()
-  } // TODO: unit tests
+  }
   private _scheduleReconnect(account: Account) {
     if (this.reconnectTimer) return
     log(`[CLIENT] Reconnecting to ${this.peer.username} ${this.peer.address} ${this.peer.hostname} in ${this.reconnectAttempts*5_000}ms...`)

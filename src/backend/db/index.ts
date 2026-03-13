@@ -5,6 +5,8 @@ import fs from 'fs';
 
 import { AlbumRepository } from './repositories/AlbumRepository';
 import { ArtistRepository } from './repositories/ArtistRepository';
+import { PeerRepository } from './repositories/PeerRepository';
+import { StatsRepository } from './repositories/StatsRepository';
 import { TrackRepository } from './repositories/TrackRepository';
 import { schema } from './schema';
 
@@ -15,18 +17,19 @@ export type DB = BunSQLiteDatabase<typeof schema>
 export interface Repositories {
   album: AlbumRepository
   artist: ArtistRepository
+  peer: PeerRepository
+  stats: StatsRepository
   track: TrackRepository
 }
 
-export const startDatabase = (): { db: DB, repos: Repositories } => {
+export const startDatabase = (): Repositories => {
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: "./drizzle" });
   return {
-    db,
-    repos: {
-      album: new AlbumRepository(db),
-      artist: new ArtistRepository(db),
-      track: new TrackRepository(db)
-    }
+    album: new AlbumRepository(db),
+    artist: new ArtistRepository(db),
+    peer: new PeerRepository(db),
+    stats: new StatsRepository(db),
+    track: new TrackRepository(db),
   }
 }

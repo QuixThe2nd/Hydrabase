@@ -13,44 +13,43 @@ import { authenticatedPeers } from './networking/rpc'
 import { startServer, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
 import Peers from './Peers'
-import { proveServer, verifyServer } from './protocol/HIP1/handshake'
+import { proveClient, proveServer, verifyClient, verifyServer } from './protocol/HIP1/handshake'
 import { type Ping, PingSchema } from './protocol/HIP2/message'
 
 
 const NODE1_PORT = 14545
 const NODE2_PORT = 14546
+const NODE3_PORT = 14547
 
 let peers1: Peers
 let peers2: Peers
+let peers3: Peers
 let server1: Bun.Server<WebSocketData>
 let server2: Bun.Server<WebSocketData>
+let server3: Bun.Server<WebSocketData>
 
 beforeAll(async () => {
   authenticatedPeers.clear()
-  const { db, repos } = startDatabase()
+  const repos = startDatabase()
   const metadataManager = new MetadataManager([new ITunes()], repos)
 
   // Start Node 1
-  Object.assign(process.env, {
-    LISTEN_ADDRESS: '127.0.0.1',
-    PORT: String(NODE1_PORT),
-    USERNAME: 'TestNode1',
-  })
   const account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, () => peers1)
-  peers1 = new Peers(account1, metadataManager, repos, db, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], `127.0.0.1:${NODE1_PORT}`)
+  peers1 = new Peers(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], `127.0.0.1:${NODE1_PORT}`)
   server1 = startServer(account1, peers1, NODE1_PORT, '127.0.0.1', `127.0.0.1:${NODE1_PORT}`)
 
   // Start Node 2
-  Object.assign(process.env, {
-    LISTEN_ADDRESS: '127.0.0.1',
-    PORT: String(NODE2_PORT),
-    USERNAME: 'TestNode2',
-  })
   const account2 = new Account(generatePrivateKey())
   const node2 = new Node(metadataManager, () => peers2)
-  peers2 = new Peers(account2, metadataManager, repos, db, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], `127.0.0.1:${NODE2_PORT}`)
+  peers2 = new Peers(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], `127.0.0.1:${NODE2_PORT}`)
   server2 = startServer(account2, peers2, NODE2_PORT, '127.0.0.1', `127.0.0.1:${NODE2_PORT}`)
+
+  // Start Node 3
+  const account3 = new Account(generatePrivateKey())
+  const node3 = new Node(metadataManager, () => peers3)
+  peers3 = new Peers(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], `127.0.0.1:${NODE3_PORT}`)
+  server3 = startServer(account3, peers3, NODE3_PORT, '127.0.0.1', `127.0.0.1:${NODE3_PORT}`)
 
   await new Promise(res => { setTimeout(res, 10_000) })
 
@@ -60,26 +59,27 @@ beforeAll(async () => {
 afterAll(() => {
   server1.stop()
   server2.stop()
+  server3.stop()
 })
 
 describe('Signature', () => {
   it('signs and verifies a message round-trip', () => {
     const account = new Account(generatePrivateKey())
-    const message = 'I am connecting to 127.0.0.1:4545'
+    const message = 'I am connecting to 127.0.0.1:14545'
     const sig = account.sign(message)
     expect(sig.verify(message, account.address)).toBe(true)
   })
 
   it('rejects a signature for the wrong message', () => {
     const account = new Account(generatePrivateKey())
-    const sig = account.sign('I am connecting to 127.0.0.1:4545')
+    const sig = account.sign('I am connecting to 127.0.0.1:14545')
     expect(sig.verify('I am connecting to 127.0.0.1:9999', account.address)).toBe(false)
   })
 
   it('rejects a signature from the wrong keypair', () => {
     const a = new Account(generatePrivateKey())
     const b = new Account(generatePrivateKey())
-    const msg = 'I am connecting to 127.0.0.1:4545'
+    const msg = 'I am connecting to 127.0.0.1:14545'
     const sig = a.sign(msg)
     // B's address ≠ a's address → verify should fail
     expect(sig.verify(msg, b.address)).toBe(false)
@@ -87,7 +87,7 @@ describe('Signature', () => {
 
   it('serialises and deserialises a Signature without data loss', () => {
     const account = new Account(generatePrivateKey())
-    const message = 'I am 127.0.0.1:4545'
+    const message = 'I am 127.0.0.1:14545'
     const original = account.sign(message)
     const roundTripped = Signature.fromString(original.toString())
     expect(roundTripped.message).toBe(message)
@@ -96,17 +96,17 @@ describe('Signature', () => {
 })
 
 describe('HIP1', () => {
-  // It('produces client proof that is is verified by server', async () => {
-  //   Const account = new Account(generatePrivateKey())
-  //   Const clientHostname = '127.0.0.1:4545'
-  //   Const serverHostname = '127.0.0.1:4546'
-  //   Const auth = proveClient(account, clientHostname, serverHostname)
-  //   Expect(await verifyClient(auth, clientHostname)).not.toBeArray()
-  // })
+  it('produces client proof that is is verified by server', async () => {
+    const account = new Account(generatePrivateKey())
+    const clientHostname = '127.0.0.1:14545'
+    const serverHostname = '127.0.0.1:14546'
+    const auth = proveClient(account, clientHostname, serverHostname)
+    expect(await verifyClient(auth, clientHostname)).not.toBeArray()
+  })
 
   it('produces server proof that is is verified by client', () => {
     const account = new Account(generatePrivateKey())
-    const serverHostname = '127.0.0.1:4545'
+    const serverHostname = '127.0.0.1:14545'
     expect(verifyServer(proveServer(account, serverHostname), serverHostname)).not.toBeArray()
   })
 
@@ -117,7 +117,10 @@ describe('HIP1', () => {
   it('connecting to existing peer should throw', async () => {
     expect(await peers1.add(peers2.hostname, 'TCP')).toBe(false)
   })
-  // TODO: test udp
+
+  it('peer 2 connected to peer 3 over UDP', async () => {
+    expect(await peers2.add(peers3.hostname, 'UDP')).toBe(false)
+  }) // TODO: Peers 1 and 3 should know eachother by last test (HIP3 - announce)
 
   it('peers are connected to each other', async () => {
     await new Promise(res => { setTimeout(res, 1_000) })
@@ -182,7 +185,6 @@ describe('HIP2', () => {
   }, { timeout: 30_000 })
 })
 
-// TODO: HIP3 - run 3 peers, check that peer connect peer 1 to peers 2 and 3 and check if peer 2 and 3 discover each other
 // TODO: reconnect to a disconnected peer
 
 // describe('MockSocket — pairing sanity checks', () => {

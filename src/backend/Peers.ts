@@ -5,7 +5,7 @@ import { Parser } from 'expr-eval'
 import type { Socket } from '../types/hydrabase';
 import type { Request, Response, SearchResult } from '../types/hydrabase-schemas';
 import type { Account } from './Crypto/Account';
-import type { DB, Repositories } from './db'
+import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
 
 import { debug, log, warn } from '../utils/log';
@@ -21,7 +21,7 @@ const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 const parser = new Parser()
 parser.functions.avg = (...args: number[]) => avg(args)
-// TODO: move all sql.raw() to repos
+
 const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHashes: Set<bigint>) => {
   const pluginMatches: Record<string, { match: number, mismatch: number }> = {}
   for (const _result of peerResults) {
@@ -32,7 +32,7 @@ const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHas
     if (confirmedHashes.has(hash)) entry.match++
     else entry.mismatch++
     pluginMatches[result.plugin_id] = entry
-  } // TODO: Store peer username
+  }
   return pluginMatches
 } // TODO: pipe all console.log's to gui
 
@@ -68,7 +68,7 @@ export const authenticateServer = async (hostname: `${string}:${number}`): Promi
   const cache = authenticatedPeers.get(hostname)
   if (cache) return cache
   try {
-    const response = await fetch(`http://${hostname}/auth`)
+    const response = await fetch(`http://${hostname}/auth`)// TODO: udp mode
     const body = await response.text()
     const auth = AuthSchema.safeParse(JSON.parse(body)).data
     if (!auth) return [500, 'Failed to parse server authentication']
@@ -103,7 +103,7 @@ export default class Peers {
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly peers = new PeerMap()
 
-  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly db: DB, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>, public readonly hostname: `${string}:${number}`) {
+  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>, public readonly hostname: `${string}:${number}`) {
     const { rpc } = startRPC(this)
     this.rpc = rpc
   }
@@ -122,7 +122,7 @@ export default class Peers {
 
     // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
     socket.onClose(() => this.peers.delete(socket.peer.address))
-    const peer = new Peer(socket, this, this.db, this.repos, this.metadataManager.installedPlugins, this.search)
+    const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
     this.peers.set(socket.peer.address, peer)
     cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
     this.announce(peer)

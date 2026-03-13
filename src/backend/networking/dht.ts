@@ -20,7 +20,7 @@ export class DHT_Node {
     return this.dht.toJSON().nodes
   }
   private cacheSize = 0
-  private readonly dht: DHT // TODO: why arent we receiving pings, only sending pongs
+  private readonly dht: DHT
   private readonly knownPeers = new Set<`${string}:${number}`>([`${CONFIG.hostname}:${CONFIG.port}`,`${CONFIG.ip}:${CONFIG.port}`])
   private lastResolved = 0
 
