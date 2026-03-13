@@ -8,12 +8,14 @@ declare module 'k-rpc' {
    * -------------------------------------------------- */
 
   export interface KRPC extends EventEmitter {
+    bind(port: number): void;
     closest(
       target: Buffer,
       query: KRPCQuery,
       onreply: OnReply,
       callback?: (err: Error | null, replies: number) => void
     ): void;
+
     destroy(): void;
 
     error(

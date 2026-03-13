@@ -64,7 +64,7 @@ export const verifyClient = async (auth: Auth | { apiKey: string }, selfHostname
 
   const isHostnameValid = await new Promise<[number, string] | true>(resolve => {
     debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
-    authenticateServer(auth.hostname).then(identity => { // TODO: udp mode
+    authenticateServer(auth.hostname).then(identity => {
       if (Array.isArray(identity)) return resolve(identity)
       if (identity.address !== auth.address) {
         warn('DEVWARN:', "[HIP3] Invalid Address", {expected:auth.address,got:identity.address})

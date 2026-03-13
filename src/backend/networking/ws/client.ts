@@ -12,7 +12,7 @@ export default class WebSocketClient implements Socket {
   private _isOpened = false
   private closeHandlers: (() => void)[] = []
   private dontReconnect = false
-  private messageHandler?: (message: string) => void
+  private messageHandlers: ((message: string) => void)[] = []
   private openHandler?: () => void
   private reconnectAttempts = 1
   private reconnectTimer: null | ReturnType<typeof setTimeout> = null
@@ -34,7 +34,7 @@ export default class WebSocketClient implements Socket {
   }
 
   public onMessage(handler: (message: string) => void) {
-    this.messageHandler = (msg) => handler(msg)
+    this.messageHandlers.push(handler)
   }
 
   public onOpen(handler: () => void) {
@@ -70,12 +70,17 @@ export default class WebSocketClient implements Socket {
       for (const handler of this.closeHandlers) handler()
     }) // TODO: peer rate limiting
 
-    this.socket.addEventListener('message', message => this.messageHandler?.(message.data))
+    this.socket.addEventListener('message', message => {
+      if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.peer.hostname}`)
+      this.messageHandlers.forEach(handler => {
+        handler(message.data)
+      })
+    })
   } // TODO: SSL support
   private _flushQueue() {
     const queue = this.retryQueue.splice(0)
     for (const fn of queue) fn()
-  } // TODO: unit tests
+  }
   private _scheduleReconnect(account: Account) {
     if (this.reconnectTimer) return
     log(`[CLIENT] Reconnecting to ${this.peer.username} ${this.peer.address} ${this.peer.hostname} in ${this.reconnectAttempts*5_000}ms...`)

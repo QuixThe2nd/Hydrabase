@@ -33,7 +33,7 @@ export class WebSocketServerConnection implements Socket {
 
   private closeHandlers: (() => void)[] = []
 
-  private messageHandler?: (message: string) => void
+  private messageHandlers: ((message: string) => void)[] = []
 
   private openHandler?: () => void
 
@@ -43,7 +43,10 @@ export class WebSocketServerConnection implements Socket {
     for (const handler of this.closeHandlers) handler()
   }
   _handleMessage(message: string) {
-    this.messageHandler?.(message);
+    if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.peer.hostname}`)
+    this.messageHandlers.forEach(handler => {
+      handler(message)
+    })
   }
 
   _handleOpen() {
@@ -54,7 +57,7 @@ export class WebSocketServerConnection implements Socket {
     this.closeHandlers.push(() => handler())
   }
   public onMessage(handler: (message: string) => void) {
-    this.messageHandler = handler;
+    this.messageHandlers.push(handler);
   }
   public onOpen(handler: () => void) {
     this.openHandler = handler;

@@ -15,6 +15,7 @@ const connections = new Map<`${string}:${number}`, RPC>()
 
 export class RPC implements Socket {
   public isOpened = true
+  public readonly messageHandlers: ((message: string) => void)[] = []
   public readonly peer
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
@@ -48,12 +49,11 @@ export class RPC implements Socket {
     connections.delete(`${this.node.host}:${this.node.port}`)
     this.closeHandlers.map(handler => handler())
   }
-  public messageHandler: (message: string) => void = msg => warn('DEVWARN:', `[RPC] Received message from ${this.peer.address} but not handler to handle it - ${msg}`)
   public readonly onClose = (handler: () => void) => {
     this.closeHandlers.push(() => handler())
   }
   public onMessage(handler: (message: string) => void) {
-    this.messageHandler = msg => handler(msg)
+    this.messageHandlers.push(handler)
   }
   public onOpen(handler: () => void) {
     this.openHandler = () => handler()
@@ -101,8 +101,10 @@ const handlers = {
     if (message) {
       const connection = connections.get(hostname)
       if (connection) {
-        if (connection.messageHandler) connection.messageHandler(message)
-        else warn('DEVWARN:', `[RPC] Couldn't find message handler ${hostname}`, {connection})
+        connection.messageHandlers.forEach(handler => {
+          handler(message)
+        })
+        if (connection.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${hostname}`)
       } else {
         warn('DEVWARN:', `[RPC] Couldn't find connection ${hostname}`)
         const auth = await authenticateServer(hostname)
@@ -117,8 +119,9 @@ const handlers = {
   }
 }
 
-export const startRPC = (peers: Peers) => {
+export const startRPC = (peers: Peers, port: number) => {
   const rpc = krpc({ id: Buffer.from(DHT_Node.nodeId), nodes: CONFIG.dhtBootstrapNodes.split(','), timeout: 5_000 })
+  rpc.bind(port)
   rpc.on('query', async (query, node) => {
     const q = query.q.toString()
     if (!q.startsWith(CONFIG.rpcPrefix)) return

@@ -12,7 +12,7 @@ interface Props {
   setSel: (p: null | PeerWithCountry) => void;
   sorted: PeerWithCountry[];
 }
-
+// TODO: show usernames
 export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
   <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 }}>
     <span style={{ color: MUTED, fontSize: 11 }}>Filter:</span>

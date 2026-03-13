@@ -1,16 +1,11 @@
-import { sql } from 'drizzle-orm'
-
 import type { ApiPeer, Connection, NodeStats } from '../types/hydrabase'
 import type { MetadataPlugin } from '../types/hydrabase-schemas'
-import type { DB } from './db'
+import type { Repositories } from './db'
 import type { DHT_Node } from './networking/dht'
 import type Peers from './Peers'
 
 import { error } from '../utils/log'
 import { CONFIG } from './config'
-
-const countVotesSql = (table: 'albums' | 'artists' | 'tracks') => sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '0x0'`)
-const countPeerSql = (table: 'albums' | 'artists' | 'tracks') => sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address != '0x0'`)
 
 export class StatsReporter {
   constructor(
@@ -18,7 +13,7 @@ export class StatsReporter {
     private readonly plugins: MetadataPlugin[],
     private readonly peers: Peers,
     private readonly dht: DHT_Node,
-    private readonly db: DB,
+    private readonly repos: Repositories,
     private readonly intervalMs = 10_000
   ) {
     this.report()
@@ -26,37 +21,25 @@ export class StatsReporter {
   }
 
   private collectStats(): NodeStats {
-    const countRow = (rawSql: ReturnType<typeof sql.raw>) => this.db.all<{ n: number }>(rawSql)[0]?.n ?? 0
-
     return {
       dhtNodes: this.dht.nodes.map(({host,port}) => `${host}:${port}`),
       peers: {
-        known: this.knownPeers(),
-        plugins: this.knownPlugins(),
-        votes: {
-          albums:  countRow(countPeerSql('albums')),
-          artists: countRow(countPeerSql('artists')),
-          tracks:  countRow(countPeerSql('tracks')),
-        }
+        known:   this.knownPeers(),
+        plugins: this.repos.stats.getKnownPlugins(),
+        votes:   this.repos.stats.getPeerVotes(),
       },
       self: {
-        address: this.address,
+        address:  this.address,
         hostname: CONFIG.hostname,
-        plugins: this.plugins.map(p => p.id),
-        votes: {
-          albums:  countRow(countVotesSql('albums')),
-          artists: countRow(countVotesSql('artists')),
-          tracks:  countRow(countVotesSql('tracks')),
-        },
+        plugins:  this.plugins.map(p => p.id),
+        votes:    this.repos.stats.getSelfVotes(),
       },
       timestamp: new Date().toISOString(),
     }
   }
 
   private readonly knownPeers = (): ApiPeer[] => {
-    const addresses = this.db.all<{ address: `0x${string}` }>(sql.raw(`SELECT DISTINCT address FROM tracks
-      UNION SELECT DISTINCT address FROM artists
-      UNION SELECT DISTINCT address FROM albums`)).map(r => r.address)
+    const addresses = this.repos.stats.getKnownAddresses()
     return addresses.map(address => ({
       address,
       connection: ((): Connection | undefined => {
@@ -83,10 +66,6 @@ export class StatsReporter {
       })(),
     } satisfies ApiPeer))
   }
-
-  private readonly knownPlugins = (): string[] => this.db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks
-    UNION SELECT DISTINCT plugin_id FROM artists
-    UNION SELECT DISTINCT plugin_id FROM albums`)).map(r => r.plugin_id)
 
   private report(): void {
     const client = this.peers.apiPeer

@@ -37,7 +37,7 @@ const matchId = (items: (Album | Artist)[], peers: Peers): undefined | { confide
     const confidence = computeConfidence(votes.itemConfidences, votes.peerConfidences)
     if (confidence !== null) confidences.set(artistId, confidence)
   }
-// TODO: peer confidence score exchange - announce peer confidence scores to help bootstrap new nodes faster
+
   if (!confidences.size) return undefined
   const id = [...confidences.entries()].reduce((a, b) => !a || b[1] > a[1] ? b : a, [...confidences.entries()][0])
   return id ? { confidence: id[1], id: id[0] } : undefined

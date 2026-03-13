@@ -1,83 +1,14 @@
-import { sql } from 'drizzle-orm'
-import { Parser } from 'expr-eval'
-
 import type { NodeStats, PeerStats, Socket } from '../types/hydrabase';
 import type { Album, Artist, MetadataPlugin, Request, Response, Track } from '../types/hydrabase-schemas';
-import type { DB, Repositories } from "./db";
+import type { Repositories } from "./db";
 import type Peers from "./Peers";
 
 import { debug, stats, warn } from '../utils/log';
-import { CONFIG } from "./config";
 import { RPC } from './networking/rpc';
 import WebSocketClient from './networking/ws/client';
 import { HIP2_Conn_Message, type Ping } from "./protocol/HIP2/message";
 import { type Announce, HIP3_Conn_Announce } from "./protocol/HIP3/announce";
 import { RequestManager } from './RequestManager';
-
-const countRow = (db: DB, table: 'albums' | 'artists' | 'tracks', address: `0x${string}`) => db.all<{ n: number }>(sql.raw(`SELECT COUNT(*) AS n FROM ${table} WHERE address = '${address}'`))[0]?.n ?? 0
-
-const getPlugins = (db: DB, address: `0x${string}`) => db.all<{ plugin_id: string }>(sql.raw(`SELECT DISTINCT plugin_id FROM tracks WHERE address = '${address}' AND confidence=1
-  UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}' AND confidence=1
-  UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}' AND confidence=1`)).map(r => r.plugin_id)
-
-const collectPeerStats = (db: DB, address: `0x${string}`, installedPlugins: MetadataPlugin[]): PeerStats => {
-  const installedPluginIds = new Set(installedPlugins.map(p => p.id))
-  const peerPlugins = getPlugins(db, address)
-  let totalMatches = 0
-  let totalMismatches = 0
-  for (const table of ['tracks', 'artists', 'albums'] as const) {
-    for (const { match, mismatch, plugin_id } of db.all<{ match: number; mismatch: number; plugin_id: string }>(sql.raw(`SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch FROM ${table} peer
-      LEFT JOIN ${table} local ON local.id = peer.id AND local.plugin_id = peer.plugin_id AND local.address = '0x0'
-      WHERE peer.address = '${address}' GROUP BY peer.plugin_id`))) {
-      if (installedPluginIds.has(plugin_id)) continue
-      totalMatches += match
-      totalMismatches += mismatch
-    }
-  }
-  return {
-    address,
-    peerPlugins,
-    sharedPlugins: peerPlugins.filter(pl => installedPluginIds.has(pl)),
-    totalMatches,
-    totalMismatches,
-    votes: {
-      albums:  countRow(db, 'albums', address),
-      artists: countRow(db, 'artists', address),
-      tracks:  countRow(db, 'tracks', address),
-    }
-  }
-}
-
-const avg = (numbers: number[]) => numbers.reduce((a, b) => a + b, 0) / numbers.length
-
-interface PluginAccuracy { match: number; mismatch: number; plugin_id: string; }
-
-const queryTable = (table: 'albums' | 'artists' | 'tracks', db: DB, address: `0x${string}`) => db.all<PluginAccuracy>(sql`
-  SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch
-  FROM ${sql.raw(table)} peer
-  LEFT JOIN ${sql.raw(table)} local
-    ON local.id = peer.id AND local.plugin_id = peer.plugin_id AND local.address = '0x0'
-  WHERE peer.address = ${address}
-  GROUP BY peer.plugin_id
-`)
-
-const getHistoricPeerConfidence = (db: DB, address: `0x${string}`, installedPlugins: MetadataPlugin[]): number => {
-  const rows = [...queryTable('tracks', db, address), ...queryTable('artists', db, address), ...queryTable('albums', db, address)]
-
-  const merged: Record<string, { match: number; mismatch: number }> = {}
-  for (const { match, mismatch, plugin_id } of rows) {
-    if (!merged[plugin_id]) {merged[plugin_id] = { match: 0, mismatch: 0 }}
-    merged[plugin_id].match += match
-    merged[plugin_id].mismatch += mismatch
-  }
-
-  const installedPluginIds = new Set(installedPlugins.map(plugin => plugin.id))
-  const scores = Object.entries(merged)
-    .filter(([pluginId]) => installedPluginIds.has(pluginId))
-    .map(([, { match, mismatch }]) => Parser.evaluate(CONFIG.pluginConfidence, { x: match, y: mismatch }))
-
-  return scores.length > 0 ? avg(scores) : 0
-}
 
 export class Peer {
   public nonce = 0
@@ -85,7 +16,7 @@ export class Peer {
     return this.socket.peer.address
   }
   get historicConfidence(): number {
-    return getHistoricPeerConfidence(this.db, this.address, this.ownPlugins)
+    return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
   }
   get hostname() {
     return this.socket.peer.hostname
@@ -100,7 +31,7 @@ export class Peer {
     return this.requestManager.averageLatencyMs
   }
   get plugins(): string[] {
-    return getPlugins(this.db, this.address)
+    return this.repos.peer.getPlugins(this.address)
   }
 
   get totalDL() {
@@ -150,7 +81,7 @@ export class Peer {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
     peer_stats: (_data: { address: `0x${string}` }, nonce: number) => {
       if (this.address !== '0x0') return
-      const peer_stats = collectPeerStats(this.db, _data.address, this.ownPlugins)
+      const peer_stats = this.repos.peer.collectPeerStats(this.address, this.ownPlugins)
       this.send({ nonce, peer_stats })
     },
     ping: (_: Ping, nonce: number) => {
@@ -175,7 +106,6 @@ export class Peer {
   constructor(
     public readonly socket: Socket,
     peers: Peers,
-    private readonly db: DB,
     private readonly repos: Repositories,
     private readonly ownPlugins: MetadataPlugin[],
     private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>
@@ -212,7 +142,7 @@ export class Peer {
     })
   }
 
-  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce, this.address)
+  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce)
 
   public async search<T extends Request['type']>(type: T, query: string): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type })
