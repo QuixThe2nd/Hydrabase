@@ -13,13 +13,13 @@ export class HIP3_Conn_Announce {
   constructor(private readonly peer: Peer, private readonly peers: Peers) {}
 
   async handleAnnounce(announce: Announce): Promise<void> {
-    log(`[HIP4] Discovered server through ${this.peer.address}: ${announce.hostname}`)
+    log(`[HIP3] Discovered server through ${this.peer.address}: ${announce.hostname}`)
     await this.peers.add(announce.hostname)
   }
 
-  sendAnnounce(announce: Announce, address: `0x${string}`): void {
-    if (this.peer.hostname === announce.hostname || this.peer.address === address) return
-    log(`[HIP4] Announcing server ${announce.hostname} ${address}`)
+  sendAnnounce(announce: Announce): void {
+    if (this.peer.hostname === announce.hostname || this.peer.address === this.peers.account.address) return
+    log(`[HIP3] Announcing server ${announce.hostname} ${this.peer.address}`)
     this.peer.send({ announce, nonce: this.peer.nonce++ })
   }
 }

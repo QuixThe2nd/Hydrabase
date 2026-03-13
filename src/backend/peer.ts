@@ -142,7 +142,7 @@ export class Peer {
     })
   }
 
-  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce, this.address)
+  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce)
 
   public async search<T extends Request['type']>(type: T, query: string): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type })
