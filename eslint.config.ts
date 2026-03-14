@@ -83,6 +83,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**", "*.min.js", "*.gen.ts"],
+    ignores: ["dist/**", "node_modules/**", "*.min.js", "*.gen.ts", "scripts/**"],
   },
 )

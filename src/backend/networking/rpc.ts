@@ -128,7 +128,8 @@ const handlers = {
     }
     
     log(`[RPC] Received mutual auth from ${peer.host}:${peer.port}`)
-    const identity = await verifyClient(node, { address: query.a?.['address']?.toString() as `0x${string}`, hostname: `${peer.host}:${peer.port}`, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' }, apiKey, authenticateServerUDP(peers.rpc, dhtConfig))
+    const hostname = (query.a?.['hostname']?.toString() ?? `${peer.host}:${peer.port}`) as `${string}:${number}`
+    const identity = await verifyClient(node, { address: query.a?.['address']?.toString() as `0x${string}`, hostname, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' }, apiKey, authenticateServerUDP(peers.rpc, dhtConfig))
     if (Array.isArray(identity)) {
       warn('DEVWARN:', `[RPC] Authentication failed ${peer.host}:${peer.port} - ${identity[1]}`)
       peers.rpc.response(peer, query, { e: [500, 'Failed to verify client'], ok: 0 })

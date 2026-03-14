@@ -1,0 +1,40 @@
+# Cursor Rules - Local-Only Operation
+
+## Core Rules
+- Work ONLY with local files - no cloud uploads
+- Use local file system access exclusively
+- No external indexing or cloud processing
+- Respect privacy and keep all code analysis local
+
+## Analysis Approach
+- Read files directly using local file system
+- Use grep, find, and other CLI tools for code search
+- Analyze dependencies through package.json and imports
+- Understand architecture through directory structure and README
+
+## Forbidden Operations
+- Do not upload any code to external servers
+- Do not attempt cloud indexing
+- Do not require internet connectivity for analysis
+- Do not send code content to external APIs
+
+## Project Context
+This is Hydrabase - a P2P music metadata database built with TypeScript/Bun.
+
+Key directories:
+- /src/backend/ - Core P2P networking, database, API
+- /src/frontend/ - Web UI 
+- /src/types/ - TypeScript type definitions
+- /test-data/ - Docker test configurations
+
+Current development focus:
+- UDP/TCP transport layer improvements
+- WebSocket connection reliability  
+- Peer discovery and authentication
+- Docker containerization for testing
+
+## Working Style
+- Be direct and technical
+- Focus on networking, P2P protocols, and distributed systems
+- Prioritize code quality and test coverage
+- Maintain backward compatibility

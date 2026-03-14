@@ -1,0 +1,14 @@
+--- a/src/backend/index.ts
++++ b/src/backend/index.ts
+@@ -10,10 +10,10 @@ const ip = (await (await fetch('https://icanhazip.com')).text()).trim()
+ 
+ const CONFIG: Config = {
+   apiKey: process.env['API_KEY'] ?? false,
+-  bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544',
++  bootstrapPeers: process.env['BOOTSTRAP_PEERS'] ?? 'ddns.yazdani.au:4545,ddns.yazdani.au:4544',
+   dht: {
+-    bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544',
++    bootstrapNodes: process.env['DHT_BOOTSTRAP_NODES'] ?? 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544',
+     reannounce: 15*60*1_000,
+     requireConnection: process.env['REQUIRE_DHT_CONNECTION'] !== 'false',
+     roomSeed: 'hydrabase',

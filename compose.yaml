@@ -10,7 +10,7 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      USERNAME: Anonymous
+      USERNAME: Claw
       API_KEY: $API_KEY
 
       # Defaults:

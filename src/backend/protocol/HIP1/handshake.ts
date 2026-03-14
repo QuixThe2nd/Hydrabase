@@ -68,7 +68,7 @@ export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: 
     debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
     authenticate(auth.hostname).then(identity => {
       if (Array.isArray(identity)) {
-        const errorMessage = identity[1]
+        const [, errorMessage] = identity
         const isConnectionError = errorMessage.includes('Unable to connect') || 
                                   errorMessage.includes('Failed to fetch') || 
                                   errorMessage.includes('Failed to authenticate server') ||
