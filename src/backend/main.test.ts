@@ -527,30 +527,3 @@ describe('Peer search integration', () => {
 
 // TODO: test dht
 // TODO: reconnect to a disconnected peer
-
-
-// Note: HTTP auth tests removed since authenticateServerHTTP is now private to ws/server.ts
-// The WebSocket server integration tests in the main test suite cover this functionality
-
-// describe('MockSocket — pairing sanity checks', () => {
-//   it('fires close handlers on both sides', async () => {
-//     const [aliceSocket, bobSocket] = MockSocket.pair(ALICE, BOB)
-//     aliceSocket.open()
-
-//     let aliceClosed = false
-//     let bobClosed = false
-//     aliceSocket.onClose(() => { aliceClosed = true })
-//     bobSocket.onClose(() => { bobClosed = true })
-
-//     aliceSocket.close()
-//     expect(aliceClosed).toBe(true)
-//     expect(bobClosed).toBe(true)
-//   })
-
-//   it('throws if you send on a closed socket', () => {
-//     const [aliceSocket] = MockSocket.pair(ALICE, BOB)
-//     // Never opened → isOpened = false
-//     expect(() => aliceSocket.send('nope')).toThrow()
-//   })
-// })
-
