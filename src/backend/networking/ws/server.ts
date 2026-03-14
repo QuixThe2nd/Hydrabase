@@ -7,7 +7,6 @@ import { debug, log, warn } from "../../../utils/log";
 import { AuthSchema, type Identity, verifyClient, verifyServer } from "../../protocol/HIP1/handshake";
 import { authenticatedPeers } from '../rpc';
 
-/** HTTP-based server authentication (for WebSocket connections) */
 const authenticateServerHTTP = async (hostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
   const cache = authenticatedPeers.get(hostname)
   if (cache) return cache
