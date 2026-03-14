@@ -121,8 +121,9 @@ export default class PeerManager {
     let connectionEstablished = false
     socket.onClose(() => {
       this.peers.delete(socket.peer.address)
-      if (!connectionEstablished && socket instanceof WebSocketClient) {
-        this._attemptUDPFallback(_peer as `${string}:${number}`, socket.peer)
+      if (!connectionEstablished) {
+        const fallbackTransport = socket instanceof WebSocketClient ? 'UDP' : 'TCP'
+        this.add(_peer as `${string}:${number}`, fallbackTransport)
       }
     })
 
@@ -182,32 +183,7 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
-  private async _attemptUDPFallback(hostname: `${string}:${number}`, failedIdentity: Identity) {
-    debug(`[PEERS] WebSocket failed for ${failedIdentity.address} ${hostname}, attempting UDP fallback`)
-    
-    try {
 
-      const udpSocket = await RPC.fromOutbound(failedIdentity, this, this.dhtConfig, this.node)
-      if (!udpSocket) {
-        debug(`[PEERS] UDP fallback failed for ${hostname} - could not create RPC connection`)
-        return false
-      }
-      
-
-      const peer = new Peer(udpSocket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-      udpSocket.onClose(() => this.peers.delete(udpSocket.peer.address))
-      
-      this.peers.set(udpSocket.peer.address, peer)
-      cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      this.announce(peer)
-      
-      log(`[PEERS] Successfully connected to ${failedIdentity.address} ${hostname} via UDP fallback`)
-      return true
-    } catch (error) {
-      debug(`[PEERS] UDP fallback failed for ${hostname}: ${error}`)
-      return false
-    }
-  }
 
   private announce({ hostname }: Peer) {
     for (const peerAddress of this.peerAddresses) {
