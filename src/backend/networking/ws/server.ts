@@ -81,7 +81,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   }
   const peer = await Promise.race([
     verifyClient(node, auth, apiKey),
-    new Promise<[number, string]>(resolve => setTimeout(() => resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]), VERIFY_TIMEOUT_MS))
+    new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {
     warn('DEVWARN:', `[SERVER] Failed to authenticate peer: ${peer[1]}`)
