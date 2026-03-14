@@ -5,7 +5,7 @@ import type { Account } from "../../Crypto/Account";
 
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../../../VERSION" with { type: "text" };
-import { debug, warn } from "../../../utils/log";
+import { debug, log, warn } from "../../../utils/log";
 import { Signature } from "../../Crypto/Signature";
 import { authenticateServer } from "../../PeerManager";
 
@@ -67,7 +67,21 @@ export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: 
   const isHostnameValid = await new Promise<[number, string] | true>(resolve => {
     debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
     authenticate(auth.hostname).then(identity => {
-      if (Array.isArray(identity)) return resolve(identity)
+      if (Array.isArray(identity)) {
+        const errorMessage = identity[1]
+        const isConnectionError = errorMessage.includes('Unable to connect') || 
+                                  errorMessage.includes('Failed to fetch') || 
+                                  errorMessage.includes('Failed to authenticate server') ||
+                                  errorMessage.includes('Failed to parse')
+        
+        if (isConnectionError) {
+          debug(`[HIP3] Reverse auth failed due to connectivity (NAT/firewall) for ${auth.hostname} - accepting based on signature verification`)
+          log(`[HIP3] Accepting NAT client ${auth.username} ${auth.address} ${auth.hostname} - reverse verification failed but signature is valid`)
+          return resolve(true)
+        }
+        
+        return resolve(identity)
+      }
       if (identity.address !== auth.address) {
         warn('DEVWARN:', "[HIP3] Invalid Address", {expected:auth.address,got:identity.address})
         return resolve([500, `Invalid address`])

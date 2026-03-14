@@ -110,7 +110,7 @@ export default class PeerManager {
     if (!socket) return false
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
-        warn('DEVWARN:', `[PEERS] Tried to connect to existing peer again via ${socket instanceof WebSocketClient ? 'client' : socket instanceof RPC ? 'RPC' : 'server'} ${socket.peer.address} ${socket.peer.hostname}`)
+        debug(`[PEERS] Skipping duplicate connection to ${socket.peer.username} ${socket.peer.address} - already connected via ${this.peers.get(socket.peer.address) instanceof WebSocketClient ? 'client' : 'server'} connection`)
         socket.close()
       }
       return false
@@ -136,6 +136,7 @@ export default class PeerManager {
         connectionEstablished = true
         this.peers.set(socket.peer.address, peer)
         cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
+        log(`[PEERS] Peer connection established with ${socket.peer.username} ${socket.peer.address} via CLIENT WebSocket`)
         this.announce(peer)
       })
     } else {
@@ -143,6 +144,8 @@ export default class PeerManager {
       connectionEstablished = true
       this.peers.set(socket.peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
+      const connectionType = socket instanceof RPC ? 'RPC' : 'SERVER WebSocket'
+      log(`[PEERS] Peer connection established with ${socket.peer.username} ${socket.peer.address} via ${connectionType}`)
       this.announce(peer)
     }
     
