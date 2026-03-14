@@ -2,22 +2,8 @@ import { sql } from 'drizzle-orm'
 import { Parser } from 'expr-eval'
 
 import type { DB } from '..'
+import type { PeerStats, PluginAccuracy } from '../../../types/hydrabase'
 import type { MetadataPlugin } from '../../../types/hydrabase-schemas'
-
-export interface PeerStats {
-  address: `0x${string}`
-  peerPlugins: string[]
-  sharedPlugins: string[]
-  totalMatches: number
-  totalMismatches: number
-  votes: { albums: number; artists: number; tracks: number }
-}
-
-export interface PluginAccuracy {
-  match: number
-  mismatch: number
-  plugin_id: string
-}
 
 const avg = (numbers: number[]) => numbers.reduce((a, b) => a + b, 0) / numbers.length
 

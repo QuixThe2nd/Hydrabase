@@ -26,4 +26,3 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
   debug(`[SERVER] Listening on port ${server.port}`)
   return server
 }
-// TODO: arm64 docker builds
