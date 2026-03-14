@@ -1,6 +1,6 @@
 services:
   hydrabase:
-    image: ghcr.io/quixthe2nd/hydrabase:pr-165
+    image: ghcr.io/quixthe2nd/hydrabase
     container_name: hydrabase
     restart: always
     network_mode: host # Can be replaced with ports if not using UPnP
