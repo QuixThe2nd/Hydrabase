@@ -6,6 +6,8 @@ import { log, warn } from '../../../utils/log'
 import { type Identity, proveClient } from '../../protocol/HIP1/handshake'
 
 export default class WebSocketClient implements Socket {
+  private static readonly OPEN_TIMEOUT_MS = 30_000
+
   get isOpened() {
     return this._isOpened
   }
@@ -43,14 +45,25 @@ export default class WebSocketClient implements Socket {
 
   send(data: string) {
     if (this._isOpened) this.socket.send(data)
-    else this.retryQueue.push(() => this.socket.send(data))
+    else {
+      warn('DEVWARN:', `[CLIENT] Cannot send to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - connection not open (readyState: ${this.socket.readyState}), queuing message`)
+      this.retryQueue.push(() => this.socket.send(data))
+    }
   }
 
   private _connect(account: Account) {
     log(`[CLIENT] Connecting to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
     this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.node, this.peer.hostname, true) })
 
+    const openTimeout = setTimeout(() => {
+      if (!this._isOpened) {
+        warn('WARN:', `[CLIENT] Connection to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} timed out waiting for open event (${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s)`)
+        this.socket.close()
+      }
+    }, WebSocketClient.OPEN_TIMEOUT_MS)
+
     this.socket.addEventListener('open', () => {
+      clearTimeout(openTimeout)
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
       this._isOpened = true
       this._flushQueue()
@@ -58,6 +71,7 @@ export default class WebSocketClient implements Socket {
     })
 
     this.socket.addEventListener('close', ev => {
+      clearTimeout(openTimeout)
       warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${ev.reason}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
@@ -65,6 +79,7 @@ export default class WebSocketClient implements Socket {
     })
 
     this.socket.addEventListener('error', err => {
+      clearTimeout(openTimeout)
       warn('DEVWARN:', `[CLIENT] Connection failed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${(err as unknown as { message: string }).message}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
