@@ -59,7 +59,6 @@ export class RPC implements Socket {
   public readonly send = (message: string) => this.peers.rpc.query(this.node, { a: { d: message }, q: `${this.dhtConfig.rpcPrefix}_msg` }, err => {
     if (err) {
       error('ERROR:', `[RPC] Message failed to send ${err.message}`)
-      // This.close()
       return
     }
     debug(`[RPC] Peer acknowledged message ${this.identity.hostname}`)
@@ -123,13 +122,11 @@ const handlers = {
     const hasClientIdentity = query.a?.['address'] || query.a?.['signature'] || query.a?.['username']
     
     if (!hasClientIdentity) {
-      // Identity request (former _whoami) - just return server identity
       debug(`[RPC] Received identity request from ${peer.host}:${peer.port}`)
       peers.rpc.response(peer, query, { ...proveServer(peers.account, node), ok: 1 })
       return
     }
     
-    // Mutual handshake (original _auth) - verify client and respond
     log(`[RPC] Received mutual auth from ${peer.host}:${peer.port}`)
     const identity = await verifyClient(node, { address: query.a?.['address']?.toString() as `0x${string}`, hostname: `${peer.host}:${peer.port}`, signature: query.a?.['signature']?.toString() ?? '', userAgent: query.a?.['userAgent']?.toString() ?? '', username: query.a?.['username']?.toString() ?? '' }, apiKey, authenticateServerUDP(peers.rpc, dhtConfig))
     if (Array.isArray(identity)) {
@@ -191,5 +188,4 @@ export const startRPC = (peers: PeerManager, node: Config['node'], config: Confi
   return { rpc }
 }
 
-// Rpc.response(node, query, response, [nodes], [callback])
 
