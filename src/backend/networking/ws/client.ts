@@ -115,7 +115,9 @@ export default class WebSocketClient implements Socket {
         const body = await response.text().catch(() => '')
         warn('WARN:', `[CLIENT] Server ${this.peer.hostname} rejected connection: HTTP ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`)
       }
-    } catch {}
+    } catch {
+      // Silently ignore fetch errors - this is just for debugging info
+    }
   }
   
   private _flushQueue() {
