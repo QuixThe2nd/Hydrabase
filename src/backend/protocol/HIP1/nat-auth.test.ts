@@ -106,7 +106,6 @@ describe('NAT-friendly authentication', () => {
 
   it('still performs reverse auth when connectivity succeeds', async () => {
     const clientAccount = new Account(generatePrivateKey())
-    const serverAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
 
     const mockSuccessfulAuthenticator = async (_hostname: `${string}:${number}`) => {
