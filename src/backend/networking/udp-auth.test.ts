@@ -1,4 +1,4 @@
-/* eslint-disable max-lines, max-lines-per-function */
+/* eslint-disable max-lines-per-function */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import type { Config } from '../../types/hydrabase'
@@ -7,9 +7,9 @@ import { Account, generatePrivateKey } from '../Crypto/Account'
 import { startDatabase } from '../db'
 import MetadataManager from '../Metadata'
 import ITunes from '../Metadata/plugins/iTunes'
-import { startRPC, authenticatedPeers, authenticateServerUDP, RPC } from './rpc'
 import PeerManager from '../PeerManager'
 import { proveServer, verifyServer } from '../protocol/HIP1/handshake'
+import { authenticatedPeers, authenticateServerUDP, RPC, startRPC } from './rpc'
 
 const config1 = {
   hostname: '127.0.0.1',
@@ -46,8 +46,6 @@ let account1: Account
 let account2: Account
 let peerManager1: PeerManager
 let peerManager2: PeerManager
-let rpc1: RPC
-let rpc2: RPC
 
 beforeAll(async () => {
   // Clear any existing auth cache
@@ -62,8 +60,8 @@ beforeAll(async () => {
   account2 = new Account(generatePrivateKey())
   
   // Create peer managers
-  peerManager1 = new PeerManager(account1, metadataManager, repos, async () => [], config1, dhtConfig, false)
-  peerManager2 = new PeerManager(account2, metadataManager, repos, async () => [], config2, dhtConfig, false)
+  peerManager1 = new PeerManager(account1, metadataManager, repos, () => Promise.resolve([]), config1, dhtConfig, false)
+  peerManager2 = new PeerManager(account2, metadataManager, repos, () => Promise.resolve([]), config2, dhtConfig, false)
   
   // Start RPC nodes
   const result1 = startRPC(peerManager1, config1, dhtConfig, false)
@@ -76,7 +74,9 @@ beforeAll(async () => {
   peerManager2.rpc.bind(config2.port)
   
   // Wait for DHT to settle
-  await new Promise(res => setTimeout(res, 2_000))
+  await new Promise(res => {
+    setTimeout(() => res(undefined), 2_000)
+  })
 }, { timeout: 10_000 })
 
 afterAll(() => {
