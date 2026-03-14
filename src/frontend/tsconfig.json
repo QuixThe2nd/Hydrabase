@@ -2,8 +2,7 @@
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
 		"lib": ["ESNext", "dom"],
-		"types": [],
-		"composite": true
+		"types": []
 	},
 	"include": ["../**/*"],
 	"exclude": ["../backend/*"]

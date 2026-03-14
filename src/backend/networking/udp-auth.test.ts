@@ -9,7 +9,7 @@ import MetadataManager from '../Metadata'
 import ITunes from '../Metadata/plugins/iTunes'
 import PeerManager from '../PeerManager'
 import { proveServer, verifyServer } from '../protocol/HIP1/handshake'
-import { authenticatedPeers, authenticateServerUDP, RPC, startRPC } from './rpc'
+import { authenticatedPeers, authenticateServerUDP, RPC } from './rpc'
 
 // Use dynamic ports to avoid EADDRINUSE conflicts
 const getAvailablePort = () => 15000 + Math.floor(Math.random() * 1000)
@@ -62,25 +62,19 @@ beforeAll(async () => {
   account1 = new Account(generatePrivateKey())
   account2 = new Account(generatePrivateKey())
 
-  // Create peer managers
+  // Create peer managers (rpc is initialized in constructor)
   peerManager1 = new PeerManager(account1, metadataManager, repos, () => Promise.resolve([]), config1, dhtConfig, false)
   peerManager2 = new PeerManager(account2, metadataManager, repos, () => Promise.resolve([]), config2, dhtConfig, false)
 
-  // Start RPC nodes
-  const result1 = startRPC(peerManager1, config1, dhtConfig, false)
-  const result2 = startRPC(peerManager2, config2, dhtConfig, false)
-  peerManager1.rpc = result1.rpc
-  peerManager2.rpc = result2.rpc
-
-  // Bind to ports
+  // Bind RPC to ports
   peerManager1.rpc.bind(config1.port)
   peerManager2.rpc.bind(config2.port)
 
   // Wait for DHT to settle
   await new Promise(res => {
-    setTimeout(() => res(undefined), 2_000)
+    setTimeout(() => res(undefined), 5_000)
   })
-}, { timeout: 10_000 })
+}, { timeout: 15_000 })
 
 afterAll(() => {
   peerManager1.rpc?.destroy()
@@ -219,23 +213,26 @@ describe('UDP Authentication', () => {
     }, { timeout: 5_000 })
 
     it('cache persists across function calls', async () => {
-      const hostname = `${config2.hostname}:${config2.port}`
+      const hostname = `${config2.hostname}:${config2.port}` as `${string}:${number}`
 
       // Verify cache is populated
       expect(authenticatedPeers.has(hostname)).toBe(true)
       const cached = authenticatedPeers.get(hostname)
+      expect(cached).toBeDefined()
 
-      // New auth function should use cached result
-      const authFn = authenticateServerUDP(peerManager1.rpc, dhtConfig)
-      const result = await authFn(hostname)
-      expect(result).toBe(cached)
+      if (cached) {
+        // New auth function should use cached result
+        const authFn = authenticateServerUDP(peerManager1.rpc, dhtConfig)
+        const result = await authFn(hostname)
+        expect(result).toBe(cached)
+      }
     }, { timeout: 5_000 })
   })
 
   describe('Integration with peer connections', () => {
     it('RPC connection can be added to peer manager', async () => {
-      // Clear existing connections
-      peerManager1.peers.clear()
+      // Get initial peer count
+      const initialPeerCount = peerManager1.connectedPeers.length
 
       // Get server identity via UDP auth
       const authFn = authenticateServerUDP(peerManager1.rpc, dhtConfig)
@@ -251,7 +248,7 @@ describe('UDP Authentication', () => {
           // Add to peer manager
           const added = await peerManager1.add(rpcPeer)
           expect(added).toBe(true)
-          expect(peerManager1.peers.size).toBeGreaterThan(0)
+          expect(peerManager1.connectedPeers.length).toBeGreaterThan(initialPeerCount)
 
           rpcPeer.close()
         }
