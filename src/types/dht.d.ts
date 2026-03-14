@@ -35,11 +35,6 @@ declare module 'bittorrent-dht' {
     port: number;
   }
 
-  export interface DHTPeer {
-    host: string;
-    port: number;
-  }
-
   export interface DHTOptions {
     bootstrap?: (DHTNode | string)[] | false;
     concurrency?: number;
@@ -50,6 +45,11 @@ declare module 'bittorrent-dht' {
     nodeId?: Buffer | string;
     timeBucketOutdated?: number;
     verify?: (sig: Buffer, value: Buffer, key: Buffer) => boolean;
+  }
+
+  export interface DHTPeer {
+    host: string;
+    port: number;
   }
 
   export interface DHTPutImmutable {
