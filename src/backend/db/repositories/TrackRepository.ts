@@ -1,9 +1,18 @@
-import { and, eq, like, or } from 'drizzle-orm'
+import { and, eq, type InferSelectModel, like, or } from 'drizzle-orm'
 
 import type { DB } from '..'
 import type { Track } from '../../../types/hydrabase-schemas'
 
 import { schema } from '../schema'
+
+type TrackRow = InferSelectModel<typeof schema.track>
+
+const map = (row: TrackRow): Track => ({
+  ...row,
+  address: row.address as `0x${string}`,
+  artists: row.artists.split(','),
+  external_urls: JSON.parse(row.external_urls),
+})
 
 export class TrackRepository {
   constructor(private readonly db: DB) {}
@@ -13,24 +22,14 @@ export class TrackRepository {
       .where(and(or(...artistIds.entries().map(([pluginId, artistId]) => and(eq(schema.track.plugin_id, pluginId), eq(schema.track.artist_id, artistId)))), includePeers ? undefined : eq(schema.track.address, '0x0')))
       .all()
       .filter(row => row.name && row.image_url && row.external_urls)
-      .map(row => ({
-        ...row,
-        address: row.address as `0x${string}`,
-        artists: row.artists.split(','),
-        external_urls: JSON.parse(row.external_urls),
-      }))
+      .map(map)
   }
 
   searchByName(query: string, includePeers = true): Track[] {
     return this.db.select().from(schema.track)
       .where(and(like(schema.track.name, `%${query}%`), includePeers ? undefined : eq(schema.track.address, '0x0')))
       .all()
-      .map(row => ({
-        ...row,
-        address: row.address as `0x${string}`,
-        artists: row.artists.split(','),
-        external_urls: JSON.parse(row.external_urls),
-      }))
+      .map(map)
   }
 
   upsertFromPeer(result: Track, peerAddress: `0x${string}`) {
