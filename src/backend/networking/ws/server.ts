@@ -69,6 +69,8 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
   }
 })
 
+const VERIFY_TIMEOUT_MS = 15_000
+
 export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: null | SocketAddress, node: Config['node'], apiKey: string): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   log(`[SERVER] Connecting to client ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
@@ -77,7 +79,10 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     warn('DEVWARN:', `[SERVER] Rejected connection from ${ip?.address}: missing handshake headers`)
     return { res: [400, 'Missing required handshake headers'] }
   }
-  const peer = await verifyClient(node, auth, apiKey)
+  const peer = await Promise.race([
+    verifyClient(node, auth, apiKey),
+    new Promise<[number, string]>(resolve => setTimeout(() => resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]), VERIFY_TIMEOUT_MS))
+  ])
   if (Array.isArray(peer)) {
     warn('DEVWARN:', `[SERVER] Failed to authenticate peer: ${peer[1]}`)
     return { res: peer }
