@@ -118,7 +118,7 @@ export const authenticateServerUDP = (rpc: krpc.KRPC, dhtConfig: Config['dht']) 
   }
 
 const handlers = {
-  auth: async (peers: PeerManager, query: krpc.KRPCQuery, peer: { host: string, port: number }, node: Config['node'], apiKey: false | string, dhtConfig: Config['dht']) => {
+  auth: async (peers: PeerManager, query: krpc.KRPCQuery, peer: { host: string, port: number }, node: Config['node'], apiKey: string | undefined, dhtConfig: Config['dht']) => {
     const hasClientIdentity = query.a?.['address'] || query.a?.['signature'] || query.a?.['username']
     
     if (!hasClientIdentity) {
@@ -173,7 +173,7 @@ const handlers = {
   }
 }
 
-export const startRPC = (peers: PeerManager, node: Config['node'], config: Config['dht'], apiKey: false | string) => {
+export const startRPC = (peers: PeerManager, node: Config['node'], config: Config['dht'], apiKey: string | undefined) => {
   const rpc = krpc({ id: Buffer.from(DHT_Node.getNodeId(node)), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
   rpc.on('query', async (query, peer) => {
     const q = query.q.toString()

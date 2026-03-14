@@ -99,7 +99,7 @@ export default class PeerManager {
   private readonly knownPeers = new Set<`${string}:${number}`>() // TODO: prune old peers, mem leak
   private readonly peers = new PeerMap()
 
-  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>, private readonly node: Config['node'], private readonly dhtConfig: Config['dht'], apiKey: false | string) {
+  constructor(public readonly account: Account, private readonly metadataManager: MetadataManager, private readonly repos: Repositories, private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>, private readonly node: Config['node'], private readonly dhtConfig: Config['dht'], apiKey: string | undefined) {
     const { rpc } = startRPC(this, node, dhtConfig, apiKey)
     this.rpc = rpc
   }

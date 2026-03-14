@@ -76,20 +76,20 @@ beforeAll(async () => {
   // Start Node 1
   const account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, () => peerManager1, formulas)
-  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, dhtConfig, false)
+  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, dhtConfig, undefined)
   server1 = startServer(account1, peerManager1, config1, '')
 
   // Start Node 2
   const account2 = new Account(generatePrivateKey())
   const node2 = new Node(metadataManager, () => peerManager2, formulas)
-  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, dhtConfig, false)
+  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, dhtConfig, undefined)
   server2 = startServer(account2, peerManager2, config2, '')
   peerManager2.rpc.bind(config2.port)
 
   // Start Node 3
   const account3 = new Account(generatePrivateKey())
   const node3 = new Node(metadataManager, () => peerManager3, formulas)
-  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, dhtConfig, false)
+  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, dhtConfig, undefined)
   server3 = startServer(account3, peerManager3, config3, '')
   peerManager3.rpc.bind(config3.port)
 
@@ -556,7 +556,7 @@ describe('NAT-friendly authentication', () => {
       return [500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string]
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -573,7 +573,7 @@ describe('NAT-friendly authentication', () => {
       return [500, 'Failed to authenticate server via UDP'] as [number, string]
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -589,7 +589,7 @@ describe('NAT-friendly authentication', () => {
       return [500, 'Failed to fetch server authentication'] as [number, string]
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
 
     expect(Array.isArray(result)).toBe(false)
   })
@@ -602,7 +602,7 @@ describe('NAT-friendly authentication', () => {
       return [500, 'Failed to parse server authentication'] as [number, string]
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
 
     expect(Array.isArray(result)).toBe(false)
   })
@@ -619,7 +619,7 @@ describe('NAT-friendly authentication', () => {
       return [500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string]
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
 
     expect(Array.isArray(result)).toBe(true)
     if (Array.isArray(result)) {
@@ -641,7 +641,7 @@ describe('NAT-friendly authentication', () => {
       }
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockSuccessfulAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockSuccessfulAuthenticator)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -663,7 +663,7 @@ describe('NAT-friendly authentication', () => {
       }
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockMismatchAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockMismatchAuthenticator)
 
     expect(Array.isArray(result)).toBe(true)
     if (Array.isArray(result)) {
@@ -680,7 +680,7 @@ describe('NAT-friendly authentication', () => {
       return [403, 'Invalid signature from server'] as [number, string]
     }
 
-    const result = await verifyClient(mockNode, clientAuth, false, mockAuthenticator)
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockAuthenticator)
 
     expect(Array.isArray(result)).toBe(true)
     if (Array.isArray(result)) {

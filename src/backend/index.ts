@@ -9,7 +9,7 @@ process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught except
 const ip = (await (await fetch('https://icanhazip.com')).text()).trim()
 
 const CONFIG: Config = {
-  apiKey: process.env['API_KEY'] ?? false,
+  apiKey: process.env['API_KEY'],
   bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544',
   dht: {
     bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544',

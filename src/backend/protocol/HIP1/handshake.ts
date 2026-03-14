@@ -52,7 +52,7 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result
 }
 
-export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: string }, apiKey: false | string, serverAuthenticator?: (hostname: `${string}:${number}`) => Promise<[number, string] | Identity>): Promise<[number, string] | Identity> => {
+export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: string }, apiKey: string | undefined, serverAuthenticator?: (hostname: `${string}:${number}`) => Promise<[number, string] | Identity>): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
     debug(`[HIP3] Verifying API`)
     if (auth.apiKey !== apiKey) return [500, 'Invalid API Key']

@@ -4,7 +4,7 @@ export interface ApiPeer {
 }
 
 export interface Config {
-  apiKey: false | string
+  apiKey: string | undefined
   bootstrapPeers: string
   dht: {
     bootstrapNodes: string
