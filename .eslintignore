@@ -1,7 +1,0 @@
-monitor-stats.js
-simple-monitor.js
-test-*.sh
-*.md
-node_modules/
-dist/
-build/
