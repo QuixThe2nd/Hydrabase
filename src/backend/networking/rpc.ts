@@ -178,7 +178,6 @@ export const startRPC = (peers: PeerManager, node: Config['node'], config: Confi
     const q = query.q.toString()
     if (!q.startsWith(config.rpcPrefix)) return
     const _host = `${peer.address}:${peer.port}` as const
-    if (!authenticatedPeers.has(_host)) await authenticateServerUDP(rpc, config)(_host)
     const host = authenticatedPeers.get(_host)?.hostname ?? _host
     log(`[RPC] Received message ${q} from ${host}`)
     if (q === `${config.rpcPrefix}_auth`) await handlers.auth(peers, query, { host: peer.address, port: peer.port }, node, apiKey, config)
