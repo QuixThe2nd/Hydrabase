@@ -52,7 +52,7 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result
 }
 
-export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: string }, apiKey: false | string): Promise<[number, string] | Identity> => {
+export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: string }, apiKey: false | string, serverAuthenticator?: (hostname: `${string}:${number}`) => Promise<[number, string] | Identity>): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
     debug(`[HIP3] Verifying API`)
     if (auth.apiKey !== apiKey) return [500, 'Invalid API Key']
@@ -63,9 +63,10 @@ export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: 
   debug(`[HIP3] Verifying client address ${auth.address}`)
   if (!Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address)) return [403, 'Failed to authenticate address']
 
+  const authenticate = serverAuthenticator ?? authenticateServer
   const isHostnameValid = await new Promise<[number, string] | true>(resolve => {
     debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
-    authenticateServer(auth.hostname).then(identity => {
+    authenticate(auth.hostname).then(identity => {
       if (Array.isArray(identity)) return resolve(identity)
       if (identity.address !== auth.address) {
         warn('DEVWARN:', "[HIP3] Invalid Address", {expected:auth.address,got:identity.address})
