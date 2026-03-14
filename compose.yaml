@@ -1,0 +1,29 @@
+services:
+  hydrabase:
+    image: ghcr.io/quixthe2nd/hydrabase
+    container_name: hydrabase
+    restart: always
+    network_mode: host # Can be replaced with ports if not using UPnP
+    # ports: # Ports must be manually forwarded if uncommented - Whitelist 4545 in your firewall
+    #   - 4545:4545/tcp
+    #   - 4545:4545/udp
+    volumes:
+      - ./data:/app/data
+    environment:
+      USERNAME: Anonymous
+      # API_KEY: $API_KEY - Use `openssl rand -hex 16` to generate an api key
+
+      # Defaults:
+      # PORT: 4545
+      # domain: [external ip]
+      # LISTEN_ADDRESS: 0.0.0.0
+      # PUID: 1000
+      # PGID: 1000
+
+      # Advanced:
+      # REQUIRE_DHT_CONNECTION: true
+      # PREFER_TRANSPORT: TCP # TCP or UDP
+
+      # Uncomment to enable Spotify plugin:
+      # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
+      # SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
