@@ -12,6 +12,7 @@
 		"moduleResolution": "bundler",
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
+		"composite": true,
 		"noEmit": true,
 
 		// Best practices
@@ -32,5 +33,6 @@
 		"noUncheckedSideEffectImports": true,
 		"allowUnreachableCode": false,
 		"allowUnusedLabels": false
-	}
+	},
+	"references": [{"path": "./src/frontend"}, {"path": "./src/backend"}]
 }
