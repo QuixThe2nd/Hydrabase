@@ -8,6 +8,7 @@ export interface Config {
   bootstrapPeers: string
   dht: {
     bootstrapNodes: string
+    enabled: boolean
     reannounce: number
     requireConnection: boolean
     roomSeed: string

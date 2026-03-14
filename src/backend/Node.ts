@@ -64,12 +64,16 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   await buildWebUI()
   log('[STARTUP] 9/14 Starting server')
   startServer(account, peers, CONFIG.node, '')
-  log('[STARTUP] 10/14 Starting DHT node')
-  const dhtNode = new DHT_Node(peers, CONFIG.dht, CONFIG.node)
-  log('[STARTUP] 11/14 Starting stats reporter')
-  new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peers, dhtNode, repos)
-  log('[STARTUP] 12/14 Waiting for DHT')
-  await dhtNode.isReady()
+  if (CONFIG.dht.enabled) {
+    log('[STARTUP] 10/14 Starting DHT node')
+    const dhtNode = new DHT_Node(peers, CONFIG.dht, CONFIG.node)
+    log('[STARTUP] 11/14 Starting stats reporter')
+    new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peers, dhtNode, repos)
+    log('[STARTUP] 12/14 Waiting for DHT')
+    await dhtNode.isReady()
+  } else {
+    log('[STARTUP] 10-12/14 DHT disabled, skipping')
+  }
   log('[STARTUP] 13/14 Loading cached peers')
   await peers.loadCache(CONFIG.bootstrapPeers.split(','))
   log('[STARTUP] Startup finished, running test searches')

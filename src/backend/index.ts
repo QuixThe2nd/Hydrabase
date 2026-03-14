@@ -13,6 +13,7 @@ const CONFIG: Config = {
   bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544',
   dht: {
     bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544',
+    enabled: process.env['DHT_ENABLED'] !== 'false',
     reannounce: 15*60*1_000,
     requireConnection: process.env['REQUIRE_DHT_CONNECTION'] !== 'false',
     roomSeed: 'hydrabase',
