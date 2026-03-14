@@ -72,7 +72,9 @@ export default class WebSocketClient implements Socket {
 
     this.socket.addEventListener('close', ev => {
       clearTimeout(openTimeout)
-      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${ev.reason}`)
+      const reason = ev.reason || 'Connection closed'
+      const codeMsg = ev.code === 1000 ? '' : ` (code: ${ev.code})`
+      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${reason}${codeMsg}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
       if (!this.peers.isConnectionOpened(this.peer.address)) {this._scheduleReconnect(account)}
@@ -80,7 +82,14 @@ export default class WebSocketClient implements Socket {
 
     this.socket.addEventListener('error', err => {
       clearTimeout(openTimeout)
-      warn('DEVWARN:', `[CLIENT] Connection failed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${(err as unknown as { message: string }).message}`)
+      const errorMsg = (err as unknown as { message: string }).message
+      warn('DEVWARN:', `[CLIENT] Connection failed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${errorMsg}`)
+      
+      // For HTTP status failures, try to fetch the rejection reason from server
+      if (errorMsg.includes('Expected 101 status code') || errorMsg.includes('status code')) {
+        this._fetchRejectionReason()
+      }
+      
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
     }) // TODO: peer rate limiting
@@ -92,6 +101,31 @@ export default class WebSocketClient implements Socket {
       })
     })
   } // TODO: SSL support
+  
+  private async _fetchRejectionReason() {
+    try {
+      // Try to get the actual rejection reason by making a direct connection attempt
+      const httpUrl = `http://${this.peer.hostname}`
+      
+      // First, try to get rejection details via HTTP
+      const response = await fetch(httpUrl, { 
+        headers: { 
+          'Connection': 'upgrade',
+          'Upgrade': 'websocket',
+          ...proveClient(this.peers.account, this.node, this.peer.hostname, true)
+        },
+        method: 'GET'
+      }).catch(() => null)
+      
+      if (response && response.ok === false) {
+        const body = await response.text().catch(() => '')
+        warn('WARN:', `[CLIENT] Server ${this.peer.hostname} rejected connection: HTTP ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`)
+      }
+    } catch {
+      // Silent failure - this is just for additional debugging info
+    }
+  }
+  
   private _flushQueue() {
     const queue = this.retryQueue.splice(0)
     for (const fn of queue) fn()
