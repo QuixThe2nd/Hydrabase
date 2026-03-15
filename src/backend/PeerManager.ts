@@ -5,7 +5,7 @@ import type { Request, Response, SearchResult } from '../types/hydrabase-schemas
 import type { Account } from './Crypto/Account';
 import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
-import type { Auth, Identity } from './protocol/HIP1/handshake';
+import type { Identity } from './protocol/HIP1/handshake';
 
 import { debug, log, warn } from '../utils/log';
 import { authenticateServerHTTP } from './networking/http';
@@ -194,7 +194,7 @@ export default class PeerManager {
     return fromOutbound(this.udpServer.socket, this, identity, this.rpcConfig, this.node) || false
   }
 
-  private verifyPeer(hostname: `${string}:${number}`, auth: Auth | Identity) {
+  private verifyPeer(hostname: `${string}:${number}`, auth: Identity) {
     if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return warn('DEVWARN:', `[PEERS] Not connecting to self`)
     if (this.knownPeers.has(hostname) || this.has(auth.address)) return warn('DEVWARN:', `[PEERS] Already connected/connecting to peer ${auth.username} ${auth.address} ${auth.hostname}`)
     if (auth.address === this.account.address) return warn('DEVWARN:', `[PEERS] Not connecting to self`)

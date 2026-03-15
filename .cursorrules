@@ -1,0 +1,4 @@
+# Cursor Rules - Local-Only Operation
+- Work ONLY with local files - no cloud uploads
+- Use local file system access exclusively
+- No external indexing or cloud processing
