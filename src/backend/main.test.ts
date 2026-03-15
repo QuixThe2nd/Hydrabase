@@ -680,8 +680,6 @@ describe('NAT-friendly authentication', () => {
 })
 
 
-
-
 describe('UDP Authentication Edge Cases', () => {
   it('handles authentication cache correctly', () => {
 
