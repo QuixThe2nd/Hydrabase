@@ -14,7 +14,7 @@ import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer } from "./peer";
 import { PeerMap } from './PeerMap';
-import { AuthSchema, type Identity, verifyServer } from './protocol/HIP1/handshake';
+import { authenticateServerHTTP } from './networking/http';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
@@ -62,29 +62,6 @@ const searchPeer = async <T extends Request['type']>(formulas: Config['formulas'
 const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer => peer ? true : warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
-export const authenticateServer = async (hostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
-  debug(`[PEERS] Authenticating server ${hostname}`)
-  const cache = authenticatedPeers.get(hostname)
-  if (cache) return cache
-  try {
-    const response = await fetch(`http://${hostname}/auth`)// TODO: udp mode
-    const body = await response.text()
-    const auth = AuthSchema.safeParse(JSON.parse(body)).data
-    if (!auth) return [500, 'Failed to parse server authentication']
-    if (auth.hostname !== hostname) {
-      debug(`[PEERS] Upgrading hostname from ${hostname} to ${auth.hostname}`)
-      return await authenticateServer(auth.hostname)
-    }
-    const authResults = verifyServer(auth, hostname)
-    if (authResults !== true) return authResults
-    authenticatedPeers.set(hostname, auth)
-    return auth
-  } catch (err) {
-    warn('WARN:', `[CLIENT] Failed to fetch server authentication from ${hostname} - ${(err as Error).message}`)
-    return [500, 'Failed to fetch server authentication']
-  }
-}
-
 export default class PeerManager {
   public readonly rpc: KRPC
   get apiPeer() {
@@ -105,8 +82,15 @@ export default class PeerManager {
   }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public async add(_peer: `${string}:${number}` | RPC | WebSocketServerConnection, preferTransport = this.node.preferTransport): Promise<boolean> {
-    const socket = await this.toSocket(_peer, preferTransport)
+  public async add(_peer: `${string}:${number}` | RPC | WebSocketServerConnection, preferTransport = this.node.preferTransport, isFallback = false): Promise<boolean> {
+    const socket = await this.toSocket(_peer, preferTransport, isFallback)
+    
+    // Synchronous fallback: only for UDP preferred (RPC.fromOutbound can fail synchronously)
+    // TCP fallback is handled async via onClose handler
+    if (!socket && !isFallback && typeof _peer === 'string' && preferTransport === 'UDP') {
+      return this.add(_peer, 'TCP', true)
+    }
+
     if (!socket) return false
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
@@ -119,11 +103,16 @@ export default class PeerManager {
     // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
     let connectionEstablished = false
+    
     socket.onClose(() => {
       this.peers.delete(socket.peer.address)
-      if (!connectionEstablished) {
-        const fallbackTransport = socket instanceof WebSocketClient ? 'UDP' : 'TCP'
-        this.add(_peer as `${string}:${number}`, fallbackTransport)
+      if (!connectionEstablished && !isFallback) {
+        const fallbackTransport = preferTransport === 'TCP' ? 'UDP' : 'TCP'
+        if (typeof _peer === 'string') {
+          this.knownPeers.delete(_peer)
+          this.knownPeers.delete(socket.peer.hostname)
+        }
+        this.add(_peer as `${string}:${number}`, fallbackTransport, true)
       }
     })
 
@@ -153,7 +142,7 @@ export default class PeerManager {
   }
 
   // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
-  public readonly has = (address: `0x${string}`) => address in this.peers
+  public readonly has = (address: `0x${string}`) => this.peers.has(address)
 
   public isConnectionOpened(address: `0x${string}`): boolean {
     const peer = this.peers.get(address)
@@ -194,13 +183,13 @@ export default class PeerManager {
     }
   }
 
-  private async getAuth(hostname: `${string}:${number}`) {
+  private async getAuth(hostname: `${string}:${number}`, skipKnownCheck = false) {
     if (hostname === this.node.hostname) return false
     if (hostname === `${this.node.ip}:${this.node.port}`) return false
-    if (this.knownPeers.has(hostname)) return false
+    if (!skipKnownCheck && this.knownPeers.has(hostname)) return false
     this.knownPeers.add(hostname)
 
-    const auth = await authenticateServer(hostname)
+    const auth = await authenticateServerHTTP(hostname)
     if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate server ${auth[1]}`)
     if (this.has(auth.address)) return warn('DEVWARN:', `[PEERS] Already connected/connecting to peer ${auth.username} ${auth.address} ${auth.hostname}`)
     if (auth.address === this.account.address) return warn('DEVWARN:', `[PEERS] Not connecting to self`)
@@ -208,7 +197,7 @@ export default class PeerManager {
     if ('hostname' in auth) {
       if (auth.hostname === this.node.hostname) return false
       if (auth.hostname === `${this.node.ip}:${this.node.port}`) return false
-      if (auth.hostname !== hostname && this.knownPeers.has(auth.hostname)) return false
+      if (!skipKnownCheck && auth.hostname !== hostname && this.knownPeers.has(auth.hostname)) return false
       this.knownPeers.add(auth.hostname)
     }
 
@@ -216,12 +205,11 @@ export default class PeerManager {
   }
 
 
-  private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection, preferTransport: 'TCP' | 'UDP'): Promise<false | Socket> {
+  private async toSocket(peer: `${string}:${number}` | RPC | WebSocketServerConnection, preferTransport: 'TCP' | 'UDP', skipKnownCheck = false): Promise<false | Socket> {
     if (peer instanceof WebSocketServerConnection || peer instanceof RPC) return peer
-    const identity = await this.getAuth(authenticatedPeers.get(peer)?.hostname ?? peer)
+    const identity = await this.getAuth(authenticatedPeers.get(peer)?.hostname ?? peer, skipKnownCheck)
     if (!identity) return identity
-    const preferredClient = preferTransport === 'TCP' ? new WebSocketClient(identity, this, this.node) : RPC.fromOutbound(identity, this, this.dhtConfig, this.node)
-    if (preferredClient) return preferredClient
-    return preferTransport === 'TCP' ? RPC.fromOutbound(identity, this, this.dhtConfig, this.node) : new WebSocketClient(identity, this, this.node)
+    if (preferTransport === 'TCP') return new WebSocketClient(identity, this, this.node)
+    return (await RPC.fromOutbound(identity, this, this.dhtConfig, this.node)) || false
   }
 }

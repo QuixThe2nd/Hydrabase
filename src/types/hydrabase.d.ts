@@ -87,16 +87,6 @@ export interface PeerStats {
   votes: { albums: number; artists: number; tracks: number }
 }
 
-
-export interface PeerStats {
-  address: `0x${string}`
-  peerPlugins: string[]
-  sharedPlugins: string[]
-  totalMatches: number
-  totalMismatches: number
-  votes: { albums: number; artists: number; tracks: number }
-}
-
 export type PeerWithCountry = ApiPeer & {
   activity: number[]
   country: string

@@ -7,7 +7,7 @@ import type { Account } from "../../Crypto/Account";
 import VERSION from "../../../../VERSION" with { type: "text" };
 import { debug, log, warn } from "../../../utils/log";
 import { Signature } from "../../Crypto/Signature";
-import { authenticateServer } from "../../PeerManager";
+import { authenticateServerHTTP } from "../../networking/http";
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
@@ -63,16 +63,19 @@ export const verifyClient = async (node: Config['node'], auth: Auth | { apiKey: 
   debug(`[HIP3] Verifying client address ${auth.address}`)
   if (!Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address)) return [403, 'Failed to authenticate address']
 
-  const authenticate = serverAuthenticator ?? authenticateServer
+  const authenticate = serverAuthenticator ?? authenticateServerHTTP
   const isHostnameValid = await new Promise<[number, string] | true>(resolve => {
     debug(`[HIP3] Verifying client hostname ${auth.address} ${auth.hostname}`)
     authenticate(auth.hostname).then(identity => {
       if (Array.isArray(identity)) {
         const [, errorMessage] = identity
-        if (errorMessage.includes('Unable to connect') || 
-            errorMessage.includes('Failed to fetch') || 
-            errorMessage.includes('Failed to authenticate server') ||
-            errorMessage.includes('Failed to parse')) {
+        // SECURITY: When reverse auth fails due to connectivity (client behind NAT),
+        // accept based on signature verification alone. Address ownership IS verified.
+        // Risk: unverified hostname claims could be announced to the network.
+        const isConnectionError = (msg: string) => 
+          ['Unable to connect', 'Failed to fetch', 'Failed to authenticate server', 'Failed to parse']
+            .some(pattern => msg.includes(pattern))
+        if (isConnectionError(errorMessage)) {
           debug(`[HIP3] Reverse auth failed for ${auth.hostname}`)
           log(`[HIP3] Accepting NAT client ${auth.username} ${auth.address} ${auth.hostname}`)
           return resolve(true)

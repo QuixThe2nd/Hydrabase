@@ -64,6 +64,8 @@ export default class WebSocketClient implements Socket {
 
     this.socket.addEventListener('open', () => {
       clearTimeout(openTimeout)
+      this.reconnectAttempts = 1
+      this.reconnectTimer = null
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
       this._isOpened = true
       this._flushQueue()
@@ -88,7 +90,6 @@ export default class WebSocketClient implements Socket {
       }
       
       this._isOpened = false
-      for (const handler of this.closeHandlers) handler()
     }) // TODO: peer rate limiting
 
     this.socket.addEventListener('message', message => {
@@ -127,7 +128,10 @@ export default class WebSocketClient implements Socket {
   private _scheduleReconnect(account: Account) {
     if (this.reconnectTimer) return
     log(`[CLIENT] Reconnecting to ${this.peer.username} ${this.peer.address} ${this.peer.hostname} in ${this.reconnectAttempts*5_000}ms...`)
-    this.reconnectTimer = setTimeout(() => this.dontReconnect ? undefined : this._connect(account), this.reconnectAttempts*5_000)
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (!this.dontReconnect) this._connect(account)
+    }, this.reconnectAttempts*5_000)
     this.reconnectAttempts++
   }
 }

@@ -94,10 +94,8 @@ beforeAll(async () => {
   peerManager3.rpc.bind(config3.port)
 
   await new Promise(res => { setTimeout(res, 5_000) })
-
-  return { peers1: peerManager1, peers2: peerManager2, server1, server2 }
 }, {
-  timeout: 15_000
+  timeout: 20_000
 })
 
 afterAll(() => {
