@@ -62,7 +62,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   log('[STARTUP] 7/14 Starting UDP server')
   const udpServer = await UDP_Server.init(() => peers, CONFIG.rpc, CONFIG.node, CONFIG.apiKey)
   log('[STARTUP] 8/14 Starting peer manager')
-  peers = new PeerManager(account, metadataManager, repos, async (type, query, searchPeers) => node ? await node.search(type, query, searchPeers) : [], CONFIG.node, CONFIG.rpc, udpServer)
+  peers = new PeerManager(account, metadataManager, repos, async (type, query, searchPeers) => node ? await node.search(type, query, searchPeers) : [], CONFIG.node, CONFIG.rpc, udpServer, udpServer.socket)
   log('[STARTUP] 9/14 Building Web UI')
   await buildWebUI()
   log('[STARTUP] 10/14 Starting HTTP server')

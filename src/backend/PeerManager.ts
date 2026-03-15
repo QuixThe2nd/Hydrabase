@@ -1,3 +1,4 @@
+import dgram from 'dgram'
 import { Parser } from 'expr-eval'
 
 import type { Config, Socket } from '../types/hydrabase';
@@ -83,6 +84,7 @@ export default class PeerManager {
     private readonly node: Config['node'],
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
+    public readonly socket: dgram.Socket,
   ) {}
 
   // TODO: some mechanism to proactively propagate unsolicited votes

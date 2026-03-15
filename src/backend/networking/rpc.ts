@@ -39,6 +39,6 @@ export class RPC implements Socket {
   public readonly send = (message: string) => {
     const tid = Buffer.alloc(4)
     tid.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
-    this.peers.udpServer.socket.send(bencode.encode({ a: { d: message }, q: `${this.config.prefix}msg`, t: tid.toString('hex'), y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
+    this.peers.socket.send(bencode.encode({ a: { d: message }, q: `${this.config.prefix}msg`, t: tid.toString('hex'), y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
   }
 }
