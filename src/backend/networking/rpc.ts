@@ -108,8 +108,6 @@ const queryAuth = (rpc: krpc.KRPC, dhtConfig: Config['dht'], hostname: `${string
   })
 }
 
-
-
 export const authenticateServerUDP = (rpc: krpc.KRPC, dhtConfig: Config['dht']) =>
   (hostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
     const cache = authenticatedPeers.get(hostname)

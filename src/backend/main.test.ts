@@ -526,7 +526,6 @@ describe('Peer search integration', () => {
 // TODO: test dht
 // TODO: reconnect to a disconnected peer
 
-
 const mockNode: Config['node'] = {
   hostname: 'server.example.com',
   ip: '203.0.113.10',
@@ -679,8 +678,6 @@ describe('NAT-friendly authentication', () => {
     }
   })
 })
-
-
 
 
 describe('UDP Authentication Edge Cases', () => {
