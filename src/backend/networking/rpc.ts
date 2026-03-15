@@ -1,7 +1,9 @@
+import bencode from 'bencode'
+
 import type { Config, Socket } from '../../types/hydrabase'
 import type PeerManager from '../PeerManager'
 
-import { debug, error, log } from '../../utils/log'
+import { log } from '../../utils/log'
 import { authenticatedPeers, udpConnections } from './udp'
 
 export class RPC implements Socket {
@@ -34,15 +36,5 @@ export class RPC implements Socket {
   public onOpen(handler: () => void) {
     this.openHandler = () => handler()
   }
-  public readonly send = (message: string) => this.peers.rpc.query(this.node, { a: { d: message }, q: `${this.config.prefix}msg` }, err => {
-    if (err) {
-      error('ERROR:', `[RPC] Message failed to send ${err.message}`)
-      return
-    }
-    debug(`[RPC] Peer acknowledged message ${this.identity.hostname}`)
-    if (!this.isOpened) {
-      this.isOpened = true
-      this.openHandler?.()
-    }
-  })
+  public readonly send = (message: string) => this.peers.socket.send(bencode.encode({ a: { d: message }, q: `${this.config.prefix}msg` }), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
 }

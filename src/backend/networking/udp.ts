@@ -3,12 +3,11 @@ import dgram from 'dgram'
 import z from 'zod'
 
 import type { Config } from '../../types/hydrabase'
-import type { Account } from '../Crypto/Account'
 import type PeerManager from '../PeerManager'
 
 import { error, log, warn } from '../../utils/log'
 import { FSMap } from '../FSMap'
-import { AuthSchema, type Identity, proveClient, proveServer, verifyClient } from '../protocol/HIP1/handshake'
+import { AuthSchema, type Identity, proveServer, verifyClient } from '../protocol/HIP1/handshake'
 import { RPC } from './rpc'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
@@ -38,7 +37,6 @@ const HandshakeResponseSchema = BaseMessage.extend({
 }).strict()
 type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
 type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
-type Query = z.infer<typeof QueryMessage>
 const ResponseMessage = BaseMessage.extend({
   r: z.object({
     id: BinaryString,
@@ -63,10 +61,11 @@ const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8
   HandshakeRequestSchema,
   HandshakeResponseSchema,
 ]))
+type Message = z.infer<typeof rpcMessageSchema>
 
 export const fromOutbound = (socket: dgram.Socket, peerManager: PeerManager, identity: Identity, config: Config['rpc'], node: Config['node']): RPC => {
   const [host, port] = identity.hostname.split(':') as [string, `${number}`]
-  socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+  socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: '0', y: 'h1' } satisfies HandshakeRequest), Number(port), host)
   return new RPC(peerManager, identity, config)
 }
 
@@ -88,23 +87,38 @@ const authHandler = async (socket: dgram.Socket, peerManager: PeerManager, query
   if (respond) socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: query.t, y: 'h2' } satisfies HandshakeResponse), peer.port, peer.host)
 }
 
-const messageHandler = (socket: dgram.Socket, peerManager: PeerManager, query: Query, peer: { host: string, port: number }, node: Config['node']) => {
+const validateUDPAuth = async (peerManager: PeerManager, auth: HandshakeRequest | HandshakeResponse, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+  const identity = await verifyClient(node, peerHostname, auth.y === 'h1' ? auth.h1 : auth.h2, apiKey, () => [500, 'UDP hostname mismatch'] as [number, string])
+  if (Array.isArray(identity)) return warn('DEVWARN:', `[RPC] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)
+  log(`[RPC] Authenticated peer ${identity.username} ${identity.address} at ${peerHostname} via UDP auth query`)
+  authenticatedPeers.set(peerHostname, identity)
+  if (!udpConnections.has(peerHostname)) peerManager.add(new RPC(peerManager, { ...identity, hostname: peerHostname }, config))
+  return true
+}
+
+const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+  if (query.y === 'e') return warn('DEVWARN:', `[UDP] Peer threw error - ${query.e[0]} ${query.e[1]}`) 
+  if (query.y === 'h1') socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: query.t, y: 'h2' } satisfies HandshakeResponse), peer.port, peer.host)
+  if (query.y === 'h1' || query.y === 'h2') return await validateUDPAuth(peerManager, query, `${peer.host}:${peer.port}`, node, config, apiKey) ? true : warn('DEVWARN:', '[UDP] Failed to validate UDP auth')
   if (!authenticatedPeers.has(`${peer.host}:${peer.port}`)) {
     warn('DEVWARN:', `[RPC] Received message from unauthenticated peer ${peer.host}:${peer.port}`)
-    socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-    return
+    socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' }), peer.port, peer.host)
+    return false
   }
-  const message = query.a['d']?.toString()
-  if (!message) return
-
-  const connection = udpConnections.get(`${peer.host}:${peer.port}`)
-  if (connection) {
+  if (query.y === 'q') {
+    const message = query.a['d']
+    if (!message) return false
+    const connection = udpConnections.get(`${peer.host}:${peer.port}`)
+    if (!connection) {
+      warn('DEVWARN:', `[RPC] Couldn't find connection ${peer.host}:${peer.port}`)
+      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+      return false
+    }
     connection.messageHandlers.forEach(handler => handler(message))
-    if (connection.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${peer.host}:${peer.port}`)
-  } else {
-    warn('DEVWARN:', `[RPC] Couldn't find connection ${`${peer.host}:${peer.port}`}`)
-    socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+    return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[RPC] Couldn't find message handler ${peer.host}:${peer.port}`) : true
   }
+  log(`[UDP] Unhandled query`, {query})
+  return false
 }
 
 export class UDP_Server {
@@ -114,7 +128,9 @@ export class UDP_Server {
       socket.close();
     })
     socket.on('message', async (_msg, peer) => {
-      const msg = rpcMessageSchema.parse(bencode.decode(_msg))
+      const result = rpcMessageSchema.safeParse(bencode.decode(_msg))
+      if (!result.success) return // Ignore non-hydra messages (DHT traffic, malformed, etc.)
+      const msg = result.data
       if (msg.y === 'h1') {
         log(`[UDP] Connection initiated by ${peer.address}:${peer.port}`)
         await authHandler(socket, peerManager(), msg, { host: peer.address, port: peer.port }, config, node, apiKey)
@@ -122,7 +138,7 @@ export class UDP_Server {
         log(`[UDP] Peer responded to connection ${peer.address}:${peer.port}`)
         await authHandler(socket, peerManager(), msg, { host: peer.address, port: peer.port }, config, node, apiKey, false)
       }
-      if (msg.y === 'q' && msg.q.startsWith('hydra_')) messageHandler(socket, peerManager(), msg, { host: peer.address, port: peer.port }, node)
+      if (msg.y === 'q' && msg.q.startsWith('hydra_')) await messageHandler(socket, peerManager(), msg, { host: peer.address, port: peer.port }, node, config, apiKey)
     })
   }
 
@@ -139,11 +155,4 @@ export class UDP_Server {
       res(new UDP_Server(peerManager, server, node, config, apiKey))
     })
   }
-}
-
-export const authenticateServerUDP = (hostname: `${string}:${number}`, socket: dgram.Socket, account: Account, node: Config['node']): [number, string] | Identity => {
-  const [host, port] = hostname.split(':') as [string, `${number}`]
-  log(`[PEERS] Attempting UDP auth to ${hostname}`)
-  socket.send(bencode.encode({ h1: proveClient(account, node, hostname), t: query.t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
-
 }

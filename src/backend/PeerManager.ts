@@ -1,3 +1,4 @@
+import dgram from 'dgram'
 import { Parser } from 'expr-eval'
 
 import type { Config, Socket } from '../types/hydrabase';
@@ -10,7 +11,7 @@ import type { Auth } from './protocol/HIP1/handshake';
 import { debug, log, warn } from '../utils/log';
 import { authenticateServerHTTP } from './networking/http';
 import { RPC } from './networking/rpc';
-import { authenticatedPeers, authenticateServerUDP, fromOutbound, UDP_Server } from './networking/udp';
+import { authenticatedPeers, fromOutbound, UDP_Server } from './networking/udp';
 import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer } from "./peer";
@@ -82,7 +83,8 @@ export default class PeerManager {
     private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>,
     private readonly node: Config['node'],
     private readonly rpcConfig: Config['rpc'],
-    private readonly udpServer: UDP_Server
+    private readonly udpServer: UDP_Server,
+    public readonly socket: dgram.Socket
   ) {}
 
   // TODO: some mechanism to proactively propagate unsolicited votes
