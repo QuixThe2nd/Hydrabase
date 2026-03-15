@@ -1,4 +1,3 @@
-import dgram from 'dgram'
 import { Parser } from 'expr-eval'
 
 import type { Config, Socket } from '../types/hydrabase';
@@ -83,8 +82,7 @@ export default class PeerManager {
     private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>,
     private readonly node: Config['node'],
     private readonly rpcConfig: Config['rpc'],
-    private readonly udpServer: UDP_Server,
-    public readonly socket: dgram.Socket
+    public readonly udpServer: UDP_Server,
   ) {}
 
   // TODO: some mechanism to proactively propagate unsolicited votes
@@ -187,7 +185,7 @@ export default class PeerManager {
   }
 
   private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP'): Promise<false | Socket> {
-    const auth = preferTransport === 'TCP' ? await authenticateServerHTTP(hostname) : authenticateServerUDP(hostname, socket, this.account, this.node)
+    const auth = preferTransport === 'TCP' ? await authenticateServerHTTP(hostname) : authenticateServerUDP(hostname, this.udpServer.socket, this.account, this.node)
     if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${auth[1]}`)
     const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth)
     if (!identity) return identity
