@@ -5,6 +5,7 @@ import type PeerManager from "../../PeerManager";
 
 import { log, warn } from "../../../utils/log";
 import { verifyClient } from "../../protocol/HIP1/handshake";
+import { authenticateServerHTTP } from '../http';
 
 export class WebSocketServerConnection implements Socket {
   get isOpened() {
@@ -80,7 +81,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     return { res: [400, 'Missing required handshake headers'] }
   }
   const peer = await Promise.race([
-    verifyClient(node, auth, apiKey),
+    verifyClient(node, auth, apiKey, authenticateServerHTTP),
     new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {

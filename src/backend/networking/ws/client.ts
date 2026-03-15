@@ -64,6 +64,8 @@ export default class WebSocketClient implements Socket {
 
     this.socket.addEventListener('open', () => {
       clearTimeout(openTimeout)
+      this.reconnectAttempts = 1
+      this.reconnectTimer = null
       log(`[CLIENT] Connected to ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname}`)
       this._isOpened = true
       this._flushQueue()
@@ -72,7 +74,7 @@ export default class WebSocketClient implements Socket {
 
     this.socket.addEventListener('close', ev => {
       clearTimeout(openTimeout)
-      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${ev.reason}`)
+      warn('WARN:', `[CLIENT] Connection closed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${ev.reason ?? 'Connection closed'}${ev.code === 1000 ? '' : ` (code: ${ev.code})`}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
       if (!this.peers.isConnectionOpened(this.peer.address)) {this._scheduleReconnect(account)}
@@ -80,9 +82,14 @@ export default class WebSocketClient implements Socket {
 
     this.socket.addEventListener('error', err => {
       clearTimeout(openTimeout)
-      warn('DEVWARN:', `[CLIENT] Connection failed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${(err as unknown as { message: string }).message}`)
+      const errorMsg = (err as unknown as { message: string }).message
+      warn('DEVWARN:', `[CLIENT] Connection failed with server ${this.peer.username} ${this.peer.address} ws://${this.peer.hostname} - ${errorMsg}`)
+      
+      if (errorMsg.includes('Expected 101 status code') || errorMsg.includes('status code')) {
+        this._fetchRejectionReason()
+      }
+      
       this._isOpened = false
-      for (const handler of this.closeHandlers) handler()
     }) // TODO: peer rate limiting
 
     this.socket.addEventListener('message', message => {
@@ -92,6 +99,28 @@ export default class WebSocketClient implements Socket {
       })
     })
   } // TODO: SSL support
+  
+  private async _fetchRejectionReason() {
+    try {
+      const httpUrl = `http://${this.peer.hostname}`
+      const response = await fetch(httpUrl, { 
+        headers: { 
+          'Connection': 'upgrade',
+          'Upgrade': 'websocket',
+          ...proveClient(this.peers.account, this.node, this.peer.hostname, true)
+        },
+        method: 'GET'
+      }).catch(() => null)
+      
+      if (response && response.ok === false) {
+        const body = await response.text().catch(() => '')
+        warn('WARN:', `[CLIENT] Server ${this.peer.hostname} rejected connection: HTTP ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`)
+      }
+    } catch {
+      // Silently ignore fetch errors - this is just for debugging info
+    }
+  }
+  
   private _flushQueue() {
     const queue = this.retryQueue.splice(0)
     for (const fn of queue) fn()
@@ -99,7 +128,10 @@ export default class WebSocketClient implements Socket {
   private _scheduleReconnect(account: Account) {
     if (this.reconnectTimer) return
     log(`[CLIENT] Reconnecting to ${this.peer.username} ${this.peer.address} ${this.peer.hostname} in ${this.reconnectAttempts*5_000}ms...`)
-    this.reconnectTimer = setTimeout(() => this.dontReconnect ? undefined : this._connect(account), this.reconnectAttempts*5_000)
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (!this.dontReconnect) this._connect(account)
+    }, this.reconnectAttempts*5_000)
     this.reconnectAttempts++
   }
 }

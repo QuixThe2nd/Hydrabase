@@ -1,7 +1,15 @@
-
 /// <reference types="node" />
 
 declare module 'k-rpc-socket' {
+  import type { Socket as UDPSocket } from 'dgram';
+
+  import { EventEmitter } from 'events';
+
+  export interface KRPCResponse {
+    [key: string]: unknown;
+    r?: Record<string, unknown>;
+  }
+
   export interface RpcSocket extends EventEmitter {
     /**
      * Bind to a specific port and/or address.
