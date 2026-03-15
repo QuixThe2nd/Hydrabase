@@ -48,13 +48,6 @@ const config3 = {
   username: 'TestNode3'
 } satisfies Config['node']
 
-const dhtConfig = {
-  bootstrapNodes: '',
-  reannounce: 24*60*60*1_000,
-  requireConnection: true,
-  roomSeed: 'hydrabase_test',
-} satisfies Config['dht']
-
 const rpcConfig = {
   prefix: 'hydra_'
 } satisfies Config['rpc']
@@ -80,24 +73,22 @@ beforeAll(async () => {
   const account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, () => peerManager1, formulas)
   const udpServer1 = await UDP_Server.init(() => peerManager1, rpcConfig, config1, undefined)
-  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, dhtConfig, rpcConfig, udpServer1)
+  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, rpcConfig, udpServer1)
   server1 = startServer(account1, peerManager1, config1, '')
 
   // Start Node 2
   const account2 = new Account(generatePrivateKey())
   const node2 = new Node(metadataManager, () => peerManager2, formulas)
   const udpServer2 = await UDP_Server.init(() => peerManager2, rpcConfig, config2, undefined)
-  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, dhtConfig, rpcConfig, udpServer2)
+  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, rpcConfig, udpServer2)
   server2 = startServer(account2, peerManager2, config2, '')
-  peerManager2.rpc.bind(config2.port)
 
   // Start Node 3
   const account3 = new Account(generatePrivateKey())
   const node3 = new Node(metadataManager, () => peerManager3, formulas)
   const udpServer3 = await UDP_Server.init(() => peerManager3, rpcConfig, config3, undefined)
-  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, dhtConfig, rpcConfig, udpServer3)
+  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, rpcConfig, udpServer3)
   server3 = startServer(account3, peerManager3, config3, '')
-  peerManager3.rpc.bind(config3.port)
 
   await new Promise(res => { setTimeout(res, 5_000) })
 }, {

@@ -3,11 +3,12 @@ import dgram from 'dgram'
 import z from 'zod'
 
 import type { Config } from '../../types/hydrabase'
+import type { Account } from '../Crypto/Account'
 import type PeerManager from '../PeerManager'
 
 import { error, log, warn } from '../../utils/log'
 import { FSMap } from '../FSMap'
-import { AuthSchema, type Identity, proveServer, verifyClient } from '../protocol/HIP1/handshake'
+import { AuthSchema, type Identity, proveClient, proveServer, verifyClient } from '../protocol/HIP1/handshake'
 import { RPC } from './rpc'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
@@ -52,9 +53,9 @@ const ErrorMessage = BaseMessage.extend({
   y: z.literal('e'),
 }).strict()
 type Error = z.infer<typeof ErrorMessage>
-const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: [number] }) => ({
+const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
-  y: String.fromCharCode(msg.y[0]),
+  y: decoder.decode(msg.y),
 }), z.discriminatedUnion('y', [
   QueryMessage,
   ResponseMessage,
@@ -62,6 +63,12 @@ const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: [numb
   HandshakeRequestSchema,
   HandshakeResponseSchema,
 ]))
+
+export const fromOutbound = (socket: dgram.Socket, peerManager: PeerManager, identity: Identity, config: Config['rpc'], node: Config['node']): RPC => {
+  const [host, port] = identity.hostname.split(':') as [string, `${number}`]
+  socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+  return new RPC(peerManager, identity, config)
+}
 
 const authHandler = async (socket: dgram.Socket, peerManager: PeerManager, query: HandshakeRequest | HandshakeResponse, peer: { host: string, port: number }, config: Config['rpc'], node: Config['node'], apiKey: string | undefined, respond = true) => {
   log(`[RPC] Received auth from ${peer.host}:${peer.port}`)
@@ -77,7 +84,7 @@ const authHandler = async (socket: dgram.Socket, peerManager: PeerManager, query
     return
   }
   log(`[RPC] Authenticated peer ${identity.username} ${identity.address} at ${identity.hostname}`)
-  if (!udpConnections.has(identity.hostname)) peerManager.add(RPC.fromInbound(peerManager, identity, config))
+  if (!udpConnections.has(identity.hostname)) peerManager.add(new RPC(peerManager, identity, config))
   if (respond) socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: query.t, y: 'h2' } satisfies HandshakeResponse), peer.port, peer.host)
 }
 
@@ -132,4 +139,11 @@ export class UDP_Server {
       res(new UDP_Server(peerManager, server, node, config, apiKey))
     })
   }
+}
+
+export const authenticateServerUDP = (hostname: `${string}:${number}`, socket: dgram.Socket, account: Account, node: Config['node']): [number, string] | Identity => {
+  const [host, port] = hostname.split(':') as [string, `${number}`]
+  log(`[PEERS] Attempting UDP auth to ${hostname}`)
+  socket.send(bencode.encode({ h1: proveClient(account, node, hostname), t: query.t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+
 }
