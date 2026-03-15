@@ -4,7 +4,7 @@ export interface ApiPeer {
 }
 
 export interface Config {
-  apiKey: false | string
+  apiKey: string | undefined
   bootstrapPeers: string
   dht: {
     bootstrapNodes: string
@@ -77,16 +77,6 @@ export interface NodeStats {
   }
   timestamp: string
 }
-
-export interface PeerStats {
-  address: `0x${string}`
-  peerPlugins: string[]
-  sharedPlugins: string[]
-  totalMatches: number
-  totalMismatches: number
-  votes: { albums: number; artists: number; tracks: number }
-}
-
 
 export interface PeerStats {
   address: `0x${string}`

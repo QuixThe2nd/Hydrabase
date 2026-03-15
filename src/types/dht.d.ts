@@ -47,6 +47,11 @@ declare module 'bittorrent-dht' {
     verify?: (sig: Buffer, value: Buffer, key: Buffer) => boolean;
   }
 
+  export interface DHTPeer {
+    host: string;
+    port: number;
+  }
+
   export interface DHTPutImmutable {
     v: Buffer;
   }

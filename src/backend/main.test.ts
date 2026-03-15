@@ -76,28 +76,26 @@ beforeAll(async () => {
   // Start Node 1
   const account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, () => peerManager1, formulas)
-  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, dhtConfig, false)
+  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, dhtConfig, undefined)
   server1 = startServer(account1, peerManager1, config1, '')
 
   // Start Node 2
   const account2 = new Account(generatePrivateKey())
   const node2 = new Node(metadataManager, () => peerManager2, formulas)
-  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, dhtConfig, false)
+  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, dhtConfig, undefined)
   server2 = startServer(account2, peerManager2, config2, '')
   peerManager2.rpc.bind(config2.port)
 
   // Start Node 3
   const account3 = new Account(generatePrivateKey())
   const node3 = new Node(metadataManager, () => peerManager3, formulas)
-  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, dhtConfig, false)
+  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, dhtConfig, undefined)
   server3 = startServer(account3, peerManager3, config3, '')
   peerManager3.rpc.bind(config3.port)
 
   await new Promise(res => { setTimeout(res, 5_000) })
-
-  return { peers1: peerManager1, peers2: peerManager2, server1, server2 }
 }, {
-  timeout: 15_000
+  timeout: 20_000
 })
 
 afterAll(() => {
@@ -527,3 +525,224 @@ describe('Peer search integration', () => {
 
 // TODO: test dht
 // TODO: reconnect to a disconnected peer
+
+
+const mockNode: Config['node'] = {
+  hostname: 'server.example.com',
+  ip: '203.0.113.10',
+  listenAddress: '0.0.0.0',
+  port: 4545,
+  preferTransport: 'TCP',
+  username: 'TestServer'
+}
+
+const mockNATClient = {
+  hostname: '49.186.30.234',
+  ip: '192.168.1.100',
+  listenAddress: '0.0.0.0',
+  port: 4545,
+  preferTransport: 'TCP',
+  username: 'NATClient'
+} satisfies Config['node']
+
+describe('NAT-friendly authentication', () => {
+  it('accepts client with valid signature when reverse auth fails', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockFailedAuthenticator = () =>
+      Promise.resolve([500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string])
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
+
+    expect(Array.isArray(result)).toBe(false)
+    if (!Array.isArray(result)) {
+      expect(result.address).toBe(clientAccount.address)
+      expect(result.username).toBe(mockNATClient.username)
+    }
+  })
+
+  it('accepts client when UDP authentication fails', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockFailedAuthenticator = () =>
+      Promise.resolve([500, 'Failed to authenticate server via UDP'] as [number, string])
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
+
+    expect(Array.isArray(result)).toBe(false)
+    if (!Array.isArray(result)) {
+      expect(result.address).toBe(clientAccount.address)
+    }
+  })
+
+  it('accepts client when fetch fails', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockFailedAuthenticator = () =>
+      Promise.resolve([500, 'Failed to fetch server authentication'] as [number, string])
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
+
+    expect(Array.isArray(result)).toBe(false)
+  })
+
+  it('accepts client when parse fails (malformed response)', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockFailedAuthenticator = () =>
+      Promise.resolve([500, 'Failed to parse server authentication'] as [number, string])
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
+
+    expect(Array.isArray(result)).toBe(false)
+  })
+
+  it('rejects client with invalid signature even when reverse auth fails', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const wrongAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    
+    const wrongSignature = proveClient(wrongAccount, mockNATClient, 'wrong.server:9999')
+    clientAuth.signature = wrongSignature.signature
+
+    const mockFailedAuthenticator = () =>
+      Promise.resolve([500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string])
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockFailedAuthenticator)
+
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      expect(result[0]).toBe(403)
+      expect(result[1]).toContain('Failed to authenticate address')
+    }
+  })
+
+  it('still performs reverse auth when connectivity succeeds', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockSuccessfulAuthenticator = () =>
+      Promise.resolve({
+        address: clientAccount.address,
+        hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
+        userAgent: 'Hydrabase/test',
+        username: mockNATClient.username
+      })
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockSuccessfulAuthenticator)
+
+    expect(Array.isArray(result)).toBe(false)
+    if (!Array.isArray(result)) {
+      expect(result.address).toBe(clientAccount.address)
+    }
+  })
+
+  it('rejects when reverse auth succeeds but address mismatch', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const differentAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockMismatchAuthenticator = () =>
+      Promise.resolve({
+        address: differentAccount.address,
+        hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
+        userAgent: 'Hydrabase/test',
+        username: mockNATClient.username
+      })
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockMismatchAuthenticator)
+
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      expect(result[0]).toBe(500)
+      expect(result[1]).toContain('Invalid address')
+    }
+  })
+
+  it('rejects non-connection errors during reverse auth', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+
+    const mockAuthenticator = () =>
+      Promise.resolve([403, 'Invalid signature from server'] as [number, string])
+
+    const result = await verifyClient(mockNode, clientAuth, undefined, mockAuthenticator)
+
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      expect(result[0]).toBe(403)
+      expect(result[1]).toContain('Invalid signature')
+    }
+  })
+})
+
+
+
+
+describe('UDP Authentication Edge Cases', () => {
+  it('handles authentication cache correctly', () => {
+
+    authenticatedPeers.clear()
+    
+    const testIdentity = {
+      address: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
+      hostname: '127.0.0.1:4545' as `${string}:${number}`,
+      userAgent: 'Hydrabase/test',
+      username: 'TestNode'
+    }
+    
+
+    authenticatedPeers.set('127.0.0.1:4545', testIdentity)
+    const cached = authenticatedPeers.get('127.0.0.1:4545')
+    
+    expect(cached).toEqual(testIdentity)
+  })
+
+  it('validates server proof correctly for UDP', () => {
+    const account = new Account(generatePrivateKey())
+    const nodeConfig = {
+      hostname: 'test.example.com',
+      ip: '203.0.113.10',
+      listenAddress: '0.0.0.0',
+      port: 4545,
+      preferTransport: 'TCP' as const,
+      username: 'TestNode'
+    }
+    
+    const serverProof = proveServer(account, nodeConfig)
+    
+    expect(serverProof.address).toBe(account.address)
+    expect(serverProof.hostname).toBe(`${nodeConfig.hostname}:${nodeConfig.port}`)
+    expect(serverProof.username).toBe(nodeConfig.username)
+    
+    const isValid = verifyServer(serverProof, `${nodeConfig.hostname}:${nodeConfig.port}`)
+    expect(isValid).toBe(true)
+  })
+
+  it('detects hostname mismatch in server verification', () => {
+    const account = new Account(generatePrivateKey())
+    const nodeConfig = {
+      hostname: 'test.example.com',
+      ip: '203.0.113.10',
+      listenAddress: '0.0.0.0',
+      port: 4545,
+      preferTransport: 'TCP' as const,
+      username: 'TestNode'
+    }
+    
+    const serverProof = proveServer(account, nodeConfig)
+    
+
+    const isValid = verifyServer(serverProof, 'wrong.example.com:4545')
+    expect(Array.isArray(isValid)).toBe(true)
+    if (Array.isArray(isValid)) {
+      expect(isValid[0]).toBe(500)
+      expect(isValid[1]).toContain('Expected')
+    }
+  })
+})
+

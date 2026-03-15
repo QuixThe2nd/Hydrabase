@@ -13,7 +13,7 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`): P
   if (cache) return cache
   
   try {
-    const response = await fetch(`http://${hostname}/auth`)
+    const response = await fetch(`http://${hostname}/auth`, { signal: AbortSignal.timeout(10_000) })
     const body = await response.text()
     const auth = AuthSchema.safeParse(JSON.parse(body)).data
     if (!auth) return [500, 'Failed to parse server authentication']
