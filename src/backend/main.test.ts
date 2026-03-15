@@ -91,7 +91,7 @@ beforeAll(async () => {
   const udpServer3 = await UDP_Server.init(() => peerManager3, rpcConfig, config3, undefined)
   peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, rpcConfig, udpServer3)
   server3 = startServer(account3, peerManager3, config3, '')
-  udpServer3.socket.bind(config2.port)
+  udpServer3.socket.bind(config3.port)
 
   await new Promise(res => { setTimeout(res, 5_000) })
 }, {
