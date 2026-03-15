@@ -4,7 +4,7 @@ import type { Config, Socket } from '../../types/hydrabase'
 import type PeerManager from '../PeerManager'
 
 import { log } from '../../utils/log'
-import { authenticatedPeers, udpConnections } from './udp'
+import { authenticatedPeers, type Query, udpConnections } from './udp'
 
 export class RPC implements Socket {
   public isOpened = true
@@ -36,5 +36,9 @@ export class RPC implements Socket {
   public onOpen(handler: () => void) {
     this.openHandler = () => handler()
   }
-  public readonly send = (message: string) => this.peers.socket.send(bencode.encode({ a: { d: message }, q: `${this.config.prefix}msg` }), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
+  public readonly send = (message: string) => {
+    const tid = Buffer.alloc(4)
+    tid.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
+    this.peers.socket.send(bencode.encode({ a: { d: message }, q: `${this.config.prefix}msg`, t: tid, y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
+  }
 }

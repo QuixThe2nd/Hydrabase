@@ -7,7 +7,7 @@ import type PeerManager from '../PeerManager'
 
 import { error, log, warn } from '../../utils/log'
 import { FSMap } from '../FSMap'
-import { AuthSchema, type Identity, proveServer, verifyClient } from '../protocol/HIP1/handshake'
+import { AuthSchema, type Identity, proveClient, proveServer, verifyClient } from '../protocol/HIP1/handshake'
 import { RPC } from './rpc'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
@@ -35,9 +35,7 @@ const HandshakeResponseSchema = BaseMessage.extend({
   h2: AuthSchema,
   y: z.literal('h2')
 }).strict()
-type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
-type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
-const ResponseMessage = BaseMessage.extend({
+const ResponseMessageSchema = BaseMessage.extend({
   r: z.object({
     id: BinaryString,
     nodes: BinaryString.optional(),
@@ -50,13 +48,16 @@ const ErrorMessage = BaseMessage.extend({
   e: z.tuple([z.number(), BinaryString]),
   y: z.literal('e'),
 }).strict()
+export type Query = z.infer<typeof QueryMessage>
 type Error = z.infer<typeof ErrorMessage>
+type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
+type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
 const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
   y: decoder.decode(msg.y),
 }), z.discriminatedUnion('y', [
   QueryMessage,
-  ResponseMessage,
+  ResponseMessageSchema,
   ErrorMessage,
   HandshakeRequestSchema,
   HandshakeResponseSchema,
@@ -65,20 +66,21 @@ type Message = z.infer<typeof rpcMessageSchema>
 
 export const fromOutbound = (socket: dgram.Socket, peerManager: PeerManager, identity: Identity, config: Config['rpc'], node: Config['node']): RPC => {
   const [host, port] = identity.hostname.split(':') as [string, `${number}`]
-  socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: '0', y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+  socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, identity.hostname), t: '0', y: 'h1' } satisfies HandshakeRequest), Number(port), host)
   return new RPC(peerManager, identity, config)
 }
 
 const authHandler = async (socket: dgram.Socket, peerManager: PeerManager, query: HandshakeRequest | HandshakeResponse, peer: { host: string, port: number }, config: Config['rpc'], node: Config['node'], apiKey: string | undefined, respond = true) => {
-  log(`[RPC] Received auth from ${peer.host}:${peer.port}`)
+  const peerHostname = `${peer.host}:${peer.port}`
+  log(`[RPC] Received auth from ${peerHostname}`)
   const headers = query.y === 'h1' ? query['h1'] : query['h2']
-  if (headers.hostname !== `${peer.host}:${peer.port}`) {
-    socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), Number(headers.hostname.split(':')[1]), headers.hostname.split(':')[0])
+  if (headers.hostname !== peerHostname) {
+    socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, headers.hostname), t: query.t, y: 'h1' } satisfies HandshakeRequest), Number(headers.hostname.split(':')[1]), headers.hostname.split(':')[0])
     return
   }
-  const identity = await verifyClient(node, `${peer.host}:${peer.port}`, headers, apiKey, () => [500, 'UDP hostname mismatch'])
+  const identity = await verifyClient(node, peerHostname, headers, apiKey, () => [500, 'UDP hostname mismatch'])
   if (Array.isArray(identity)) {
-    warn('DEVWARN:', `[RPC] Authentication failed ${peer.host}:${peer.port} - ${identity[1]}`)
+    warn('DEVWARN:', `[RPC] Authentication failed ${peerHostname} - ${identity[1]}`)
     socket.send(bencode.encode({ e: [500, 'Failed to verify client'], t: query.t, y: 'e' } satisfies Error), peer.port, peer.host)
     return
   }
@@ -97,25 +99,26 @@ const validateUDPAuth = async (peerManager: PeerManager, auth: HandshakeRequest 
 }
 
 const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+  const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[UDP] Peer threw error - ${query.e[0]} ${query.e[1]}`) 
   if (query.y === 'h1') socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: query.t, y: 'h2' } satisfies HandshakeResponse), peer.port, peer.host)
-  if (query.y === 'h1' || query.y === 'h2') return await validateUDPAuth(peerManager, query, `${peer.host}:${peer.port}`, node, config, apiKey) ? true : warn('DEVWARN:', '[UDP] Failed to validate UDP auth')
-  if (!authenticatedPeers.has(`${peer.host}:${peer.port}`)) {
-    warn('DEVWARN:', `[RPC] Received message from unauthenticated peer ${peer.host}:${peer.port}`)
+  if (query.y === 'h1' || query.y === 'h2') return await validateUDPAuth(peerManager, query, peerHostname, node, config, apiKey) ? true : warn('DEVWARN:', '[UDP] Failed to validate UDP auth')
+  if (!authenticatedPeers.has(peerHostname)) {
+    warn('DEVWARN:', `[RPC] Received message from unauthenticated peer ${peerHostname}`)
     socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' }), peer.port, peer.host)
     return false
   }
   if (query.y === 'q') {
     const message = query.a['d']
     if (!message) return false
-    const connection = udpConnections.get(`${peer.host}:${peer.port}`)
+    const connection = udpConnections.get(peerHostname)
     if (!connection) {
-      warn('DEVWARN:', `[RPC] Couldn't find connection ${peer.host}:${peer.port}`)
+      warn('DEVWARN:', `[RPC] Couldn't find connection ${peerHostname}`)
       socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
       return false
     }
     connection.messageHandlers.forEach(handler => handler(message))
-    return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[RPC] Couldn't find message handler ${peer.host}:${peer.port}`) : true
+    return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[RPC] Couldn't find message handler ${peerHostname}`) : true
   }
   log(`[UDP] Unhandled query`, {query})
   return false
