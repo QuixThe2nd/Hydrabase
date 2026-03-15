@@ -51,6 +51,7 @@ export default tseslint.config(
       "no-duplicate-imports": "off",
       "no-inline-comments": "off",
       "no-magic-numbers": "off",
+      "no-multiple-empty-lines": "error",
       "no-nested-ternary": "off",
       "no-new": "off",
       "no-plusplus": "off",
