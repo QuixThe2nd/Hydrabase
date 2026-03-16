@@ -179,6 +179,12 @@ export default class PeerManager {
     if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${hostname} ${auth[1]}`)
     const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth)
     if (!identity) return identity
+    
+    if (this.peers.has(identity.address)) {
+      debug(`[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`)
+      return false
+    }
+    
     if (preferTransport === 'TCP') return new WebSocketClient(identity, this, this.node)
     return UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node)) || false
   }
