@@ -33,6 +33,7 @@ const BaseMessage = z.object({
 }).strict()
 const QueryMessage = BaseMessage.extend({
   a: z.object({
+    d: BinaryString,
     id: BinaryString,
     implied_port: z.number().optional(),
     info_hash: BinaryHex.optional(),

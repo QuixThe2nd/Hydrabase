@@ -10,45 +10,43 @@ import { type Identity, proveClient, proveServer, verifyClient, verifyServer } f
 import { DHT_Node } from '../dht'
 import { authenticatedPeers, type HandshakeDiscovery, type HandshakeDiscoveryResponse, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
-const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
-  return new Promise(resolve => {
-    const txnId = Buffer.alloc(4)
-    txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
-    const t = txnId.toString('hex')
-    debug(`[UDP] [CLIENT] Auth attempt to ${hostname} with txnId=${t}`)
-    const timer = setTimeout(() => {
-      server.cancelAwaiter(t)
-      debug(`[UDP] [CLIENT] Auth timeout for ${hostname} txnId=${t} — no matching response received`)
-      resolve([408, 'UDP auth timeout'])
-    }, 10_000)
-    server.awaitResponse(t, (msg) => {
-      debug(`[UDP] [CLIENT] Awaiter fired for txnId=${t}, msg.y=${msg.y}`)
-      if (msg.y === 'e') {
-        debug(`[UDP] [CLIENT] Auth error from ${hostname}: ${msg.e[0]} ${msg.e[1]}`)
-        clearTimeout(timer)
-        resolve([msg.e[0], msg.e[1]])
-        return true
-      }
-      if (msg.y !== 'h2') return false
-      debug(`[UDP] [CLIENT] Received h2 from ${hostname}, verifying...`)
-      const verification = verifyServer(msg.h2, hostname)
-      if (verification !== true) {
-        debug(`[UDP] [CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
-        clearTimeout(timer)
-        resolve(verification)
-        return true
-      }
-      authenticatedPeers.set(hostname, msg.h2)
-      log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
+const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => new Promise(resolve => {
+  const txnId = Buffer.alloc(4)
+  txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
+  const t = txnId.toString('hex')
+  debug(`[UDP] [CLIENT] Auth attempt to ${hostname} with txnId=${t}`)
+  const timer = setTimeout(() => {
+    server.cancelAwaiter(t)
+    debug(`[UDP] [CLIENT] Auth timeout for ${hostname} txnId=${t} — no matching response received`)
+    resolve([408, 'UDP auth timeout'])
+  }, 10_000)
+  server.awaitResponse(t, (msg) => {
+    debug(`[UDP] [CLIENT] Awaiter fired for txnId=${t}, msg.y=${msg.y}`)
+    if (msg.y === 'e') {
+      debug(`[UDP] [CLIENT] Auth error from ${hostname}: ${msg.e[0]} ${msg.e[1]}`)
       clearTimeout(timer)
-      resolve(msg.h2)
+      resolve([msg.e[0], msg.e[1]])
       return true
-    })
-    const [host, port] = hostname.split(':') as [string, `${number}`]
-    server.socket.send(bencode.encode({ h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
-    debug(`[UDP] [CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
+    }
+    if (msg.y !== 'h2') return false
+    debug(`[UDP] [CLIENT] Received h2 from ${hostname}, verifying...`)
+    const verification = verifyServer(msg.h2, hostname)
+    if (verification !== true) {
+      debug(`[UDP] [CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
+      clearTimeout(timer)
+      resolve(verification)
+      return true
+    }
+    authenticatedPeers.set(hostname, msg.h2)
+    log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
+    clearTimeout(timer)
+    resolve(msg.h2)
+    return true
   })
-}
+  const [host, port] = hostname.split(':') as [string, `${number}`]
+  server.socket.send(bencode.encode({ h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+  debug(`[UDP] [CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
+})
 
 export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
   const cache = authenticatedPeers.get(hostname)
