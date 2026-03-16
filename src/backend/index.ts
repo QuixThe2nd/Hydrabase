@@ -6,7 +6,23 @@ import { startNode } from './Node';
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))
 
-const ip = (await (await fetch('https://icanhazip.com')).text()).trim()
+const ipServers = ['https://icanhazip.com', 'https://api.ipify.org']
+
+const getIp = () => new Promise<string>(resolve => {
+  (async () => {
+    for (const ipServer of ipServers) {
+      try {
+        const response = await fetch(ipServer)
+        const ip = await response.text()
+        resolve(ip)
+      } catch(e) {
+        error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, {e})
+      }
+    }
+  })()
+})
+
+const ip = await getIp()
 
 const CONFIG: Config = {
   apiKey: process.env['API_KEY'],
