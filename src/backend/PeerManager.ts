@@ -11,6 +11,7 @@ import type { Identity } from './protocol/HIP1/handshake';
 import { debug, log, warn } from '../utils/log';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
+import { DHT_Node } from './networking/dht';
 import { authenticateServerUDP, UDP_Client } from './networking/udp/client';
 import { authenticatedPeers, UDP_Server } from './networking/udp/server';
 import WebSocketClient from "./networking/ws/client";

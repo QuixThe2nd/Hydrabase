@@ -20,7 +20,7 @@ const BinaryString = z.instanceof(Uint8Array).transform(m => decoder.decode(m))
 const BinaryHex = z.instanceof(Uint8Array).transform(m => m.toHex())
 
 const BaseMessage = z.object({
-  t: BinaryHex,
+  t: BinaryString,
   v: BinaryString.optional(),
   y: BinaryString,
 }).strict()
@@ -124,7 +124,7 @@ export class UDP_Server {
         debug(`[UDP] [SERVER] Awaiter matched for txnId=${data.t}`)
         const done = awaiter(data, { address: peer.address, port: peer.port })
         if (done) this.responseAwaiters.delete(data.t)
-        return
+        if (done) return
       }
 
       if (data.y === 'h2') {
