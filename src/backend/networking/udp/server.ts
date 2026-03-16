@@ -187,12 +187,12 @@ export class UDP_Server {
         warn('DEVWARN:', '[UDP] [SERVER] Unexpected payload', { err: result.error, payload: bencode.decode(_msg) })
         return
       }
-      const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t!) : undefined
+      const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t) : undefined
       if (awaiter && result.data.t) {
         debug(`[UDP] [SERVER] Awaiter matched for txnId=${result.data.t}`)
         const done = awaiter(result.data, { address: peer.address, port: peer.port })
         if (done) {
-          this.responseAwaiters.delete(result.data.t!)
+          this.responseAwaiters.delete(result.data.t)
           return
         }
       }

@@ -1,5 +1,6 @@
 import bencode from 'bencode'
 import dgram from 'dgram'
+import { resolve4 } from 'dns/promises'
 import net from 'net'
 
 import type { Config, Socket } from '../../../types/hydrabase'
@@ -8,7 +9,6 @@ import type PeerManager from '../../PeerManager'
 
 import { debug, log, warn } from '../../../utils/log'
 import { type Auth, type Identity, proveClient, proveServer, verifyClient, verifyServer } from '../../protocol/HIP1/handshake'
-import { resolve4 } from 'dns/promises'
 import { DHT_Node } from '../dht'
 import { authenticatedPeers, type HandshakeDiscovery, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
@@ -46,20 +46,15 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
     clearTimeout(timer)
     resolve(identity)
-    
-    // Fire-and-forget: also store under resolved IP
     const [dnsHost] = hostname.split(':') as [string]
-    const port = hostname.split(':')[1]
-    if (!net.isIP(dnsHost)) {
-      resolve4(dnsHost).then(addresses => {
-        if (addresses.length > 0 && addresses[0] !== dnsHost) {
-          const ipHostname = `${addresses[0]}:${port}` as `${string}:${number}`
-          authenticatedPeers.set(ipHostname, identity)
-          debug(`[UDP] [CLIENT] Also stored auth under resolved IP ${ipHostname}`)
-        }
-      }).catch(() => {})
-    }
-    
+    const [,port] = hostname.split(':')
+    if (!net.isIP(dnsHost)) resolve4(dnsHost).then(addresses => {
+      if (addresses.length > 0 && addresses[0] !== dnsHost) {
+        const ipHostname = `${addresses[0]}:${port}` as `${string}:${number}`
+        authenticatedPeers.set(ipHostname, identity)
+        debug(`[UDP] [CLIENT] Also stored auth under resolved IP ${ipHostname}`)
+      }
+    }).catch((error: Error) => warn('DEVWARN:', `[UDP] [CLIENT] Dns lookup threw error`, {error}))
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
@@ -118,7 +113,7 @@ export class UDP_Client implements Socket {
     
     // Also store under resolved IP
     const [dnsHost] = peer.hostname.split(':') as [string]
-    const portStr = peer.hostname.split(':')[1]
+    const [,portStr] = peer.hostname.split(':')
     if (!net.isIP(dnsHost)) {
       resolve4(dnsHost).then(addresses => {
         if (addresses.length > 0 && addresses[0] !== dnsHost) {
@@ -126,7 +121,7 @@ export class UDP_Client implements Socket {
           authenticatedPeers.set(ipHostname, peer)
           debug(`[UDP] [CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
         }
-      }).catch(() => {})
+      }).catch((error: Error) => warn('DEVWARN:', `[UDP] [CLIENT] Dns lookup threw error`, {error}))
     }
     
     setTimeout(() => this.openHandler?.(), 0)
@@ -135,9 +130,9 @@ export class UDP_Client implements Socket {
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket): Promise<false | UDP_Client> => {
     debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
-    const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname) => {
-      const actualIP = peerHostname.split(':')[0]
-      const claimedIP = claimedHostname.split(':')[0]
+    const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, (claimedHostname) => {
+      const [actualIP] = peerHostname.split(':')
+      const [claimedIP] = claimedHostname.split(':')
       if (actualIP === claimedIP) {
         debug(`[UDP] [CLIENT] NAT detected: same IP (${actualIP}), different ports (actual=${peerHostname} claimed=${claimedHostname})`)
         return { ...auth.h1, hostname: peerHostname } as unknown as Identity
