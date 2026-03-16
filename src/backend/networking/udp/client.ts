@@ -108,7 +108,15 @@ export class UDP_Client implements Socket {
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket): Promise<false | UDP_Client> => {
     debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
-    const identity = await verifyClient(node, peerHostname, auth.h1, apiKey, () => [500, 'UDP hostname mismatch'] as [number, string])
+    const identity = await verifyClient(node, peerHostname, auth.h1, apiKey, async (claimedHostname) => {
+      const actualIP = peerHostname.split(':')[0]
+      const claimedIP = claimedHostname.split(':')[0]
+      if (actualIP === claimedIP) {
+        debug(`[UDP] [CLIENT] NAT detected: same IP (${actualIP}), different ports (actual=${peerHostname} claimed=${claimedHostname})`)
+        return { ...auth.h1, hostname: peerHostname }
+      }
+      return [500, 'UDP hostname mismatch - different IPs'] as [number, string]
+    })
     debug(`[UDP] [CLIENT] verifyClient result for ${peerHostname}: ${Array.isArray(identity) ? identity.join(' ') : `success ${identity.username}`}`)
     if (Array.isArray(identity)) return warn('DEVWARN:', `[UDP] [CLIENT] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)
     log(`[UDP] [CLIENT] Authenticated peer ${identity.username} ${identity.address} at ${peerHostname} via UDP auth query`)

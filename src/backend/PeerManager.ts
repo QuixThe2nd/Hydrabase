@@ -172,6 +172,9 @@ export default class PeerManager {
   }
 
   private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP'): Promise<false | Socket> {
+    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {
+      return warn('DEVWARN:', `[PEERS] Not connecting to self ${hostname}`)
+    }
     const auth = preferTransport === 'TCP' ? await authenticateServerHTTP(hostname) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node)
     if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${hostname} ${auth[1]}`)
     const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth)
