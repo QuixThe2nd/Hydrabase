@@ -158,13 +158,7 @@ const handleHydraQuery = (server: UDP_Server, socket: dgram.Socket, query: Query
   return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
 }
 
-const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
-  const peerHostname = `${peer.host}:${peer.port}` as const
-  if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
-  if (query.y === 'q' && 'q' in query && query.q === 'hydra_auth') {
-    debug(`[UDP] [AUTH] Received hydra_auth query from ${peerHostname}`)
-    return false
-  }
+const handleHandshake = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   if (query.y === 'h0') {
     debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
@@ -180,11 +174,24 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
   } else if (query.y === 'h0r') {
     debug(`[UDP] [HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
     return false
-  }else if (query.y === 'q') {
+  }
+  return false
+}
+
+const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+  const peerHostname = `${peer.host}:${peer.port}` as const
+  if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
+  if (query.y === 'q' && 'q' in query && query.q === 'hydra_auth') {
+    debug(`[UDP] [AUTH] Received hydra_auth query from ${peerHostname}`)
+    return false
+  }
+  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(socket, peerManager, query, peerHostname, peer, node, config, apiKey)
+  if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     log('[UDP] Received query', query)
-    return handleHydraQuery(server, socket, query, peerHostname, peer, peerManager, node)
-  } else if (query.y === 'r') return false
+    return handleHydraQuery(server, socket, query as Query, peerHostname, peer, peerManager, node)
+  }
+  if (query.y === 'r') return false
   log(`[UDP] [SERVER] Unhandled query`, {query})
   return false
 }
