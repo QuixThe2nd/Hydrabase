@@ -116,10 +116,10 @@ export class UDP_Server {
       if (!result.success) return
       const peerHostname = `${peer.address}:${peer.port}` as const
 
-      const awaiter = this.responseAwaiters.get(peerHostname)
+      const awaiter = this.responseAwaiters.get(result.data.t)
       if (awaiter) {
         const done = awaiter(result.data, { address: peer.address, port: peer.port })
-        if (done) this.responseAwaiters.delete(peerHostname)
+        if (done) this.responseAwaiters.delete(result.data.t)
         return
       }
 
@@ -141,6 +141,6 @@ export class UDP_Server {
     })
   }
 
-  public readonly awaitResponse = (hostname: `${string}:${number}`, handler: ResponseAwaiter) => this.responseAwaiters.set(hostname, handler)
-  public readonly cancelAwaiter = (hostname: `${string}:${number}`) => this.responseAwaiters.delete(hostname)
+  public readonly awaitResponse = (txnId: string, handler: ResponseAwaiter) => this.responseAwaiters.set(txnId, handler)
+  public readonly cancelAwaiter = (txnId: string) => this.responseAwaiters.delete(txnId)
 }
