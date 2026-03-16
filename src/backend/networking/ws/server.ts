@@ -108,5 +108,8 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   }
   const { address, hostname, userAgent, username } = peer
   log(`[SERVER] Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
-  return server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } }) ? undefined : { address, hostname, res: [500, "Upgrade failed"] }
+  if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
+    return undefined
+  }
+  return { address, hostname, res: [500, "Upgrade failed"] }
 }

@@ -130,6 +130,34 @@ export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y
 ]))
 type Message = z.infer<typeof rpcMessageSchema>
 
+const handleHydraQuery = (server: UDP_Server, socket: dgram.Socket, query: Query, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, peerManager: PeerManager, node: Config['node']): boolean => {
+  if (!authenticatedPeers.has(peerHostname)) {
+    warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
+    socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+    debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
+    return false
+  }
+  const connection = udpConnections.get(peerHostname)
+  if (!connection) {
+    warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
+    socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+    debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
+    return false
+  }
+  if (query.a.n !== undefined && query.a.n > 1) {
+    if (query.a.c === undefined || query.a.i === undefined || query.a.d === undefined) {
+      warn('DEVWARN:', `[UDP] [SERVER] Malformed chunk from ${peerHostname}: missing c, i, or d`)
+      return false
+    }
+    server.processChunk(query.a.c, query.a.i, query.a.n, query.a.d, connection)
+    return true
+  }
+  const message = query.a['d']
+  if (!message) return false
+  connection.messageHandlers.forEach(handler => handler(message))
+  return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
+}
+
 const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
@@ -155,31 +183,7 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
   }else if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     log('[UDP] Received query', query)
-    if (!authenticatedPeers.has(peerHostname)) {
-      warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-      debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
-      return false
-    }
-    const connection = udpConnections.get(peerHostname)
-    if (!connection) {
-      warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-      debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
-      return false
-    }
-    if (query.a.n !== undefined && query.a.n > 1) {
-      if (query.a.c === undefined || query.a.i === undefined || query.a.d === undefined) {
-        warn('DEVWARN:', `[UDP] [SERVER] Malformed chunk from ${peerHostname}: missing c, i, or d`)
-        return false
-      }
-      server.processChunk(query.a.c, query.a.i, query.a.n, query.a.d, connection)
-      return true
-    }
-    const message = query.a['d']
-    if (!message) return false
-    connection.messageHandlers.forEach(handler => handler(message))
-    return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
+    return handleHydraQuery(server, socket, query, peerHostname, peer, peerManager, node)
   } else if (query.y === 'r') return false
   log(`[UDP] [SERVER] Unhandled query`, {query})
   return false
