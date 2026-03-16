@@ -41,6 +41,7 @@ const QueryMessage = BaseMessage.extend({
     scrape: z.number().optional(),
     target: BinaryHex.optional(),
     token: BinaryString.optional(),
+    want: z.array(z.instanceof(Uint8Array)).optional(),
   }).strict(),
   q: BinaryString,
   y: z.literal('q'),
@@ -134,8 +135,10 @@ export class UDP_Server {
       if (awaiter) {
         debug(`[UDP] [SERVER] Awaiter matched for txnId=${result.data.t}`)
         const done = awaiter(result.data, { address: peer.address, port: peer.port })
-        if (done) this.responseAwaiters.delete(result.data.t)
-        return
+        if (done) {
+          this.responseAwaiters.delete(result.data.t)
+          return
+        }
       }
       if (result.data.y === 'h2') debug(`[UDP] [SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
       await messageHandler(socket, peerManager(), result.data, { host: peer.address, port: peer.port }, node, config, apiKey)
