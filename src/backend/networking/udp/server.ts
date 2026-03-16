@@ -7,7 +7,7 @@ import type PeerManager from '../../PeerManager'
 
 import { debug, error, log, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
-import { AuthSchema, type Identity, proveServer } from '../../protocol/HIP1/handshake'
+import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
 import { DHT_Node } from '../dht'
 import { UDP_Client } from './client'
 
@@ -19,6 +19,13 @@ const decoder = new TextDecoder()
 const BinaryString = z.instanceof(Uint8Array).transform(m => decoder.decode(m))
 const BinaryHex = z.instanceof(Uint8Array).transform(m => m.toHex())
 
+export const AuthSchema = z.object({
+  address: BinaryString,
+  hostname: BinaryString,
+  signature: BinaryString,
+  userAgent: BinaryString,
+  username:  BinaryString,
+}).strict()
 const BaseMessage = z.object({
   t: BinaryHex,
   v: BinaryString.optional(),
@@ -27,7 +34,12 @@ const BaseMessage = z.object({
 const QueryMessage = BaseMessage.extend({
   a: z.object({
     id: BinaryString,
-  }).catchall(BinaryString),
+    implied_port: z.number().optional(),
+    info_hash: BinaryHex.optional(),
+    port: z.number().optional(),
+    target: BinaryHex.optional(),
+    token: BinaryString.optional(),
+  }).strict(),
   q: BinaryString,
   y: z.literal('q'),
 }).strict()
@@ -110,28 +122,21 @@ export class UDP_Server {
 
   private constructor(peerManager: () => PeerManager, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined) {
     socket.on('error', err => {
-      error('ERROR:', `[UDP] [SERVER] An error was thrown ${err.name} - ${err.message}`);
-      socket.close();
+      error('ERROR:', `[UDP] [SERVER] An error was thrown ${err.name} - ${err.message}`)
+      socket.close()
     })
     socket.on('message', async (_msg, peer) => {
-      const {data} = rpcMessageSchema.safeParse(bencode.decode(_msg))
-      if (!data) return
-
-      debug(`[UDP] [SERVER] Received msg y=${data.y} t=${data.t} from ${peer.address}:${peer.port}`)
-
-      const awaiter = this.responseAwaiters.get(data.t)
+      const result = rpcMessageSchema.safeParse(bencode.decode(_msg))
+      if (!result.data) return console.warn(result, bencode.decode(_msg))
+      const awaiter = this.responseAwaiters.get(result.data.t)
       if (awaiter) {
-        debug(`[UDP] [SERVER] Awaiter matched for txnId=${data.t}`)
-        const done = awaiter(data, { address: peer.address, port: peer.port })
-        if (done) this.responseAwaiters.delete(data.t)
+        debug(`[UDP] [SERVER] Awaiter matched for txnId=${result.data.t}`)
+        const done = awaiter(result.data, { address: peer.address, port: peer.port })
+        if (done) this.responseAwaiters.delete(result.data.t)
         return
       }
-
-      if (data.y === 'h2') {
-        debug(`[UDP] [SERVER] No awaiter for h2 txnId=${data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
-      }
-
-      await messageHandler(socket, peerManager(), data, { host: peer.address, port: peer.port }, node, config, apiKey)
+      if (result.data.y === 'h2') debug(`[UDP] [SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
+      await messageHandler(socket, peerManager(), result.data, { host: peer.address, port: peer.port }, node, config, apiKey)
     })
   }
 

@@ -44,8 +44,7 @@ const getIp = () => new Promise<string>(resolve => {
     for (const ipServer of ipServers) {
       try {
         const response = await fetch(ipServer)
-        const ip = await response.text()
-        resolve(ip)
+        resolve(await response.text())
       } catch(e) {
         error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, {e})
       }
@@ -57,9 +56,11 @@ const ip = await getIp()
 
 const CONFIG: Config = {
   apiKey: process.env['API_KEY'],
-  bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
+  // bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
+  bootstrapPeers: 'localhost:4545',
   dht: {
-    bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
+    bootstrapNodes: 'localhost:4545',
+    // bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
     reannounce: 15*60*1_000,
     requireConnection: process.env['REQUIRE_DHT_CONNECTION'] !== 'false',
     roomSeed: 'hydrabase',
@@ -85,7 +86,6 @@ const CONFIG: Config = {
     ttl: 3_600_000, // Ms
   }
 }
-
 
 await startNode(CONFIG)
 // TODO: Merge duplicate artists from diff plugins
