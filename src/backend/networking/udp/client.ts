@@ -130,7 +130,7 @@ export class UDP_Client implements Socket {
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket): Promise<false | UDP_Client> => {
     debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
-    const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, (claimedHostname) => {
+    const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname) => {
       const [actualIP] = peerHostname.split(':')
       const [claimedIP] = claimedHostname.split(':')
       if (actualIP === claimedIP) {
