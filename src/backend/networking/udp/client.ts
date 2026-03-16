@@ -23,9 +23,11 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
   server.awaitResponse(t, (msg) => {
     debug(`[UDP] [CLIENT] Awaiter fired for txnId=${t}, msg.y=${msg.y}`)
     if (msg.y === 'e') {
-      debug(`[UDP] [CLIENT] Auth error from ${hostname}: ${msg.e[0]} ${msg.e[1]}`)
+      debug(`[UDP] [CLIENT] Auth error from ${hostname}: ${msg.e.join(' ')}`)
       clearTimeout(timer)
-      resolve([msg.e[0], msg.e[1]])
+      const code = typeof msg.e[0] === 'number' ? msg.e[0] : 500
+      const text = typeof msg.e[1] === 'string' ? msg.e[1] : String(msg.e[0])
+      resolve([code, text])
       return true
     }
     if (msg.y !== 'h2') return false

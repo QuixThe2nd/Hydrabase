@@ -33,15 +33,21 @@ const BaseMessage = z.object({
 }).strict()
 const QueryMessage = BaseMessage.extend({
   a: z.object({
-    d: BinaryString,
+    cas: z.number().optional(),
+    d: BinaryString.optional(),
     id: BinaryString,
     implied_port: z.number().optional(),
     info_hash: BinaryHex.optional(),
+    k: z.instanceof(Uint8Array).optional(),
     noseed: z.number().optional(),
     port: z.number().optional(),
+    salt: z.instanceof(Uint8Array).optional(),
     scrape: z.number().optional(),
+    seq: z.number().optional(),
+    sig: z.instanceof(Uint8Array).optional(),
     target: BinaryHex.optional(),
     token: BinaryString.optional(),
+    v: z.unknown().optional(),
     want: z.array(z.instanceof(Uint8Array)).optional(),
   }).strict(),
   q: BinaryString,
@@ -66,14 +72,23 @@ const HandshakeResponseSchema = BaseMessage.extend({
 const ResponseMessageSchema = BaseMessage.extend({
   r: z.object({
     id: BinaryString,
+    k: z.instanceof(Uint8Array).optional(),
     nodes: BinaryString.optional(),
+    p: z.number().optional(),
+    seq: z.number().optional(),
+    sig: z.instanceof(Uint8Array).optional(),
     token: BinaryString.optional(),
+    v: z.unknown().optional(),
     values: z.array(BinaryString).optional(),
   }).strict(),
   y: z.literal('r'),
 }).strict()
 const ErrorMessage = BaseMessage.extend({
-  e: z.tuple([z.number(), BinaryString]),
+  e: z.union([
+    z.tuple([z.number(), BinaryString]),
+    z.tuple([BinaryString]),
+    z.tuple([z.number()]),
+  ]),
   y: z.literal('e'),
 }).strict()
 export type HandshakeDiscovery = z.infer<typeof HandshakeDiscoverySchema>
@@ -97,7 +112,7 @@ type Message = z.infer<typeof rpcMessageSchema>
 
 const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
-  if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e[0]} ${query.e[1]}`) 
+  if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
   if (query.y === 'h0') {
     debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
