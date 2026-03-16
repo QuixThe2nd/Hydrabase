@@ -4,7 +4,7 @@ import type { Repositories } from "./db";
 import type PeerManager from "./PeerManager";
 
 import { debug, stats, warn } from '../utils/log';
-import { RPC } from './networking/rpc';
+import { UDP_Client } from './networking/udp/client';
 import WebSocketClient from './networking/ws/client';
 import { HIP2_Conn_Message, type Ping } from "./protocol/HIP2/message";
 import { type Announce, HIP3_Conn_Announce } from "./protocol/HIP3/announce";
@@ -43,7 +43,7 @@ export class Peer {
   }
 
   get type() {
-    return this.socket instanceof RPC ? 'RPC' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
+    return this.socket instanceof UDP_Client ? 'UDP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
   }
 
   get uptimeMs() {

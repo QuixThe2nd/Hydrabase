@@ -3,8 +3,8 @@ import type { SocketAddress } from "bun";
 import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
-import { log, warn } from "../../../utils/log";
-import { verifyClient } from "../../protocol/HIP1/handshake";
+import { debug, log, warn } from "../../../utils/log";
+import { type Identity, verifyClient } from "../../protocol/HIP1/handshake";
 import { authenticateServerHTTP } from '../http';
 
 export class WebSocketServerConnection implements Socket {
@@ -80,8 +80,21 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     warn('DEVWARN:', `[SERVER] Rejected connection from ${ip?.address}: missing handshake headers`)
     return { res: [400, 'Missing required handshake headers'] }
   }
+  const authenticateHostname = async (claimedHostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
+    const result = await authenticateServerHTTP(claimedHostname)
+    if (!Array.isArray(result)) return result
+    
+    const actualIP = ip.address
+    const [claimedIP] = claimedHostname.split(':')
+    if (actualIP === claimedIP && 'address' in auth) {
+      debug(`[SERVER] NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
+      return { address: auth.address as `0x${string}`, hostname: claimedHostname, userAgent: auth.userAgent as string, username: auth.username as string }
+    }
+    
+    return result
+  }
   const peer = await Promise.race([
-    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, authenticateServerHTTP),
+    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, authenticateHostname),
     new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {

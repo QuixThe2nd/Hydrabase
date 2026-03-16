@@ -58,7 +58,10 @@ export const verifyClient = async (node: Config['node'], hostname: string, auth:
     return auth.apiKey === apiKey ? { address: '0x0', hostname: 'API:4545', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` } : [500, 'Invalid API Key']
   }
   debug(`[HIP1] Verifying client address ${auth.address}`)
-  if (!Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address)) return [403, 'Failed to authenticate address']
+  const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address)
+  debug(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${node.hostname}:${node.port}" result=${signatureValid}`)
+  if (!signatureValid) return [403, 'Failed to authenticate address']
+  debug(`[HIP1] Hostname check: peer claims ${auth.hostname}, connecting from ${hostname}`)
   const isHostnameValid = await upgradeHostname(hostname, auth, authenticateHostname)
   if (Array.isArray(isHostnameValid)) return isHostnameValid
   return auth
