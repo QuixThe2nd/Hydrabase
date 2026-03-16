@@ -8,10 +8,12 @@ import type PeerManager from '../../PeerManager'
 import { error, log, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
 import { AuthSchema, type Identity, proveServer } from '../../protocol/HIP1/handshake'
+import { DHT_Node } from '../dht'
 import { UDP_Client } from './client'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
+type ResponseAwaiter = (msg: Message, rinfo: { address: string, port: number }) => boolean
 
 const decoder = new TextDecoder()
 const BinaryString = z.instanceof(Uint8Array).transform(m => decoder.decode(m))
@@ -23,12 +25,15 @@ const BaseMessage = z.object({
   y: BinaryString,
 }).strict()
 const QueryMessage = BaseMessage.extend({
-  a: z.record(z.string(), BinaryString),
+  a: z.object({
+    id: BinaryString,
+  }).catchall(BinaryString),
   q: BinaryString,
   y: z.literal('q'),
 }).strict()
 const HandshakeRequestSchema = BaseMessage.extend({ 
   h1: AuthSchema,
+  id: BinaryHex,
   y: z.literal('h1') 
 }).strict()
 const HandshakeResponseSchema = BaseMessage.extend({ 
@@ -67,29 +72,29 @@ const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, qu
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e[0]} ${query.e[1]}`) 
   if (query.y === 'h1') {
-    console.log('Received h1', query)
+    log('[UDP] [HANDSHAKE] Handshake initiated by peer', query)
     return await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket) ? true : warn('DEVWARN:', '[UDP] [SERVER] Failed to validate UDP auth')
   }
   if (query.y === 'h2') {
-    console.log('Received h2', query)
+    log('[UDP] [HANDSHAKE] Peer completed handshake', query)
     return false
   }
   if (query.y === 'q') {
+    if (!query.q.startsWith(config.prefix)) return false
+    log('[UDP] Received query', query)
     if (!authenticatedPeers.has(peerHostname)) {
       warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' }), peer.port, peer.host)
+      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
       return false
     }
-    if (!query.q.startsWith(config.prefix)) return false
-    console.log('Received query', query)
-    const message = query.a['d']
-    if (!message) return false
     const connection = udpConnections.get(peerHostname)
     if (!connection) {
       warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
       return false
     }
+    const message = query.a['d']
+    if (!message) return false
     connection.messageHandlers.forEach(handler => handler(message))
     return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
   }
@@ -99,6 +104,8 @@ const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, qu
 }
 
 export class UDP_Server {
+  private readonly responseAwaiters = new Map<string, ResponseAwaiter>()
+
   private constructor(peerManager: () => PeerManager, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined) {
     socket.on('error', err => {
       error('ERROR:', `[UDP] [SERVER] An error was thrown ${err.name} - ${err.message}`);
@@ -107,6 +114,15 @@ export class UDP_Server {
     socket.on('message', async (_msg, peer) => {
       const result = rpcMessageSchema.safeParse(bencode.decode(_msg))
       if (!result.success) return
+      const peerHostname = `${peer.address}:${peer.port}` as const
+
+      const awaiter = this.responseAwaiters.get(peerHostname)
+      if (awaiter) {
+        const done = awaiter(result.data, { address: peer.address, port: peer.port })
+        if (done) this.responseAwaiters.delete(peerHostname)
+        return
+      }
+
       await messageHandler(socket, peerManager(), result.data, { host: peer.address, port: peer.port }, node, config, apiKey)
     })
   }
@@ -124,4 +140,7 @@ export class UDP_Server {
       res(new UDP_Server(peerManager, server, node, config, apiKey))
     })
   }
+
+  public readonly awaitResponse = (hostname: `${string}:${number}`, handler: ResponseAwaiter) => this.responseAwaiters.set(hostname, handler)
+  public readonly cancelAwaiter = (hostname: `${string}:${number}`) => this.responseAwaiters.delete(hostname)
 }

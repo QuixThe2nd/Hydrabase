@@ -66,7 +66,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   log('[STARTUP] 9/14 Building Web UI')
   await buildWebUI()
   log('[STARTUP] 10/14 Starting HTTP server')
-  startServer(account, peers, CONFIG.node, CONFIG.apiKey ?? '')
+  // startServer(account, peers, CONFIG.node, CONFIG.apiKey ?? '')
   log('[STARTUP] 11/14 Starting DHT node')
   const dhtNode = new DHT_Node(peers, CONFIG.dht, CONFIG.node, udpServer)
   log('[STARTUP] 12/14 Starting stats reporter')
