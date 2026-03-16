@@ -88,8 +88,10 @@ const HandshakeResponseSchema = BaseMessage.extend({
 const ResponseMessageSchema = BaseMessage.extend({
   r: z.object({
     id: BinaryString,
+    ip: z.instanceof(Uint8Array).optional(),
     k: z.instanceof(Uint8Array).optional(),
     nodes: BinaryString.optional(),
+    nodes6: z.instanceof(Uint8Array).optional(),
     p: z.number().optional(),
     seq: z.number().optional(),
     sig: z.instanceof(Uint8Array).optional(),
