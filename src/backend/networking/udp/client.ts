@@ -14,11 +14,14 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   const cache = authenticatedPeers.get(hostname)
   if (cache) return Promise.resolve(cache)
   return new Promise(resolve => {
+    const txnId = Buffer.alloc(4)
+    txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
+    const t = txnId.toString('hex')
     const timer = setTimeout(() => {
-      server.cancelAwaiter(hostname)
+      server.cancelAwaiter(t)
       resolve([408, 'UDP auth timeout'])
     }, 10_000)
-    server.awaitResponse(hostname, (msg) => {
+    server.awaitResponse(t, (msg) => {
       if (msg.y === 'e') {
         clearTimeout(timer)
         resolve([msg.e[0], msg.e[1]])
@@ -38,7 +41,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
       return true
     })
     const [host, port] = hostname.split(':') as [string, `${number}`]
-    server.socket.send(bencode.encode({ h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t: '0', y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+    server.socket.send(bencode.encode({ h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
   })
 }
 
