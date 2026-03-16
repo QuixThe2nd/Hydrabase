@@ -55,11 +55,9 @@ const ip = await getIp()
 
 const CONFIG: Config = {
   apiKey: process.env['API_KEY'],
-  // bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
-  bootstrapPeers: 'localhost:4545',
+  bootstrapPeers: 'ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
   dht: {
-    bootstrapNodes: 'localhost:4545',
-    // bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
+    bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4545,ddns.yazdani.au:4544,localhost:4545',
     reannounce: 15*60*1_000,
     requireConnection: process.env['REQUIRE_DHT_CONNECTION'] !== 'false',
     roomSeed: 'hydrabase',
