@@ -56,6 +56,18 @@ const QueryMessage = BaseMessage.extend({
   q: BinaryString,
   y: z.literal('q'),
 }).strict()
+const HydraAuthQueryMessage = BaseMessage.extend({
+  a: z.object({
+    address: BinaryString,
+    hostname: BinaryString,
+    id: BinaryString,
+    signature: BinaryString,
+    userAgent: BinaryString,
+    username: BinaryString,
+  }).strict(),
+  q: z.literal('hydra_auth'),
+  y: z.literal('q'),
+}).strict()
 const HandshakeDiscoverySchema = BaseMessage.extend({
   y: z.literal('h0')
 }).strict()
@@ -98,24 +110,32 @@ export type HandshakeDiscovery = z.infer<typeof HandshakeDiscoverySchema>
 export type HandshakeDiscoveryResponse = z.infer<typeof HandshakeDiscoveryResponseSchema>
 export type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
 export type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
+export type HydraAuthQuery = z.infer<typeof HydraAuthQueryMessage>
 export type Query = z.infer<typeof QueryMessage>
 export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
   y: decoder.decode(msg.y),
-}), z.discriminatedUnion('y', [
-  QueryMessage,
-  ResponseMessageSchema,
-  ErrorMessage,
-  HandshakeDiscoverySchema,
-  HandshakeDiscoveryResponseSchema,
-  HandshakeRequestSchema,
-  HandshakeResponseSchema,
+}), z.union([
+  HydraAuthQueryMessage,
+  z.discriminatedUnion('y', [
+    QueryMessage,
+    ResponseMessageSchema,
+    ErrorMessage,
+    HandshakeDiscoverySchema,
+    HandshakeDiscoveryResponseSchema,
+    HandshakeRequestSchema,
+    HandshakeResponseSchema,
+  ])
 ]))
 type Message = z.infer<typeof rpcMessageSchema>
 
 const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
+  if (query.y === 'q' && 'q' in query && query.q === 'hydra_auth') {
+    debug(`[UDP] [AUTH] Received hydra_auth query from ${peerHostname}`)
+    return false
+  }
   if (query.y === 'h0') {
     debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
