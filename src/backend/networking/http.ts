@@ -5,7 +5,7 @@ import type PeerManager from '../PeerManager';
 import { debug, log, warn } from '../../utils/log';
 import { AuthSchema, type Identity, proveServer, verifyServer } from "../protocol/HIP1/handshake";
 import { serveStaticFile } from "../webui";
-import { authenticatedPeers } from "./udp";
+import { authenticatedPeers } from "./udp/server";
 import { handleConnection, websocketHandlers } from "./ws/server";
 
 export const authenticateServerHTTP = async (hostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
