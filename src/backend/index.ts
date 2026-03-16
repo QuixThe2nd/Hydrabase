@@ -1,4 +1,5 @@
 import dgram from 'dgram'
+import net from 'net'
 
 import type { Config } from "../types/hydrabase"
 
@@ -7,8 +8,6 @@ import { startNode } from './Node'
 
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))
-
-import net from 'net'
 
 const socketHandler = (socket: dgram.Socket | net.Server, res: (value: boolean | PromiseLike<boolean>) => void, rej: (reason: Error) => void) => {
   socket.addListener('listening', () => {
@@ -44,7 +43,7 @@ const getIp = () => new Promise<string>(resolve => {
     for (const ipServer of ipServers) {
       try {
         const response = await fetch(ipServer)
-        resolve(await response.text())
+        resolve((await response.text()).trim())
       } catch(e) {
         error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, {e})
       }

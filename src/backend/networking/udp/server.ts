@@ -27,7 +27,7 @@ export const AuthSchema = z.object({
   username:  BinaryString,
 }).strict()
 const BaseMessage = z.object({
-  t: BinaryString,
+  t: BinaryString.optional(),
   v: BinaryString.optional(),
   y: BinaryString,
 }).strict()
