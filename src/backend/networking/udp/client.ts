@@ -8,7 +8,7 @@ import type PeerManager from '../../PeerManager'
 import { debug, log, warn } from '../../../utils/log'
 import { type Identity, proveClient, proveServer, verifyClient, verifyServer } from '../../protocol/HIP1/handshake'
 import { DHT_Node } from '../dht'
-import { authenticatedPeers, type HandshakeDiscovery, type HandshakeDiscoveryResponse, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
+import { authenticatedPeers, type HandshakeDiscovery, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
 const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => new Promise(resolve => {
   const txnId = Buffer.alloc(4)
