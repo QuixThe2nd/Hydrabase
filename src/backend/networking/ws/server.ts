@@ -85,7 +85,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     if (!Array.isArray(result)) return result
     
     const actualIP = ip.address
-    const claimedIP = claimedHostname.split(':')[0]
+    const [claimedIP] = claimedHostname.split(':')
     if (actualIP === claimedIP && 'address' in auth) {
       debug(`[SERVER] NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
       return { address: auth.address, hostname: claimedHostname, userAgent: auth.userAgent, username: auth.username }

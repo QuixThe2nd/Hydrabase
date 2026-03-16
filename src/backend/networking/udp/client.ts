@@ -50,8 +50,7 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
   debug(`[UDP] [CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
 })
 
-export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
-  return new Promise(resolve => {
+export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => new Promise(resolve => {
     const txnId = Buffer.alloc(4)
     txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
     const t = txnId.toString('hex')
@@ -86,7 +85,6 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
     server.socket.send(bencode.encode({ t, y: 'h0' } satisfies HandshakeDiscovery), Number(port), host)
     debug(`[UDP] [CLIENT] Sent h0 to ${host}:${port} txnId=${t}`)
   })
-}
 
 export class UDP_Client implements Socket {
   public isOpened = true
@@ -106,9 +104,9 @@ export class UDP_Client implements Socket {
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket): Promise<false | UDP_Client> => {
     debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
-    const identity = await verifyClient(node, peerHostname, auth.h1, apiKey, async (claimedHostname) => {
-      const actualIP = peerHostname.split(':')[0]
-      const claimedIP = claimedHostname.split(':')[0]
+    const identity = await verifyClient(node, peerHostname, auth.h1, apiKey, (claimedHostname) => {
+      const [actualIP] = peerHostname.split(':')
+      const [claimedIP] = claimedHostname.split(':')
       if (actualIP === claimedIP) {
         debug(`[UDP] [CLIENT] NAT detected: same IP (${actualIP}), different ports (actual=${peerHostname} claimed=${claimedHostname})`)
         return { ...auth.h1, hostname: peerHostname }

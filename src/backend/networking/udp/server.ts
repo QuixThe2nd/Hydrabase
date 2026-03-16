@@ -120,22 +120,18 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
     debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
     return true
-  }
-  if (query.y === 'h1') {
+  } else if (query.y === 'h1') {
     log(`[UDP] [HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
     const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket)
     debug(`[UDP] [HANDSHAKE] h1 processing for ${peerHostname}: ${result ? 'success' : 'failed'}`)
     return result ? true : warn('DEVWARN:', '[UDP] [SERVER] Failed to validate UDP auth')
-  }
-  if (query.y === 'h2') {
+  } else if (query.y === 'h2') {
     warn('DEVWARN:', `[UDP] [HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
     return false
-  }
-  if (query.y === 'h0r') {
+  } else if (query.y === 'h0r') {
     debug(`[UDP] [HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
     return false
-  }
-  if (query.y === 'q') {
+  }else if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     log('[UDP] Received query', query)
     if (!authenticatedPeers.has(peerHostname)) {
@@ -151,7 +147,6 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
       debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
       return false
     }
-    
     if (query.a.n !== undefined && query.a.n > 1) {
       if (query.a.c === undefined || query.a.i === undefined || query.a.d === undefined) {
         warn('DEVWARN:', `[UDP] [SERVER] Malformed chunk from ${peerHostname}: missing c, i, or d`)
@@ -160,28 +155,26 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
       server.processChunk(query.a.c, query.a.i, query.a.n, query.a.d, connection)
       return true
     }
-    
     const message = query.a['d']
     if (!message) return false
     connection.messageHandlers.forEach(handler => handler(message))
     return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
-  }
-  if (query.y === 'r') return false
+  } else if (query.y === 'r') return false
   log(`[UDP] [SERVER] Unhandled query`, {query})
   return false
 }
 
 interface ChunkGroup {
   chunks: Map<number, string>
-  total: number
-  timer: NodeJS.Timeout
   firstSeen: number
+  timer: NodeJS.Timeout
+  total: number
 }
 
 export class UDP_Server {
-  private readonly responseAwaiters = new Map<string, ResponseAwaiter>()
   private readonly chunkBuffer = new Map<string, ChunkGroup>()
   private readonly MAX_CHUNK_GROUPS = 50
+  private readonly responseAwaiters = new Map<string, ResponseAwaiter>()
 
   private constructor(peerManager: () => PeerManager, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined) {
     socket.on('error', err => {
@@ -190,7 +183,10 @@ export class UDP_Server {
     })
     socket.on('message', async (_msg, peer) => {
       const result = rpcMessageSchema.safeParse(bencode.decode(_msg))
-      if (!result.data) return console.warn(result, bencode.decode(_msg))
+      if (!result.data) {
+        warn('DEVWARN:', '[UDP] [SERVER] Unexpected payload', { err: result.error, payload: bencode.decode(_msg) })
+        return
+      }
       const awaiter = this.responseAwaiters.get(result.data.t)
       if (awaiter) {
         debug(`[UDP] [SERVER] Awaiter matched for txnId=${result.data.t}`)
@@ -222,8 +218,37 @@ export class UDP_Server {
   public readonly awaitResponse = (txnId: string, handler: ResponseAwaiter) => this.responseAwaiters.set(txnId, handler)
   public readonly cancelAwaiter = (txnId: string) => this.responseAwaiters.delete(txnId)
   
+  public readonly processChunk = (chunkId: string, chunkIndex: number, totalChunks: number, chunkData: string, connection: UDP_Client): void => {
+    if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) {
+      this.evictOldestChunkGroup()
+    }
+    
+    let group = this.chunkBuffer.get(chunkId)
+    if (!group) {
+      const timer = setTimeout(() => {
+        this.chunkBuffer.delete(chunkId)
+        warn(`[UDP] [SERVER] Chunk reassembly timeout for chunkId=${chunkId} (received ${group?.chunks.size || 0}/${totalChunks} chunks)`)
+      }, 10_000)
+      group = { chunks: new Map(), firstSeen: Date.now(), timer, total: totalChunks }
+      this.chunkBuffer.set(chunkId, group)
+    }
+    
+    group.chunks.set(chunkIndex, chunkData)
+    debug(`[UDP] [SERVER] Received chunk ${chunkIndex + 1}/${totalChunks} for chunkId=${chunkId}`)
+    
+    if (group.chunks.size === totalChunks) {
+      clearTimeout(group.timer)
+      this.chunkBuffer.delete(chunkId)
+      
+      const reassembled = Array.from({ length: totalChunks }, (_, i) => group.chunks.get(i) || '').join('')
+      debug(`[UDP] [SERVER] Reassembled message from chunkId=${chunkId}: ${reassembled.length} bytes`)
+      
+      connection.messageHandlers.forEach(handler => handler(reassembled))
+    }
+  }
+  
   private readonly evictOldestChunkGroup = () => {
-    let oldestKey: string | null = null
+    let oldestKey: null | string = null
     let oldestTime = Infinity
     for (const [key, group] of this.chunkBuffer.entries()) {
       if (group.firstSeen < oldestTime) {
@@ -236,35 +261,6 @@ export class UDP_Server {
       if (group) clearTimeout(group.timer)
       this.chunkBuffer.delete(oldestKey)
       warn(`[UDP] [SERVER] Evicted oldest chunk group ${oldestKey} (buffer full)`)
-    }
-  }
-  
-  public readonly processChunk = (chunkId: string, chunkIndex: number, totalChunks: number, chunkData: string, connection: UDP_Client): void => {
-    if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) {
-      this.evictOldestChunkGroup()
-    }
-    
-    let group = this.chunkBuffer.get(chunkId)
-    if (!group) {
-      const timer = setTimeout(() => {
-        this.chunkBuffer.delete(chunkId)
-        warn(`[UDP] [SERVER] Chunk reassembly timeout for chunkId=${chunkId} (received ${group?.chunks.size || 0}/${totalChunks} chunks)`)
-      }, 10_000)
-      group = { chunks: new Map(), total: totalChunks, timer, firstSeen: Date.now() }
-      this.chunkBuffer.set(chunkId, group)
-    }
-    
-    group.chunks.set(chunkIndex, chunkData)
-    debug(`[UDP] [SERVER] Received chunk ${chunkIndex + 1}/${totalChunks} for chunkId=${chunkId}`)
-    
-    if (group.chunks.size === totalChunks) {
-      clearTimeout(group.timer)
-      this.chunkBuffer.delete(chunkId)
-      
-      const reassembled = Array.from({ length: totalChunks }, (_, i) => group!.chunks.get(i) || '').join('')
-      debug(`[UDP] [SERVER] Reassembled message from chunkId=${chunkId}: ${reassembled.length} bytes`)
-      
-      connection.messageHandlers.forEach(handler => handler(reassembled))
     }
   }
 }
