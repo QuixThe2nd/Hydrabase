@@ -131,8 +131,47 @@ export class UDP_Client implements Socket {
     this.openHandler = () => handler()
   }
   public readonly send = (message: string) => {
+    const MAX_CHUNK_PAYLOAD = 1200
     const tid = Buffer.alloc(4)
     tid.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
-    this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: tid.toString('hex'), y: 'q' } satisfies Query), Number(this.peer.hostname.split(':')[1]), this.peer.hostname.split(':')[0])
+    const txnId = tid.toString('hex')
+    
+    if (message.length <= MAX_CHUNK_PAYLOAD) {
+      this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.peer.hostname.split(':')[1]), this.peer.hostname.split(':')[0])
+      return
+    }
+    
+    const chunkId = Buffer.alloc(4)
+    chunkId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
+    const c = chunkId.toString('hex')
+    const totalChunks = Math.ceil(message.length / MAX_CHUNK_PAYLOAD)
+    
+    debug(`[UDP] [CLIENT] Chunking message to ${this.peer.hostname}: ${message.length} bytes -> ${totalChunks} chunks (chunkId=${c})`)
+    
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * MAX_CHUNK_PAYLOAD
+      const end = Math.min(start + MAX_CHUNK_PAYLOAD, message.length)
+      const chunkData = message.slice(start, end)
+      
+      const sendChunk = () => {
+        this.peers.socket.send(
+          bencode.encode({ 
+            a: { c, d: chunkData, i, id: this.id, n: totalChunks }, 
+            q: `${this.config.prefix}msg`, 
+            t: txnId, 
+            y: 'q' 
+          } satisfies Query), 
+          Number(this.peer.hostname.split(':')[1]), 
+          this.peer.hostname.split(':')[0]
+        )
+        debug(`[UDP] [CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.peer.hostname} (${chunkData.length} bytes)`)
+      }
+      
+      if (i === 0) {
+        sendChunk()
+      } else {
+        setTimeout(sendChunk, i * 2)
+      }
+    }
   }
 }
