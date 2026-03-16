@@ -44,10 +44,8 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
     clearTimeout(timer)
     resolve(msg.h2)
-    
-    // Fire-and-forget: also store under resolved IP
     const [dnsHost] = hostname.split(':') as [string]
-    const port = hostname.split(':')[1]
+    const [,port] = hostname.split(':')
     if (!net.isIP(dnsHost)) {
       Bun.dns.resolve(dnsHost, 'A').then(records => {
         if (records.length > 0 && records[0].address !== dnsHost) {
@@ -55,9 +53,8 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
           authenticatedPeers.set(ipHostname, msg.h2)
           debug(`[UDP] [CLIENT] Also stored auth under resolved IP ${ipHostname}`)
         }
-      }).catch(() => {})
+      }).catch((err: Error) => warn('DEVWARN:', `[UDP] [SERVER] DNS lookup failed`, {err}))
     }
-    
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
@@ -116,7 +113,7 @@ export class UDP_Client implements Socket {
     
     // Also store under resolved IP
     const [dnsHost] = peer.hostname.split(':') as [string]
-    const portStr = peer.hostname.split(':')[1]
+    const [,portStr] = peer.hostname.split(':')
     if (!net.isIP(dnsHost)) {
       Bun.dns.resolve(dnsHost, 'A').then(records => {
         if (records.length > 0 && records[0].address !== dnsHost) {
@@ -124,7 +121,7 @@ export class UDP_Client implements Socket {
           authenticatedPeers.set(ipHostname, peer)
           debug(`[UDP] [CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
         }
-      }).catch(() => {})
+      }).catch((err: Error) => warn('DEVWARN:', `[UDP] [SERVER] DNS lookup failed`, {err}))
     }
     
     setTimeout(() => this.openHandler?.(), 0)
