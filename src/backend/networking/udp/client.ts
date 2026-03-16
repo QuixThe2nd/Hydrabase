@@ -7,7 +7,8 @@ import type { Account } from '../../Crypto/Account'
 import type PeerManager from '../../PeerManager'
 
 import { debug, log, warn } from '../../../utils/log'
-import { type Identity, proveClient, proveServer, verifyClient, verifyServer } from '../../protocol/HIP1/handshake'
+import { type Auth, type Identity, proveClient, proveServer, verifyClient, verifyServer } from '../../protocol/HIP1/handshake'
+import { resolve4 } from 'dns/promises'
 import { DHT_Node } from '../dht'
 import { authenticatedPeers, type HandshakeDiscovery, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
@@ -33,28 +34,32 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     }
     if (msg.y !== 'h2') return false
     debug(`[UDP] [CLIENT] Received h2 from ${hostname}, verifying...`)
-    const verification = verifyServer(msg.h2, hostname)
+    const verification = verifyServer(msg.h2 as unknown as Auth, hostname)
     if (verification !== true) {
       debug(`[UDP] [CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
       clearTimeout(timer)
       resolve(verification)
       return true
     }
-    authenticatedPeers.set(hostname, msg.h2)
+    const identity = msg.h2 as unknown as Identity
+    authenticatedPeers.set(hostname, identity)
     log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
     clearTimeout(timer)
-    resolve(msg.h2)
+    resolve(identity)
+    
+    // Fire-and-forget: also store under resolved IP
     const [dnsHost] = hostname.split(':') as [string]
-    const [,port] = hostname.split(':')
+    const port = hostname.split(':')[1]
     if (!net.isIP(dnsHost)) {
-      Bun.dns.resolve(dnsHost, 'A').then(records => {
-        if (records.length > 0 && records[0].address !== dnsHost) {
-          const ipHostname = `${records[0].address}:${port}` as `${string}:${number}`
-          authenticatedPeers.set(ipHostname, msg.h2)
+      resolve4(dnsHost).then(addresses => {
+        if (addresses.length > 0 && addresses[0] !== dnsHost) {
+          const ipHostname = `${addresses[0]}:${port}` as `${string}:${number}`
+          authenticatedPeers.set(ipHostname, identity)
           debug(`[UDP] [CLIENT] Also stored auth under resolved IP ${ipHostname}`)
         }
-      }).catch((err: Error) => warn('DEVWARN:', `[UDP] [SERVER] DNS lookup failed`, {err}))
+      }).catch(() => {})
     }
+    
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
@@ -113,15 +118,15 @@ export class UDP_Client implements Socket {
     
     // Also store under resolved IP
     const [dnsHost] = peer.hostname.split(':') as [string]
-    const [,portStr] = peer.hostname.split(':')
+    const portStr = peer.hostname.split(':')[1]
     if (!net.isIP(dnsHost)) {
-      Bun.dns.resolve(dnsHost, 'A').then(records => {
-        if (records.length > 0 && records[0].address !== dnsHost) {
-          const ipHostname = `${records[0].address}:${portStr}` as `${string}:${number}`
+      resolve4(dnsHost).then(addresses => {
+        if (addresses.length > 0 && addresses[0] !== dnsHost) {
+          const ipHostname = `${addresses[0]}:${portStr}` as `${string}:${number}`
           authenticatedPeers.set(ipHostname, peer)
           debug(`[UDP] [CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
         }
-      }).catch((err: Error) => warn('DEVWARN:', `[UDP] [SERVER] DNS lookup failed`, {err}))
+      }).catch(() => {})
     }
     
     setTimeout(() => this.openHandler?.(), 0)
@@ -130,12 +135,12 @@ export class UDP_Client implements Socket {
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket): Promise<false | UDP_Client> => {
     debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
-    const identity = await verifyClient(node, peerHostname, auth.h1, apiKey, (claimedHostname) => {
-      const [actualIP] = peerHostname.split(':')
-      const [claimedIP] = claimedHostname.split(':')
+    const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname) => {
+      const actualIP = peerHostname.split(':')[0]
+      const claimedIP = claimedHostname.split(':')[0]
       if (actualIP === claimedIP) {
         debug(`[UDP] [CLIENT] NAT detected: same IP (${actualIP}), different ports (actual=${peerHostname} claimed=${claimedHostname})`)
-        return { ...auth.h1, hostname: peerHostname }
+        return { ...auth.h1, hostname: peerHostname } as unknown as Identity
       }
       return [500, 'UDP hostname mismatch - different IPs'] as [number, string]
     })

@@ -187,12 +187,12 @@ export class UDP_Server {
         warn('DEVWARN:', '[UDP] [SERVER] Unexpected payload', { err: result.error, payload: bencode.decode(_msg) })
         return
       }
-      const awaiter = this.responseAwaiters.get(result.data.t)
-      if (awaiter) {
+      const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t!) : undefined
+      if (awaiter && result.data.t) {
         debug(`[UDP] [SERVER] Awaiter matched for txnId=${result.data.t}`)
         const done = awaiter(result.data, { address: peer.address, port: peer.port })
         if (done) {
-          this.responseAwaiters.delete(result.data.t)
+          this.responseAwaiters.delete(result.data.t!)
           return
         }
       }
@@ -227,7 +227,7 @@ export class UDP_Server {
     if (!group) {
       const timer = setTimeout(() => {
         this.chunkBuffer.delete(chunkId)
-        warn(`[UDP] [SERVER] Chunk reassembly timeout for chunkId=${chunkId} (received ${group?.chunks.size || 0}/${totalChunks} chunks)`)
+        warn('DEVWARN:', `[UDP] [SERVER] Chunk reassembly timeout for chunkId=${chunkId} (received ${group?.chunks.size || 0}/${totalChunks} chunks)`)
       }, 10_000)
       group = { chunks: new Map(), firstSeen: Date.now(), timer, total: totalChunks }
       this.chunkBuffer.set(chunkId, group)
@@ -260,7 +260,7 @@ export class UDP_Server {
       const group = this.chunkBuffer.get(oldestKey)
       if (group) clearTimeout(group.timer)
       this.chunkBuffer.delete(oldestKey)
-      warn(`[UDP] [SERVER] Evicted oldest chunk group ${oldestKey} (buffer full)`)
+      warn('DEVWARN:', `[UDP] [SERVER] Evicted oldest chunk group ${oldestKey} (buffer full)`)
     }
   }
 }
