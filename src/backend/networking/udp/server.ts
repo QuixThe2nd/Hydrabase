@@ -141,12 +141,14 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
     if (!authenticatedPeers.has(peerHostname)) {
       warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
       socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+      debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
       return false
     }
     const connection = udpConnections.get(peerHostname)
     if (!connection) {
       warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
       socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+      debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
       return false
     }
     

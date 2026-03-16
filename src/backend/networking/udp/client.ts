@@ -51,8 +51,6 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
 })
 
 export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
-  const cache = authenticatedPeers.get(hostname)
-  if (cache) return Promise.resolve(cache)
   return new Promise(resolve => {
     const txnId = Buffer.alloc(4)
     txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
