@@ -7,7 +7,7 @@ import type PeerManager from '../../PeerManager'
 
 import { debug, error, log, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
-import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
+import { type Identity, proveClient, proveServer } from '../../protocol/HIP1/handshake'
 import { DHT_Node } from '../dht'
 import { UDP_Client } from './client'
 
@@ -140,13 +140,13 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
     log('[UDP] Received query', query)
     if (!authenticatedPeers.has(peerHostname)) {
       warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+      socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
       return false
     }
     const connection = udpConnections.get(peerHostname)
     if (!connection) {
       warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveServer(peerManager.account, node), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
+      socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
       return false
     }
     
