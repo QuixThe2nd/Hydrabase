@@ -27,7 +27,7 @@ export const AuthSchema = z.object({
   username:  BinaryString,
 }).strict()
 const BaseMessage = z.object({
-  t: BinaryHex,
+  t: BinaryString,
   v: BinaryString.optional(),
   y: BinaryString,
 }).strict()
@@ -36,7 +36,9 @@ const QueryMessage = BaseMessage.extend({
     id: BinaryString,
     implied_port: z.number().optional(),
     info_hash: BinaryHex.optional(),
+    noseed: z.number().optional(),
     port: z.number().optional(),
+    scrape: z.number().optional(),
     target: BinaryHex.optional(),
     token: BinaryString.optional(),
   }).strict(),
