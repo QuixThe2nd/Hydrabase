@@ -73,7 +73,10 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
       const canonicalHostname = msg.h0r.hostname as `${string}:${number}`
       if (canonicalHostname !== hostname) {
         debug(`[UDP] [CLIENT] Upgrading hostname from ${hostname} to ${canonicalHostname}`)
-        authenticateServerUDP(server, canonicalHostname, account, node).then(resolve)
+        authenticateServerUDP(server, canonicalHostname, account, node).then(result => {
+          if (!Array.isArray(result)) authenticatedPeers.set(hostname, result)
+          resolve(result)
+        })
         return true
       }
 
