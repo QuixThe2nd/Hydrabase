@@ -1,5 +1,6 @@
 import bencode from 'bencode'
 import dgram from 'dgram'
+import net from 'net'
 
 import type { Config, Socket } from '../../../types/hydrabase'
 import type { Account } from '../../Crypto/Account'
@@ -43,6 +44,20 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
     clearTimeout(timer)
     resolve(msg.h2)
+    
+    // Fire-and-forget: also store under resolved IP
+    const [dnsHost] = hostname.split(':') as [string]
+    const port = hostname.split(':')[1]
+    if (!net.isIP(dnsHost)) {
+      Bun.dns.resolve(dnsHost, 'A').then(records => {
+        if (records.length > 0 && records[0].address !== dnsHost) {
+          const ipHostname = `${records[0].address}:${port}` as `${string}:${number}`
+          authenticatedPeers.set(ipHostname, msg.h2)
+          debug(`[UDP] [CLIENT] Also stored auth under resolved IP ${ipHostname}`)
+        }
+      }).catch(() => {})
+    }
+    
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
@@ -100,6 +115,20 @@ export class UDP_Client implements Socket {
     log(`[UDP] [CLIENT] Connecting to peer ${peer.hostname}`)
     const [host, port] = peer.hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
+    
+    // Also store under resolved IP
+    const [dnsHost] = peer.hostname.split(':') as [string]
+    const portStr = peer.hostname.split(':')[1]
+    if (!net.isIP(dnsHost)) {
+      Bun.dns.resolve(dnsHost, 'A').then(records => {
+        if (records.length > 0 && records[0].address !== dnsHost) {
+          const ipHostname = `${records[0].address}:${portStr}` as `${string}:${number}`
+          authenticatedPeers.set(ipHostname, peer)
+          debug(`[UDP] [CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
+        }
+      }).catch(() => {})
+    }
+    
     setTimeout(() => this.openHandler?.(), 0)
   }
   static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId)
