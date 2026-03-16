@@ -46,6 +46,13 @@ const QueryMessage = BaseMessage.extend({
   q: BinaryString,
   y: z.literal('q'),
 }).strict()
+const HandshakeDiscoverySchema = BaseMessage.extend({
+  y: z.literal('h0')
+}).strict()
+const HandshakeDiscoveryResponseSchema = BaseMessage.extend({
+  h0r: AuthSchema,
+  y: z.literal('h0r')
+}).strict()
 const HandshakeRequestSchema = BaseMessage.extend({ 
   h1: AuthSchema,
   id: BinaryHex,
@@ -68,6 +75,8 @@ const ErrorMessage = BaseMessage.extend({
   e: z.tuple([z.number(), BinaryString]),
   y: z.literal('e'),
 }).strict()
+export type HandshakeDiscovery = z.infer<typeof HandshakeDiscoverySchema>
+export type HandshakeDiscoveryResponse = z.infer<typeof HandshakeDiscoveryResponseSchema>
 export type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
 export type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
 export type Query = z.infer<typeof QueryMessage>
@@ -78,6 +87,8 @@ export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y
   QueryMessage,
   ResponseMessageSchema,
   ErrorMessage,
+  HandshakeDiscoverySchema,
+  HandshakeDiscoveryResponseSchema,
   HandshakeRequestSchema,
   HandshakeResponseSchema,
 ]))
@@ -86,6 +97,11 @@ type Message = z.infer<typeof rpcMessageSchema>
 const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e[0]} ${query.e[1]}`) 
+  if (query.y === 'h0') {
+    debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
+    socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
+    return true
+  }
   if (query.y === 'h1') {
     log(`[UDP] [HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
     const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket)
@@ -94,6 +110,10 @@ const messageHandler = async (socket: dgram.Socket, peerManager: PeerManager, qu
   }
   if (query.y === 'h2') {
     warn('DEVWARN:', `[UDP] [HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
+    return false
+  }
+  if (query.y === 'h0r') {
+    debug(`[UDP] [HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
     return false
   }
   if (query.y === 'q') {
