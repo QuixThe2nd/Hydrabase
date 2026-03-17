@@ -1,11 +1,16 @@
 /* eslint-disable no-console */
-import { AsyncLocalStorage } from 'node:async_hooks'
-
 type Context = `- ${string}` | Event | Record<string, unknown>
 
-const asyncLocalStorage = new AsyncLocalStorage<{ contexts: string[] }>()
+type AsyncLocalStorageType = { getStore(): { contexts: string[] } | undefined; run<T>(store: { contexts: string[] }, callback: () => T): T }
+let asyncLocalStorage: AsyncLocalStorageType | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { AsyncLocalStorage } = require('async_hooks') as { AsyncLocalStorage: new () => AsyncLocalStorageType }
+  asyncLocalStorage = new AsyncLocalStorage()
+} catch { /* browser environment — logContext is a no-op */ }
 
 export const logContext = <T>(context: string, callback: () => T): T => {
+  if (!asyncLocalStorage) return callback()
   const store = asyncLocalStorage.getStore()
   const contexts = store ? [...store.contexts, context] : [context]
   return asyncLocalStorage.run({ contexts }, callback)
@@ -19,7 +24,7 @@ const grey = (s: string) => `\x1b[90m${s}\x1b[0m`
 const blue = (s: string) => `\x1b[94m${s}\x1b[0m`
 
 const formatMessage = (message: string): string => {
-  const store = asyncLocalStorage.getStore()
+  const store = asyncLocalStorage?.getStore()
   if (store) {
     const contextPrefix = store.contexts.map(ctx => `[${ctx}]`).join(' ')
     return `${contextPrefix} ${message}`
