@@ -33,5 +33,5 @@ export class Account {
     return Buffer.from(keccak256(Buffer.concat([Buffer.from(`\x19Ethereum Signed Message:\n${msg.length}`), msg])), 'hex')
   }
 
-  public readonly sign = (message: string, trace?: Trace) => Signature.sign(message, this.privKey, trace)
+  public readonly sign = (message: string, trace: Trace) => Signature.sign(message, this.privKey, trace)
 }

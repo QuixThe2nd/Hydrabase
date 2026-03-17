@@ -200,8 +200,13 @@ export class UDP_Client implements Socket {
     trace.step(`Authenticated peer ${identity.username} ${identity.address}`)
     trace.success()
     authenticatedPeers.set(peerHostname, identity)
-    if (!udpConnections.has(peerHostname)) peerManager.add(new UDP_Client(peerManager, { ...identity, hostname: peerHostname }, config, auth.id, trace), trace)
-    return new UDP_Client(peerManager, identity, config, auth.id, trace)
+    if (identity.hostname && identity.hostname !== peerHostname) authenticatedPeers.set(identity.hostname as `${string}:${number}`, identity)
+    if (!udpConnections.has(peerHostname)) {
+      const client = new UDP_Client(peerManager, { ...identity, hostname: peerHostname }, config, auth.id, trace)
+      if (identity.hostname && identity.hostname !== peerHostname) udpConnections.set(identity.hostname as `${string}:${number}`, client)
+      peerManager.add(client, trace)
+    }
+    return udpConnections.get(peerHostname) ?? false
   }
   public readonly close = () => {
     this.isOpened = false

@@ -45,8 +45,7 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     return auth
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    trace.step(`HTTP error: ${message}`)
-    warn('WARN:', `Authentication failed for ${hostname} - ${message}`)
+    trace.fail(`HTTP error: ${message}`)
     return [500, `Failed to authenticate server via HTTP: ${message}`]
   }
 }

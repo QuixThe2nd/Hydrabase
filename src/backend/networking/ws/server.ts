@@ -3,7 +3,7 @@ import type { SocketAddress } from "bun";
 import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
-import { debug, logContext, warn } from "../../../utils/log";
+import { logContext, warn } from "../../../utils/log";
 import { Trace } from "../../../utils/trace";
 import { type Identity, verifyClient } from "../../protocol/HIP1/handshake";
 import { authenticateServerHTTP } from '../http';
@@ -101,7 +101,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     const actualIP = ip.address
     const [claimedIP] = claimedHostname.split(':')
     if (actualIP === claimedIP && 'address' in auth) {
-      debug(`NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
+      trace.step(`NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
       return { address: auth.address as `0x${string}`, hostname: claimedHostname, userAgent: auth.userAgent as string, username: auth.username as string }
     }
     return result

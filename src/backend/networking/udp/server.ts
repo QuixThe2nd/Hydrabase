@@ -103,7 +103,8 @@ export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y
 type Message = z.infer<typeof rpcMessageSchema>
 
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
-  if (!authenticatedPeers.has(peerHostname)) {
+  const identity = authenticatedPeers.get(peerHostname)
+  if (!identity) {
     const trace = Trace.start(`[SERVER] Received message from unauthenticated peer ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
       if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
@@ -111,7 +112,7 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
     })
     return false
   }
-  const connection = udpConnections.get(peerHostname)
+  const connection = udpConnections.get(peerHostname) ?? udpConnections.get(identity.hostname as `${string}:${number}`)
   if (!connection) {
     const trace = Trace.start(`[SERVER] Couldn't find connection ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
@@ -120,6 +121,7 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
     })
     return false
   }
+  if (!udpConnections.has(peerHostname)) udpConnections.set(peerHostname, connection)
   if (query.a.n !== undefined && query.a.n > 1) {
     if (query.a.c === undefined || query.a.i === undefined || query.a.d === undefined) {
       warn('DEVWARN:', `[SERVER] Malformed chunk from ${peerHostname}: missing c, i, or d`)

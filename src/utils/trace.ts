@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 export class Trace {
   private children: Trace[] = []
+  private finished = false
   private startTime: Date
   private steps: { msg: string; time: Date; }[] = []
 
@@ -9,6 +10,9 @@ export class Trace {
     public readonly label: string,
   ) {
     this.startTime = new Date()
+    setTimeout(() => {
+      if (!this.finished) this.fail('Trace took over 60s')
+    }, 60_000)
   }
 
   static formatTime(date: Date): string {
@@ -30,8 +34,11 @@ export class Trace {
     return childTrace
   }
 
-  fail(reason: string): void {
+  fail(reason: string, context?: unknown): false {
     this.print(false, reason)
+    this.finished = true
+    if (context) console.log(context)
+    return false
   }
 
   step(msg: string): void {
@@ -39,6 +46,8 @@ export class Trace {
   }
 
   success(): void {
+    if (this.finished) console.error('Timed out trace completed')
+    else this.finished = true
     this.print(true)
   }
 

@@ -6,6 +6,7 @@ import type { DHT_Node } from './networking/dht'
 import type PeerManager from './PeerManager'
 
 import { error, formatBytes, formatUptime, stats } from '../utils/log'
+import { Trace } from '../utils/trace'
 
 export class StatsReporter {
   private readonly startTime = Date.now()
@@ -83,8 +84,9 @@ export class StatsReporter {
 
   private report(): void {
     const client = this.peers.apiPeer
+    const trace = Trace.start('Sending cache to api client')
     try {
-      if (client?.isOpened) client.sendStats(this.collectStats())
+      if (client?.isOpened) client.sendStats(this.collectStats(), trace)
     } catch (err) {
       error('ERROR:', '[STATS] Failed to collect/send stats', {err})
     }

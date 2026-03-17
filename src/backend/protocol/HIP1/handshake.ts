@@ -34,7 +34,7 @@ export const proveServer = (account: Account, node: Config['node'], trace: Trace
   }
 }
 
-export const verifyServer = (auth: Auth, hostname: string, trace?: Trace): [number, string] | true => {
+export const verifyServer = (auth: Auth, hostname: string, trace: Trace): [number, string] | true => {
   if (auth.hostname !== hostname) return [500, `Expected ${hostname} but got ${auth.hostname}`]
   if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address, trace)) return [500, 'Server provided invalid signature']
   return true

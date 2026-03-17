@@ -2,7 +2,7 @@ import type { Config, Socket } from '../../../types/hydrabase'
 import type { Account } from '../../Crypto/Account'
 import type PeerManager from '../../PeerManager'
 
-import { log, warn } from '../../../utils/log'
+import { warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
 import { type Identity, proveClient } from '../../protocol/HIP1/handshake'
 
@@ -21,7 +21,7 @@ export default class WebSocketClient implements Socket {
   private reconnectTimer: null | ReturnType<typeof setTimeout> = null
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
-  private trace?: Trace
+  private trace!: Trace
 
   constructor(public readonly peer: Identity, private readonly peers: PeerManager, private readonly node: Config['node']) {
     this._connect(peers.account)
@@ -56,8 +56,7 @@ export default class WebSocketClient implements Socket {
   private _connect(account: Account) {
     this.trace = Trace.start(`WS client → ${this.peer.hostname}`)
     this.trace.step('Connecting')
-    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.node, this.peer.hostname, true, this.trace) })
-
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.node, this.peer.hostname, this.trace, true) })
     const openTimeout = setTimeout(() => {
       if (!this._isOpened) {
         this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
@@ -65,7 +64,6 @@ export default class WebSocketClient implements Socket {
         this.socket.close()
       }
     }, WebSocketClient.OPEN_TIMEOUT_MS)
-
     this.socket.addEventListener('open', () => {
       clearTimeout(openTimeout)
       this.reconnectAttempts = 1
@@ -76,7 +74,6 @@ export default class WebSocketClient implements Socket {
       this._flushQueue()
       this.openHandler?.()
     })
-
     this.socket.addEventListener('close', ev => {
       clearTimeout(openTimeout)
       const reason = ev.reason ?? 'Connection closed'
@@ -87,7 +84,6 @@ export default class WebSocketClient implements Socket {
       for (const handler of this.closeHandlers) handler()
       if (!this.peers.isConnectionOpened(this.peer.address)) {this._scheduleReconnect(account)}
     })
-
     this.socket.addEventListener('error', err => {
       clearTimeout(openTimeout)
       const errorMsg = (err as unknown as { message: string }).message
@@ -100,7 +96,6 @@ export default class WebSocketClient implements Socket {
       
       this._isOpened = false
     }) // TODO: peer rate limiting
-
     this.socket.addEventListener('message', message => {
       if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.peer.hostname}`)
       this.messageHandlers.forEach(handler => {
@@ -116,7 +111,7 @@ export default class WebSocketClient implements Socket {
         headers: { 
           'Connection': 'upgrade',
           'Upgrade': 'websocket',
-          ...proveClient(this.peers.account, this.node, this.peer.hostname, true, this.trace)
+          ...proveClient(this.peers.account, this.node, this.peer.hostname, this.trace, true)
         },
         method: 'GET'
       }).catch(() => null)

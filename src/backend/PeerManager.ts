@@ -8,7 +8,7 @@ import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
 import type { Identity } from './protocol/HIP1/handshake';
 
-import { debug, formatUptime, log, logContext, truncateAddress, warn } from '../utils/log';
+import { debug, formatUptime, logContext, truncateAddress, warn } from '../utils/log';
 import { Trace } from '../utils/trace';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
@@ -55,8 +55,8 @@ const saveResults = <T extends Request['type']>(formulas: Config['formulas'], pe
   return results
 }
 
-const searchPeer = async <T extends Request['type']>(formulas: Config['formulas'], request: Request & { type: T }, peer: Peer, results: Map<bigint, SearchResult[T] & { confidences: number[] }>, installedPlugins: Set<string>, confirmedHashes: Set<bigint>): Promise<Map<bigint, SearchResult[T] & { confidences: number[] }>> => {
-  const peerResults = await peer.search(request.type, request.query)
+const searchPeer = async <T extends Request['type']>(formulas: Config['formulas'], request: Request & { type: T }, peer: Peer, results: Map<bigint, SearchResult[T] & { confidences: number[] }>, installedPlugins: Set<string>, confirmedHashes: Set<bigint>, trace: Trace): Promise<Map<bigint, SearchResult[T] & { confidences: number[] }>> => {
+  const peerResults = await peer.search(request.type, request.query, trace)
   const pluginMatches = checkPluginMatches(peerResults, confirmedHashes)
   const peerConfidence = calculatePeerConfidence(formulas, pluginMatches, installedPlugins)
   return saveResults(formulas, peerResults, peerConfidence, results, peer)
@@ -145,16 +145,16 @@ export default class PeerManager {
     }
   } // TODO: time based confidence scores - older peers = more trustworthy
 
-  public async requestAll<T extends Request['type']>(formulas: Config['formulas'], request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>): Promise<Map<bigint, SearchResult[T]>> {
+  public async requestAll<T extends Request['type']>(formulas: Config['formulas'], request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>, trace: Trace): Promise<Map<bigint, SearchResult[T]>> {
     const results = new Map<bigint, SearchResult[T] & { confidences: number[] }>()
-    log(`[PEERS] Searching ${this.peerAddresses.length} peer${this.peerAddresses.length === 1 ? '' : 's'} for ${request.type}: ${request.query}`)
+    trace.step(`[PEERS] Searching ${this.peerAddresses.length} peer${this.peerAddresses.length === 1 ? '' : 's'} for ${request.type}: ${request.query}`)
     for (const address of this.peerAddresses) {
       const peer = this.peers.get(address)
       if (!isPeer(peer, address)) continue
       if (!isOpened(peer, address)) continue
-      (await searchPeer(formulas, request, peer, results, installedPlugins, confirmedHashes)).entries().map(([hash,item]) => results.set(BigInt(hash), item))
+      (await searchPeer(formulas, request, peer, results, installedPlugins, confirmedHashes, trace)).entries().map(([hash,item]) => results.set(BigInt(hash), item))
     }
-    log(`[PEERS] Received ${results.size} results`)
+    trace.step(`[PEERS] Received ${results.size} results`)
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
@@ -169,7 +169,7 @@ export default class PeerManager {
     }
   }
 
-  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', _trace?: Trace): Promise<false | Socket> {
+  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', _trace: Trace): Promise<false | Socket> {
     const trace = _trace ?? Trace.start(`Connection to ${hostname}`)
     trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
     
