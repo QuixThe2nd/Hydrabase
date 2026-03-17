@@ -60,7 +60,20 @@ export const verifyClient = async (node: Config['node'], hostname: string, auth:
   debug(`[HIP1] Verifying client address ${auth.address}`)
   const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address)
   debug(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${node.hostname}:${node.port}" result=${signatureValid}`)
-  if (!signatureValid) return [403, 'Failed to authenticate address']
+  if (!signatureValid) {
+    const altHostname = `${node.ip}:${node.port}`
+    if (altHostname !== `${node.hostname}:${node.port}`) {
+      const altValid = Signature.fromString(auth.signature).verify(`I am connecting to ${altHostname}`, auth.address)
+      debug(`[HIP1] Alt signature verify for ${auth.address}: message="I am connecting to ${altHostname}" result=${altValid}`)
+      if (altValid) {
+        debug(`[HIP1] Accepted signature against alternate hostname ${altHostname}`)
+      } else {
+        return [403, 'Failed to authenticate address']
+      }
+    } else {
+      return [403, 'Failed to authenticate address']
+    }
+  }
   debug(`[HIP1] Hostname check: peer claims ${auth.hostname}, connecting from ${hostname}`)
   const isHostnameValid = await upgradeHostname(hostname, auth, authenticateHostname)
   if (Array.isArray(isHostnameValid)) return isHostnameValid

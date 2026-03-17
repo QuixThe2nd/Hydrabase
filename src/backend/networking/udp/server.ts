@@ -52,6 +52,7 @@ const QueryMessage = BaseMessage.extend({
     target: BinaryHex.optional(),
     token: BinaryString.optional(),
     v: z.unknown().optional(),
+    vote: z.number().optional(),
     want: z.array(z.instanceof(Uint8Array)).optional(),
   }).strict(),
   q: BinaryString,
