@@ -82,7 +82,6 @@ const VERIFY_TIMEOUT_MS = 15_000
 export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, peerManager?: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   const trace = Trace.start(`Inbound WS connection from ${ip?.address}`)
   trace.step(`Client connecting from ${ip?.address}`)
-  log(`Connecting to client ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, }
   if (!('apiKey' in auth) && (!auth.address || !auth.hostname || !auth.signature || !auth.username)) {
@@ -93,7 +92,6 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   trace.step('Parsing auth headers')
   if (peerManager && !('apiKey' in auth) && auth.address && peerManager.has(auth.address)) {
     trace.fail('Already connected')
-    debug(`Skipping duplicate connection from ${auth.username} ${auth.address} - already connected`)
     return { address: auth.address, hostname: auth.hostname, res: [409, 'Already connected'] }
   }
   const authenticateHostname = async (claimedHostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
@@ -108,7 +106,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     return result
   }
   const peer = await Promise.race([
-    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, authenticateHostname),
+    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, authenticateHostname, trace),
     new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {
