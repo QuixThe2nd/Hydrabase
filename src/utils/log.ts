@@ -1,6 +1,15 @@
 /* eslint-disable no-console */
 type Context = `- ${string}` | Event | Record<string, unknown>
-type Message = `[${string}] ${string}`
+import { AsyncLocalStorage } from 'node:async_hooks'
+
+const asyncLocalStorage = new AsyncLocalStorage<{ contexts: string[] }>()
+
+export const logContext = <T>(context: string, callback: () => T): T => {
+  if (!asyncLocalStorage) return callback()
+  const store = asyncLocalStorage.getStore()
+  const contexts = store ? [...store.contexts, context] : [context]
+  return asyncLocalStorage.run({ contexts }, callback)
+}
 
 const time = () => (new Date()).toISOString()
 
@@ -9,19 +18,39 @@ const red = (s: string) => `\x1b[31m${s}\x1b[0m`
 const grey = (s: string) => `\x1b[90m${s}\x1b[0m`
 const blue = (s: string) => `\x1b[94m${s}\x1b[0m`
 
-export const error = (level: 'ERROR:', message: Message, context?: Context): false => {
-  if (context === undefined) console.error(time(), red(level), red(message))
-  else console.error(time(), red(level), red(message), context)
+const formatMessage = (message: string): string => {
+  const store = asyncLocalStorage?.getStore()
+  if (store) {
+    const contextPrefix = store.contexts.map(ctx => `[${ctx}]`).join(' ')
+    return `${contextPrefix} ${message}`
+  }
+  return message
+}
+
+export const error = (level: 'ERROR:', message: string, context?: Context): false => {
+  const formattedMessage = formatMessage(message)
+  if (context === undefined) console.error(time(), red(level), red(formattedMessage))
+  else console.error(time(), red(level), red(formattedMessage), context)
   return false
 }
-export const warn = (level: 'DEVWARN:' | 'WARN:', message: Message, context?: Context): false => {
-  if (context === undefined) console.warn(time(), yellow(level), yellow(message))
-  else console.warn(time(), yellow(level), yellow(message), context)
+export const warn = (level: 'DEVWARN:' | 'WARN:', message: string, context?: Context): false => {
+  const formattedMessage = formatMessage(message)
+  if (context === undefined) console.warn(time(), yellow(level), yellow(formattedMessage))
+  else console.warn(time(), yellow(level), yellow(formattedMessage), context)
   return false
 }
-export const stats = (message: Message, context?: Context): void => context === undefined ? console.log(time(), blue('STAT:'), blue(message)) : console.log(time(), blue('STAT:'), blue(message), context)
-export const debug = (message: Message, context?: Context): void => context === undefined ? console.log(time(), grey('DEBUG:'), grey(message)) : console.log(time(), grey('DEBUG:'), grey(message), context)
-export const log = (message: Message, context?: Context): void => context === undefined ? console.log(time(), 'LOG:', message) : console.log(time(), 'LOG:', message, context)
+export const stats = (message: string, context?: Context): void => {
+  const formattedMessage = formatMessage(message)
+  return context === undefined ? console.log(time(), blue('STAT:'), blue(formattedMessage)) : console.log(time(), blue('STAT:'), blue(formattedMessage), context)
+}
+export const debug = (message: string, context?: Context): void => {
+  const formattedMessage = formatMessage(message)
+  return context === undefined ? console.log(time(), grey('DEBUG:'), grey(formattedMessage)) : console.log(time(), grey('DEBUG:'), grey(formattedMessage), context)
+}
+export const log = (message: string, context?: Context): void => {
+  const formattedMessage = formatMessage(message)
+  return context === undefined ? console.log(time(), 'LOG:', formattedMessage) : console.log(time(), 'LOG:', formattedMessage, context)
+}
 
 export const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`

@@ -3,7 +3,8 @@ import type { SocketAddress } from "bun";
 import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
-import { debug, log, warn } from "../../../utils/log";
+import { logContext, warn } from "../../../utils/log";
+import { Trace } from "../../../utils/trace";
 import { type Identity, verifyClient } from "../../protocol/HIP1/handshake";
 import { authenticateServerHTTP } from '../http';
 
@@ -54,62 +55,72 @@ export class WebSocketServerConnection implements Socket {
 
 export const websocketHandlers = (peerManager: PeerManager) => ({
   close(ws: Bun.ServerWebSocket<WebSocketData>) {
-    ws.data = { ...ws.data, isOpened: false }
-    ws.data.conn?._handleClose()
+    logContext('WS', () => {
+      ws.data = { ...ws.data, isOpened: false }
+      ws.data.conn?._handleClose()
+    })
   },
   data: {} as WebSocketData,
   message: (ws: Bun.ServerWebSocket<WebSocketData>, message: Buffer<ArrayBuffer> | string) => {
-    if (typeof message !== 'string') return
-    ws.data.conn?._handleMessage(message)
+    logContext('WS', () => {
+      if (typeof message !== 'string') return
+      ws.data.conn?._handleMessage(message)
+    })
   },
   open: (ws: Bun.ServerWebSocket<WebSocketData>) => {
-    const conn = new WebSocketServerConnection(ws)
-    peerManager.add(conn)
-    ws.data = { ...ws.data, conn, isOpened: true }
-    ws.data.conn?._handleOpen()
+    logContext('WS', () => {
+      const conn = new WebSocketServerConnection(ws)
+      const trace = Trace.start(`Incoming WebSocket connection from ${conn.peer.username} ${conn.peer.address} ${conn.peer.hostname}`)
+      peerManager.add(conn, trace)
+      ws.data = { ...ws.data, conn, isOpened: true }
+      ws.data.conn?._handleOpen()
+    })
   }
 })
 
 const VERIFY_TIMEOUT_MS = 15_000
 
-export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, peerManager?: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
-  log(`[SERVER] Connecting to client ${ip?.address}`)
+export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, trace: Trace, peerManager: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
+  trace.step(`Client connecting from ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, }
   if (!('apiKey' in auth) && (!auth.address || !auth.hostname || !auth.signature || !auth.username)) {
-    warn('DEVWARN:', `[SERVER] Rejected connection from ${ip?.address}: missing handshake headers`)
+    trace.fail('Missing required handshake headers')
+    warn('DEVWARN:', `Rejected connection from ${ip?.address}: missing handshake headers`)
     return { res: [400, 'Missing required handshake headers'] }
   }
-  
+  trace.step('Parsing auth headers')
   if (peerManager && !('apiKey' in auth) && auth.address && peerManager.has(auth.address)) {
-    debug(`[SERVER] Skipping duplicate connection from ${auth.username} ${auth.address} - already connected`)
+    trace.fail('Already connected')
     return { address: auth.address, hostname: auth.hostname, res: [409, 'Already connected'] }
   }
   const authenticateHostname = async (claimedHostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
-    const result = await authenticateServerHTTP(claimedHostname)
+    const result = await authenticateServerHTTP(claimedHostname, trace)
     if (!Array.isArray(result)) return result
-    
     const actualIP = ip.address
     const [claimedIP] = claimedHostname.split(':')
     if (actualIP === claimedIP && 'address' in auth) {
-      debug(`[SERVER] NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
+      trace.step(`NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
       return { address: auth.address as `0x${string}`, hostname: claimedHostname, userAgent: auth.userAgent as string, username: auth.username as string }
     }
-    
     return result
   }
   const peer = await Promise.race([
-    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, authenticateHostname),
+    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, authenticateHostname, trace),
     new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {
-    warn('DEVWARN:', `[SERVER] Failed to authenticate peer: ${peer[1]}`)
+    trace.fail(peer[1])
     return { res: peer }
   }
+  trace.step('HIP1 verifyClient → valid')
   const { address, hostname, userAgent, username } = peer
-  log(`[SERVER] Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
+  if (hostname !== `${node.hostname}:${node.port}`) trace.step('HIP4 hostname matches')
+  trace.step(`Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
   if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
+    trace.success()
     return undefined
   }
+  trace.fail('Upgrade failed')
   return { address, hostname, res: [500, "Upgrade failed"] }
 }

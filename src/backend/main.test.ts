@@ -6,6 +6,7 @@ import type { Config, WebSocketData } from '../types/hydrabase'
 import type { Peer } from './peer'
 
 import { RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
+import { Trace } from '../utils/trace'
 import { Account, generatePrivateKey } from './Crypto/Account'
 import { Signature } from './Crypto/Signature'
 import { startDatabase } from './db'
@@ -104,59 +105,67 @@ afterAll(() => {
   server3.stop()
 })
 
+const wit = (label: string, callback: (trace: Trace) => Promise<void> | void, opts?: { timeout: number }) => {
+  const trace = Trace.start(label)
+  it(label, async () => {
+    await callback(trace)
+    trace.success()
+  }, opts)
+}
+
 describe('Signature', () => {
-  it('signs and verifies a message round-trip', () => {
+  wit('signs and verifies a message round-trip', trace => {
     const account = new Account(generatePrivateKey())
     const message = 'I am connecting to 127.0.0.1:14545'
-    const sig = account.sign(message)
-    expect(sig.verify(message, account.address)).toBe(true)
+    const sig = account.sign(message, trace)
+    expect(sig.verify(message, account.address, trace)).toBe(true)
   })
 
-  it('rejects a signature for the wrong message', () => {
+  wit('rejects a signature for the wrong message', trace => {
     const account = new Account(generatePrivateKey())
-    const sig = account.sign('I am connecting to 127.0.0.1:14545')
-    expect(sig.verify('I am connecting to 127.0.0.1:9999', account.address)).toBe(false)
+    const sig = account.sign('I am connecting to 127.0.0.1:14545', trace)
+    expect(sig.verify('I am connecting to 127.0.0.1:9999', account.address, trace)).toBe(false)
   })
 
-  it('rejects a signature from the wrong keypair', () => {
+  wit('rejects a signature from the wrong keypair', trace => {
     const a = new Account(generatePrivateKey())
     const b = new Account(generatePrivateKey())
     const msg = 'I am connecting to 127.0.0.1:14545'
-    const sig = a.sign(msg)
+    const sig = a.sign(msg, trace)
     // B's address ≠ a's address → verify should fail
-    expect(sig.verify(msg, b.address)).toBe(false)
+    expect(sig.verify(msg, b.address, trace)).toBe(false)
   })
 
-  it('serialises and deserialises a Signature without data loss', () => {
+  wit('serialises and deserialises a Signature without data loss', trace => {
     const account = new Account(generatePrivateKey())
     const message = 'I am 127.0.0.1:14545'
-    const original = account.sign(message)
+    const original = account.sign(message, trace)
     const roundTripped = Signature.fromString(original.toString())
     expect(roundTripped.message).toBe(message)
-    expect(roundTripped.verify(message, account.address)).toBe(true)
+    expect(roundTripped.verify(message, account.address, trace)).toBe(true)
   })
 })
 
 describe('HIP1', () => {
-  it('produces client proof that is is verified by server', async () => {
-    const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`)
-    expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', (): [number, string] => [500, 'Bad path'])).not.toBeArray()
+  wit('produces client proof that is is verified by server', async trace => {
+    const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`, trace)
+    expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', (): [number, string] => [500, 'Bad path'], trace)).not.toBeArray()
   })
 
-  it('produces server proof that is is verified by client', () => {
-    expect(verifyServer(proveServer(peerManager1.account, config1), `${config1.hostname}:${config1.port}`)).not.toBeArray()
+  wit('produces server proof that is is verified by client', trace => {
+    expect(verifyServer(proveServer(peerManager1.account, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
   })
 
-  it('peer 1 connected to peer 2 over TCP', async () => {
-    expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, 'TCP')).toBe(true)
+  wit('peer 1 connected to peer 2 over TCP', async trace => {
+    expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, trace, 'TCP')).toBe(true)
   })
 
-  it('connecting to existing peer should throw', async () => {
-    expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, 'TCP')).toBe(false)
+  wit('connecting to existing peer should throw', async trace => {
+    expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, trace, 'TCP')).toBe(false)
   })
 
-  it('peer 2 connected to peer 3 over UDP', async () => {
-    expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, 'UDP')).toBe(true)
+  wit('peer 2 connected to peer 3 over UDP', async trace => {
+    expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, trace, 'UDP')).toBe(true)
   })
 
   it('peers 1 and 2 have connected to each other', async () => {
@@ -169,11 +178,11 @@ describe('HIP1', () => {
 })
 
 describe('HIP2', () => {
-  it('received pong from ping', async () => {
+  wit('received pong from ping', async trace => {
     const peer2 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config2.hostname}:${config2.port}`) as Peer
     expect(peer2).toBeDefined()
     const time = Number(new Date())
-    peer2.send({ nonce: 3, ping: { time } })
+    peer2.send({ nonce: 3, ping: { time } }, trace)
     const pong = await new Promise<Ping>(res => {
       peer2.socket.onMessage(msg => {
         const {data} = z.object({ pong: PingSchema }).safeParse(JSON.parse(msg))
@@ -184,10 +193,10 @@ describe('HIP2', () => {
     expect(pong.time).toBeGreaterThanOrEqual(time)
   })
 
-  it('received response from request', async () => {
+  wit('received response from request', async trace => {
     const peer2 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config2.hostname}:${config2.port}`) as Peer
     expect(peer2).toBeDefined()
-    peer2.send({ nonce: 3, request: { query: 'elton john', type: 'artists' } })
+    peer2.send({ nonce: 3, request: { query: 'elton john', type: 'artists' } }, trace)
     const results = await new Promise<Response>(res => {
       peer2.socket.onMessage(msg => {
         const {data} = z.object({ response: ResponseSchema }).safeParse(JSON.parse(msg))
@@ -197,7 +206,7 @@ describe('HIP2', () => {
     expect(results.length).toBeGreaterThan(0)
   })
   
-  it('concurrent requests resolve to correct nonces', async () => {
+  wit('concurrent requests resolve to correct nonces', async trace => {
     const peer2 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config2.hostname}:${config2.port}`) as Peer
     expect(peer2).toBeDefined()
     let receivedResponse = false
@@ -206,9 +215,9 @@ describe('HIP2', () => {
       if (data) receivedResponse = true
     })
     const [r1, r2, r3] = await Promise.all([
-      peer2.search('artists', 'elton john'),
-      peer2.search('artists', 'beatles'),
-      peer2.search('artists', 'radiohead'),
+      peer2.search('artists', 'elton john', trace),
+      peer2.search('artists', 'beatles', trace),
+      peer2.search('artists', 'radiohead', trace),
     ])
     expect(Array.isArray(r1)).toBe(true)
     expect(Array.isArray(r2)).toBe(true)
@@ -256,24 +265,24 @@ describe('Account', () => {
 })
 
 describe('Signature edge cases', () => {
-  it('handles empty string message', () => {
+  wit('handles empty string message', trace => {
     const account = new Account(generatePrivateKey())
-    const sig = account.sign('')
-    expect(sig.verify('', account.address)).toBe(true)
+    const sig = account.sign('', trace)
+    expect(sig.verify('', account.address, trace)).toBe(true)
   })
 
-  it('handles very long messages', () => {
+  wit('handles very long messages', trace => {
     const account = new Account(generatePrivateKey())
     const longMsg = 'a'.repeat(10_000)
-    const sig = account.sign(longMsg)
-    expect(sig.verify(longMsg, account.address)).toBe(true)
+    const sig = account.sign(longMsg, trace)
+    expect(sig.verify(longMsg, account.address, trace)).toBe(true)
   })
 
-  it('handles unicode messages', () => {
+  wit('handles unicode messages', trace => {
     const account = new Account(generatePrivateKey())
     const msg = 'I am connecting to 🌍:4545'
-    const sig = account.sign(msg)
-    expect(sig.verify(msg, account.address)).toBe(true)
+    const sig = account.sign(msg, trace)
+    expect(sig.verify(msg, account.address, trace)).toBe(true)
   })
 
   it('fromString throws on invalid input', () => {
@@ -282,10 +291,10 @@ describe('Signature edge cases', () => {
     expect(() => Signature.fromString('{}')).toThrow()
   })
 
-  it('preserves message through serialization', () => {
+  wit('preserves message through serialization', trace => {
     const account = new Account(generatePrivateKey())
     const msg = 'I am connecting to 127.0.0.1:4545'
-    const sig = account.sign(msg)
+    const sig = account.sign(msg, trace)
     const serialized = sig.toString()
     const deserialized = Signature.fromString(serialized)
     expect(deserialized.message).toBe(msg)
@@ -294,45 +303,45 @@ describe('Signature edge cases', () => {
 })
 
 describe('HIP1 handshake edge cases', () => {
-  it('rejects client proof with wrong target hostname', async () => {
-    const auth = proveClient(peerManager1.account, config1, '10.0.0.1:9999')
-    const result = await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'])
+  wit('rejects client proof with wrong target hostname', async trace => {
+    const auth = proveClient(peerManager1.account, config1, '10.0.0.1:9999', trace)
+    const result = await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'], trace)
     expect(result).toBeArray()
     const [code] = result as [number, string]
     expect(code).toBe(403)
   })
 
-  // it('rejects tampered signature', async () => {
-  //   const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`)
-  //   auth.signature = 'invalid-signature-data'
-  //   expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'])).rejects.toThrow()
-  // })
+  wit('rejects tampered signature', trace => {
+    const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`, trace)
+    auth.signature = 'invalid-signature-data'
+    expect(() => verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'], trace)).toThrow()
+  })
 
-  it('verifies API key auth', async () => {
-    const result = await verifyClient(config1, '', { apiKey: 'test-key' }, 'test-key', () => [500, 'unused'])
+  wit('verifies API key auth', async trace => {
+    const result = await verifyClient(config1, '', { apiKey: 'test-key' }, 'test-key', () => [500, 'unused'], trace)
     expect(result).not.toBeArray()
     const identity = result as { address: `0x${string}`, hostname: string }
     expect(identity.address).toBe('0x0')
   })
 
-  it('rejects wrong API key', async () => {
-    const result = await verifyClient(config1, '', { apiKey: 'wrong-key' }, 'correct-key', () => [500, 'unused'])
+  wit('rejects wrong API key', async trace => {
+    const result = await verifyClient(config1, '', { apiKey: 'wrong-key' }, 'correct-key', () => [500, 'unused'], trace)
     expect(result).toBeArray()
     const [code] = result as [number, string]
     expect(code).toBe(500)
   })
 
-  it('verifyServer rejects mismatched hostname', () => {
-    const proof = proveServer(peerManager1.account, config1)
-    const result = verifyServer(proof, 'wrong.host:9999')
+  wit('verifyServer rejects mismatched hostname', trace => {
+    const proof = proveServer(peerManager1.account, config1, trace)
+    const result = verifyServer(proof, 'wrong.host:9999', trace)
     expect(result).toBeArray()
     expect((result as [number, string])[1]).toContain('Expected')
   })
 
-  it('verifyServer crashes on tampered signature (no input validation)', () => {
-    const proof = proveServer(peerManager1.account, config1)
+  wit('verifyServer crashes on tampered signature (no input validation)', trace => {
+    const proof = proveServer(peerManager1.account, config1, trace)
     proof.signature = 'tampered'
-    expect(() => verifyServer(proof, `${config1.hostname}:${config1.port}`)).toThrow()
+    expect(() => verifyServer(proof, `${config1.hostname}:${config1.port}`, trace)).toThrow()
   })
 })
 
@@ -460,9 +469,9 @@ describe('Schema validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('AuthSchema validates complete auth object', () => {
+  wit('AuthSchema validates complete auth object', trace => {
     const account = new Account(generatePrivateKey())
-    const sig = account.sign('I am 127.0.0.1:4545')
+    const sig = account.sign('I am 127.0.0.1:4545', trace)
     const result = AuthSchema.safeParse({
       address: account.address,
       hostname: '127.0.0.1:4545',
@@ -486,7 +495,7 @@ describe('Schema validation', () => {
 })
 
 describe('WebSocket server handleConnection', () => {
-  it('rejects requests missing handshake headers', async () => {
+  wit('rejects requests missing handshake headers', async trace => {
     const result = await handleConnection(server1,
       new globalThis.Request('http://localhost:14545', { headers: { upgrade: 'websocket' } }),
       {
@@ -495,7 +504,9 @@ describe('WebSocket server handleConnection', () => {
         port: 0
       },
       config1,
-      ''
+      '',
+      trace,
+      peerManager1
     )
     expect(result).toBeDefined()
     expect(result?.res[0]).toBe(400)
@@ -504,19 +515,19 @@ describe('WebSocket server handleConnection', () => {
 })
 
 describe('Peer search integration', () => {
-  it('search for non-existent artist returns empty', async () => {
+  wit('search for non-existent artist returns empty', async trace => {
     const peer2 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config2.hostname}:${config2.port}`)
     expect(peer2).toBeDefined()
     if (!peer2) return
-    const results = await peer2.search('artists', 'zzz_nonexistent_artist_xyz_12345')
+    const results = await peer2.search('artists', 'zzz_nonexistent_artist_xyz_12345', trace)
     expect(Array.isArray(results)).toBe(true)
   }, { timeout: 30_000 })
 
-  it('search returns results with valid schema', async () => {
+  wit('search returns results with valid schema', async trace => {
     const peer2 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config2.hostname}:${config2.port}`)
     expect(peer2).toBeDefined()
     if (!peer2) return
-    const results = await peer2.search('artists', 'drake')
+    const results = await peer2.search('artists', 'drake', trace)
     expect(Array.isArray(results)).toBe(true)
     for (const result of results) {
       expect(result).toHaveProperty('name')
@@ -548,14 +559,14 @@ const mockNATClient = {
 } satisfies Config['node']
 
 describe('NAT-friendly authentication', () => {
-  it('accepts client with valid signature when reverse auth fails', async () => {
+  wit('accepts client with valid signature when reverse auth fails', async trace => {
     const clientAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
     const mockFailedAuthenticator = () =>
       Promise.resolve([500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string])
 
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -564,14 +575,14 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  it('accepts client when UDP authentication fails', async () => {
+  wit('accepts client when UDP authentication fails', async trace => {
     const clientAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
     const mockFailedAuthenticator = () =>
       Promise.resolve([500, 'Failed to authenticate server via UDP'] as [number, string])
 
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -579,42 +590,42 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  it('accepts client when fetch fails', async () => {
+  wit('accepts client when fetch fails', async trace => {
     const clientAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
     const mockFailedAuthenticator = () =>
       Promise.resolve([500, 'Failed to fetch server authentication'] as [number, string])
 
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
 
     expect(Array.isArray(result)).toBe(false)
   })
 
-  it('accepts client when parse fails (malformed response)', async () => {
+  wit('accepts client when parse fails (malformed response)', async trace => {
     const clientAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
     const mockFailedAuthenticator = () =>
       Promise.resolve([500, 'Failed to parse server authentication'] as [number, string])
 
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
 
     expect(Array.isArray(result)).toBe(false)
   })
 
-  it('rejects client with invalid signature even when reverse auth fails', async () => {
+  wit('rejects client with invalid signature even when reverse auth fails', async trace => {
     const clientAccount = new Account(generatePrivateKey())
     const wrongAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
     
-    const wrongSignature = proveClient(wrongAccount, mockNATClient, 'wrong.server:9999')
+    const wrongSignature = proveClient(wrongAccount, mockNATClient, 'wrong.server:9999', trace)
     clientAuth.signature = wrongSignature.signature
 
     const mockFailedAuthenticator = () =>
       Promise.resolve([500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string])
 
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
 
     expect(Array.isArray(result)).toBe(true)
     if (Array.isArray(result)) {
@@ -623,9 +634,9 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  it('still performs reverse auth when connectivity succeeds', async () => {
+  wit('still performs reverse auth when connectivity succeeds', async trace => {
     const clientAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
     const mockSuccessfulAuthenticator = () =>
       Promise.resolve({
@@ -635,7 +646,7 @@ describe('NAT-friendly authentication', () => {
         username: mockNATClient.username
       })
 
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockSuccessfulAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockSuccessfulAuthenticator, trace)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -643,27 +654,27 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  // it('rejects when reverse auth succeeds but address mismatch', async () => {
-  //   const clientAccount = new Account(generatePrivateKey())
-  //   const differentAccount = new Account(generatePrivateKey())
-  //   const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+  wit('rejects when reverse auth succeeds but address mismatch', async trace => {
+    const clientAccount = new Account(generatePrivateKey())
+    const differentAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-  //   const mockMismatchAuthenticator = () =>
-  //     Promise.resolve({
-  //       address: differentAccount.address,
-  //       hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
-  //       userAgent: 'Hydrabase/test',
-  //       username: mockNATClient.username
-  //     })
+    const mockMismatchAuthenticator = () =>
+      Promise.resolve({
+        address: differentAccount.address,
+        hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
+        userAgent: 'Hydrabase/test',
+        username: mockNATClient.username
+      })
 
-  //   const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockMismatchAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.ip}:${mockNATClient.port}`, clientAuth, undefined, mockMismatchAuthenticator, trace)
 
-  //   expect(Array.isArray(result)).toBe(true)
-  //   if (Array.isArray(result)) {
-  //     expect(result[0]).toBe(500)
-  //     expect(result[1]).toContain('Invalid address')
-  //   }
-  // })
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      expect(result[0]).toBe(500)
+      expect(result[1]).toContain('Invalid address')
+    }
+  })
 
   // it('rejects non-connection errors during reverse auth', async () => {
   //   const clientAccount = new Account(generatePrivateKey())
@@ -702,7 +713,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(cached).toEqual(testIdentity)
   })
 
-  it('validates server proof correctly for UDP', () => {
+  wit('validates server proof correctly for UDP', trace => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       hostname: 'test.example.com',
@@ -713,17 +724,17 @@ describe('UDP Authentication Edge Cases', () => {
       username: 'TestNode'
     }
     
-    const serverProof = proveServer(account, nodeConfig)
+    const serverProof = proveServer(account, nodeConfig, trace)
     
     expect(serverProof.address).toBe(account.address)
     expect(serverProof.hostname).toBe(`${nodeConfig.hostname}:${nodeConfig.port}`)
     expect(serverProof.username).toBe(nodeConfig.username)
     
-    const isValid = verifyServer(serverProof, `${nodeConfig.hostname}:${nodeConfig.port}`)
+    const isValid = verifyServer(serverProof, `${nodeConfig.hostname}:${nodeConfig.port}`, trace)
     expect(isValid).toBe(true)
   })
 
-  it('detects hostname mismatch in server verification', () => {
+  wit('detects hostname mismatch in server verification', trace => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       hostname: 'test.example.com',
@@ -734,10 +745,10 @@ describe('UDP Authentication Edge Cases', () => {
       username: 'TestNode'
     }
     
-    const serverProof = proveServer(account, nodeConfig)
+    const serverProof = proveServer(account, nodeConfig, trace)
     
 
-    const isValid = verifyServer(serverProof, 'wrong.example.com:4545')
+    const isValid = verifyServer(serverProof, 'wrong.example.com:4545', trace)
     expect(Array.isArray(isValid)).toBe(true)
     if (Array.isArray(isValid)) {
       expect(isValid[0]).toBe(500)

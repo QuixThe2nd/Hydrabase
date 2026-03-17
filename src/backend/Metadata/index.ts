@@ -2,7 +2,8 @@ import type { Album, Artist, MetadataPlugin, Request, Response } from '../../typ
 import type { Repositories } from '../db';
 import type PeerManager from '../PeerManager';
 
-import { log, warn } from '../../utils/log';
+import { warn } from '../../utils/log';
+import { Trace } from '../../utils/trace';
 import { SafeMetadataPlugin } from './SafeMetadataPlugin';
 
 const computeConfidence = (artistConfidences: number[], peerConfidences: number[], k = 1.0): null | number => {
@@ -129,7 +130,7 @@ export default class MetadataManager {
   }
 
   public async handleRequest<T extends Request['type']>(request: Request & { type: T }, peers: PeerManager): Promise<Response<T>> {
-    log(`[META] Searching for ${request.type}: ${request.query}`)
+    const trace = Trace.start(`[META] Searching for ${request.type}: ${request.query}`)
     const results: Response<T> = []
     if (request.type === 'tracks') results.push(...await this.searchTracks(request.query) as Response<T>)
     else if (request.type === 'artists') results.push(...await this.searchArtists(request.query) as Response<T>)
@@ -138,7 +139,8 @@ export default class MetadataManager {
     else if (request.type === 'artist.tracks') results.push(...await this.artistTracks(request.query, peers) as Response<T>)
     else if (request.type === 'album.tracks') results.push(...await this.albumTracks(request.query, peers) as Response<T>)
     else warn('DEVWARN:', `[HIP2] Invalid request ${request.type}`)
-    log(`[META] Received ${results.length} results`)
+    trace.step(`[META] Received ${results.length} results`)
+    trace.success()
     return results
   }
 

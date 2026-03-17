@@ -2,32 +2,36 @@ import natUpnp from 'nat-upnp'
 
 import type { Config } from '../../types/hydrabase';
 
-import { debug, warn } from '../../utils/log';
+import { debug } from '../../utils/log';
+import { Trace } from '../../utils/trace';
 
 const upnp = natUpnp.createClient();
-const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP') => new Promise((res, rej) => {
+const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP', trace?: Trace) => new Promise((res, rej) => {
   upnp.portMapping({ description, private: port, protocol, public: port, ttl }, err => {
     if (err) rej(err)
     else {
-      debug(`[UPnP] Successfully forwarded ${protocol} port ${port}`)
+      trace?.step(`[UPnP] Successfully forwarded ${protocol} port ${port}`)
+      if (!trace) debug(`[UPnP] Successfully renewed ${protocol} forwarding on port ${port}`)
       res(undefined)
     }
   })
 })
-const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP' = 'TCP') => {
-  await mapPort(port, description, ttl, protocol)
+const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP', trace: Trace) => {
+  await mapPort(port, description, ttl, protocol, trace)
   setInterval(() => mapPort(port, description, ttl, protocol), announceInterval)
 }
 
 export const requestPort = async (node: Config['node'], upnp: Config['upnp']) => {
+  const trace = Trace.start('[UPnP] Requesting port')
   try {
-    await portForward(node.port, 'Hydrabase (TCP)', upnp.reannounce, upnp.ttl, 'TCP');
+    await portForward(node.port, 'Hydrabase (TCP)', upnp.reannounce, upnp.ttl, 'TCP', trace)
   } catch (err) {
-    warn('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
+    trace.fail('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
   }
   try {
-    await portForward(node.port, 'Hydrabase (UDP)', upnp.reannounce, upnp.ttl, 'UDP');
+    await portForward(node.port, 'Hydrabase (UDP)', upnp.reannounce, upnp.ttl, 'UDP', trace)
   } catch (err) {
-    warn('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
+    trace.fail('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
   }
+  trace.success()
 }
