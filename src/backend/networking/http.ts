@@ -33,7 +33,7 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
       return await authenticateServerHTTP(auth.hostname, trace)
     }
     
-    const authResults = verifyServer(auth, hostname)
+    const authResults = verifyServer(auth, hostname, trace)
     if (authResults !== true) {
       trace?.step('HIP1 verifyServer → invalid')
       return authResults

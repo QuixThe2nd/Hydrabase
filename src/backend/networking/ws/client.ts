@@ -56,7 +56,7 @@ export default class WebSocketClient implements Socket {
   private _connect(account: Account) {
     this.trace = Trace.start(`WS client → ${this.peer.hostname}`)
     this.trace.step('Connecting')
-    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.node, this.peer.hostname, true) })
+    this.socket = new WebSocket(`ws://${this.peer.hostname}`, { headers: proveClient(account, this.node, this.peer.hostname, true, this.trace) })
 
     const openTimeout = setTimeout(() => {
       if (!this._isOpened) {
@@ -116,7 +116,7 @@ export default class WebSocketClient implements Socket {
         headers: { 
           'Connection': 'upgrade',
           'Upgrade': 'websocket',
-          ...proveClient(this.peers.account, this.node, this.peer.hostname, true)
+          ...proveClient(this.peers.account, this.node, this.peer.hostname, true, this.trace)
         },
         method: 'GET'
       }).catch(() => null)

@@ -66,7 +66,7 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     if (msg.y !== 'h2') return false
     trace?.step('h2 received')
     debug(`[UDP] [CLIENT] Received h2 from ${hostname}, verifying...`)
-    const verification = verifyServer(msg.h2 as unknown as Auth, hostname)
+    const verification = verifyServer(msg.h2 as unknown as Auth, hostname, trace)
     if (verification !== true) {
       debug(`[UDP] [CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
       clearTimeout(timer)
@@ -92,7 +92,7 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
-  const payload: HandshakeRequest = { h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t, y: 'h1' }
+  const payload: HandshakeRequest = { h1: proveClient(account, node, hostname, false, trace), id: DHT_Node.getNodeId(node), t, y: 'h1' }
   if (tid) payload.tid = tid
   server.socket.send(bencode.encode(payload), Number(port), host)
   debug(`[UDP] [CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
@@ -169,7 +169,7 @@ export class UDP_Client implements Socket {
   static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string, trace?: Trace): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId, trace)
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket, server: UDP_Server, trace: Trace): Promise<false | UDP_Client> => {
     trace.step('Sending h2')
-    socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
+    socket.send(bencode.encode({ h2: proveServer(peerManager.account, node, trace), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
     const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname): Promise<[number, string] | Identity> => {
       const [actualIP] = peerHostname.split(':')
       const [claimedHost] = claimedHostname.split(':')

@@ -6,7 +6,6 @@ import type { Account } from "../../Crypto/Account";
 
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../../../VERSION" with { type: "text" };
-import { debug } from "../../../utils/log";
 import { Signature } from "../../Crypto/Signature";
 import { upgradeHostname } from "../HIP4/upgrade";
 
@@ -24,29 +23,29 @@ export const AuthSchema = IdentitySchema.extend({
 export type Auth = z.infer<typeof AuthSchema>
 export type Identity = z.infer<typeof IdentitySchema>
 
-export const proveServer = (account: Account, node: Config['node']): Auth => {
-  debug(`[HIP1] Proving server`)
+export const proveServer = (account: Account, node: Config['node'], trace?: Trace): Auth => {
+  trace?.step(`[HIP1] Proving server`)
   return {
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
-    signature: account.sign(`I am ${node.hostname}:${node.port}`).toString(),
+    signature: account.sign(`I am ${node.hostname}:${node.port}`, trace).toString(),
     userAgent: `Hydrabase/${VERSION}`,
     username: node.username
   }
 }
 
-export const verifyServer = (auth: Auth, hostname: string): [number, string] | true => {
+export const verifyServer = (auth: Auth, hostname: string, trace?: Trace): [number, string] | true => {
   if (auth.hostname !== hostname) return [500, `Expected ${hostname} but got ${auth.hostname}`]
-  if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address)) return [500, 'Server provided invalid signature']
+  if (!Signature.fromString(auth.signature).verify(`I am ${hostname}`, auth.address, trace)) return [500, 'Server provided invalid signature']
   return true
 }
 
-export const proveClient = (account: Account, node: Config['node'], hostname: `${string}:${number}`, x = false): Auth => {
-  debug(`[HIP1] Proving client to ${hostname}`)
+export const proveClient = (account: Account, node: Config['node'], hostname: `${string}:${number}`, x = false, trace?: Trace): Auth => {
+  trace?.step(`[HIP1] Proving client to ${hostname}`)
   const result = {
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
-    signature: account.sign(`I am connecting to ${hostname}`).toString(),
+    signature: account.sign(`I am connecting to ${hostname}`, trace).toString(),
     userAgent: `Hydrabase/${VERSION}`,
     username: node.username
   } as const
@@ -55,16 +54,16 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
 
 export const verifyClient = async (node: Config['node'], hostname: string, auth: Auth | { apiKey: string }, apiKey: string | undefined, authenticateHostname: (hostname: `${string}:${number}`) => [number, string] | Promise<[number, string] | Identity>, trace?: Trace): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
-    debug(`[HIP1] Verifying API`)
+    trace?.step(`[HIP1] Verifying API`)
     return auth.apiKey === apiKey ? { address: '0x0', hostname: 'API:4545', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` } : [500, 'Invalid API Key']
   }
   trace?.step(`[HIP1] Verifying client address ${auth.address}`)
-  const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address)
+  const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address, trace)
   trace?.step(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${node.hostname}:${node.port}" result=${signatureValid}`)
   if (!signatureValid) {
     const altHostname = `${node.ip}:${node.port}`
     if (altHostname === `${node.hostname}:${node.port}`) return [403, 'Failed to authenticate address']
-    const altValid = Signature.fromString(auth.signature).verify(`I am connecting to ${altHostname}`, auth.address)
+    const altValid = Signature.fromString(auth.signature).verify(`I am connecting to ${altHostname}`, auth.address, trace)
     trace?.step(`[HIP1] Alt signature verify for ${auth.address}: message="I am connecting to ${altHostname}" result=${altValid}`)
     if (altValid) trace?.step(`[HIP1] Accepted signature against alternate hostname ${altHostname}`)
     else return [403, 'Failed to authenticate address']

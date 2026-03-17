@@ -2,6 +2,8 @@ import crypto from 'crypto'
 import { keccak256 } from "js-sha3"
 import secp256k1 from 'secp256k1'
 
+import type { Trace } from '../../utils/trace'
+
 import { log } from '../../utils/log'
 import { Signature } from "./Signature"
 
@@ -31,5 +33,5 @@ export class Account {
     return Buffer.from(keccak256(Buffer.concat([Buffer.from(`\x19Ethereum Signed Message:\n${msg.length}`), msg])), 'hex')
   }
 
-  public readonly sign = (message: string) => Signature.sign(message, this.privKey)
+  public readonly sign = (message: string, trace?: Trace) => Signature.sign(message, this.privKey, trace)
 }
