@@ -495,7 +495,7 @@ describe('Schema validation', () => {
 })
 
 describe('WebSocket server handleConnection', () => {
-  it('rejects requests missing handshake headers', async () => {
+  wit('rejects requests missing handshake headers', async trace => {
     const result = await handleConnection(server1,
       new globalThis.Request('http://localhost:14545', { headers: { upgrade: 'websocket' } }),
       {
@@ -504,7 +504,9 @@ describe('WebSocket server handleConnection', () => {
         port: 0
       },
       config1,
-      ''
+      '',
+      trace,
+      peerManager1
     )
     expect(result).toBeDefined()
     expect(result?.res[0]).toBe(400)
