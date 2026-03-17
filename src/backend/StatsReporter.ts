@@ -5,7 +5,7 @@ import type { Repositories } from './db'
 import type { DHT_Node } from './networking/dht'
 import type PeerManager from './PeerManager'
 
-import { error, formatBytes, formatUptime, stats } from '../utils/log'
+import { formatBytes, formatUptime, stats } from '../utils/log'
 import { Trace } from '../utils/trace'
 
 export class StatsReporter {
@@ -87,8 +87,9 @@ export class StatsReporter {
     const trace = Trace.start('Sending cache to api client')
     try {
       if (client?.isOpened) client.sendStats(this.collectStats(), trace)
+      trace.success()
     } catch (err) {
-      error('ERROR:', '[STATS] Failed to collect/send stats', {err})
+      trace.fail(`[STATS] Failed to collect/send stats`, err)
     }
   }
 }
