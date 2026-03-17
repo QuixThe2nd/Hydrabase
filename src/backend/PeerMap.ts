@@ -25,7 +25,7 @@ export class PeerMap extends Map<`0x${string}`, Peer> {
 
   private log(diff: { new: `0x${string}` } | { old: `0x${string}` }) {
     if (this.lastCount !== this.count) {
-      stats(`[PEERS] ${this.count} peer${this.count === 1 ? '' : 's'} connected:`)
+      stats(`${this.count} peer${this.count === 1 ? '' : 's'} connected:`)
       for (const peer of this.values()) {
         if (peer.address === '0x0') continue
         const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
