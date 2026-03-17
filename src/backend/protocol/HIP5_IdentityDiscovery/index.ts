@@ -165,7 +165,6 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   trace.step(`[CLIENT] Sent h0 to ${host}:${port} txnId=${t}`)
 })
 
-
 export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   if (query.y === 'h0') {
     const trace = Trace.start(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
@@ -183,13 +182,10 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
       trace.step('HIP1 verifyClient → valid')
       return true
     } 
-      trace.fail('Failed to validate UDP auth')
-      return warn('DEVWARN:', '[SERVER] Failed to validate UDP auth')
-    
-  } else if (query.y === 'h2') {
-    warn('DEVWARN:', `[HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
-    return false
-  } else if (query.y === 'h0r') {
+    trace.fail('Failed to validate UDP auth')
+    return warn('DEVWARN:', '[SERVER] Failed to validate UDP auth')
+  } else if (query.y === 'h2') return warn('DEVWARN:', `[HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
+  else if (query.y === 'h0r') {
     debug(`[HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
     return false
   }

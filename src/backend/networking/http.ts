@@ -43,16 +43,16 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     authenticatedPeers.set(hostname, auth)
     log(`Authenticated server ${hostname}`)
     return auth
-  } catch (err) {
+  } catch (err) { // TODO: on peer disconnect, retry with new transport
     const message = err instanceof Error ? err.message : 'Unknown error'
     trace.fail(`HTTP error: ${message}`)
     return [500, `Failed to authenticate server via HTTP: ${message}`]
   }
 }
 
-export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string) => {
+export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string) => logContext('HTTP', () => {
   const server = Bun.serve({
-    fetch: (req, server) => logContext('HTTP', async () => {
+    fetch: async (req, server) => {
       const url = new URL(req.url)
       if (req.headers.get("upgrade") !== "websocket") return serveStaticFile(url.pathname)
       const trace = Trace.start(`Inbound WS connection`)
@@ -67,7 +67,7 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
       const {address, hostname, res} = response
       trace.fail('DEVWARN:', `Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
       return new Response(res[1], { status: res[0] })
-    }),
+    },
     hostname: node.listenAddress,
     port: node.port,
     routes: { '/auth': () => {
@@ -78,4 +78,4 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
   })
   debug(`Listening on port ${server.port}`)
   return server
-}
+})
