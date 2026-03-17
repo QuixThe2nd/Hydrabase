@@ -117,7 +117,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   trace.step('HIP1 verifyClient → valid')
   const { address, hostname, userAgent, username } = peer
   if (hostname !== `${node.hostname}:${node.port}`) trace.step('HIP4 hostname matches')
-  log(`Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
+  trace.step(`Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
   if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
     trace.success()
     return undefined
