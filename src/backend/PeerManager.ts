@@ -9,6 +9,7 @@ import type MetadataManager from './Metadata'
 import type { Identity } from './protocol/HIP1/handshake';
 
 import { debug, formatUptime, log, logContext, truncateAddress, warn } from '../utils/log';
+import { Trace } from '../utils/trace';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
 import { authenticateServerUDP, UDP_Client } from './networking/udp/client';
@@ -89,8 +90,8 @@ export default class PeerManager {
   ) {}
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, preferTransport = this.node.preferTransport): Promise<boolean> {
-    const socket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport) : _peer
+  public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, preferTransport = this.node.preferTransport, trace?: Trace): Promise<boolean> {
+    const socket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
     if (!socket) return false // TODO: try other 
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
@@ -103,7 +104,7 @@ export default class PeerManager {
     debug(`[PEERS] [${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
-      log(`[PEERS] - ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
+      log(`- ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
       this.peers.delete(socket.peer.address)
     }))
 
@@ -168,21 +169,39 @@ export default class PeerManager {
     }
   }
 
-  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP'): Promise<false | Socket> {
+  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace?: Trace): Promise<false | Socket> {
+    if (!trace) {
+      trace = Trace.start(`Connection to ${hostname}`)
+    }
+    trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
+    
     if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {
+      trace.fail('Attempted to connect to self')
       return warn('DEVWARN:', `[PEERS] Not connecting to self ${hostname}`)
     }
-    const auth = preferTransport === 'TCP' ? await authenticateServerHTTP(hostname) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node)
-    if (Array.isArray(auth)) return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${hostname} ${auth[1]}`)
+    const auth = preferTransport === 'TCP' ? await authenticateServerHTTP(hostname, trace) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
+    if (Array.isArray(auth)) {
+      trace.fail(auth[1])
+      return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${hostname} ${auth[1]}`)
+    }
     const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth)
-    if (!identity) return identity
+    if (!identity) {
+      trace.fail('Peer verification failed')
+      return identity
+    }
     
     if (this.peers.has(identity.address)) {
       debug(`[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`)
+      trace.fail('Already connected')
       return false
     }
     
-    if (preferTransport === 'TCP') return new WebSocketClient(identity, this, this.node)
+    if (preferTransport === 'TCP') {
+      trace.step('WebSocket upgrade → connected')
+      trace.success()
+      return new WebSocketClient(identity, this, this.node)
+    }
+    trace.success()
     return UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node)) || false
   }
 

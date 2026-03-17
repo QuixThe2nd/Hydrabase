@@ -37,7 +37,7 @@ export class DHT_Node {
       this.dht.addNode({ host, port: Number(port) })
     })
     this.loadCache()
-    this.dht.on('error', err => logContext('DHT', () => error('ERROR:', '[DHT] An error occurred', {err})))
+    this.dht.on('error', err => logContext('DHT', () => error('ERROR:', 'An error occurred', {err})))
     this.dht.on('ready', () => logContext('DHT', () => {
       stats(`Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
       this.resolved.ready = true
@@ -109,6 +109,6 @@ export class DHT_Node {
     if (!(await this.cacheFile.exists())) return
     const peers: DHTNode[] = await this.cacheFile.json()
     for (const peer of peers) this.add(peer)
-    log('[DHT] Loaded cached nodes')
+    logContext('DHT', () => log('Loaded cached nodes'))
   }
 }

@@ -8,18 +8,21 @@ import type { Account } from '../../Crypto/Account'
 import type PeerManager from '../../PeerManager'
 
 import { debug, log, warn } from '../../../utils/log'
+import { Trace } from '../../../utils/trace'
 import { type Auth, type Identity, proveClient, proveServer, verifyClient, verifyServer } from '../../protocol/HIP1/handshake'
 import { DHT_Node } from '../dht'
 import { authenticatedPeers, type HandshakeDiscovery, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
-const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => new Promise(resolve => {
+const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node'], trace?: Trace, tid?: string): Promise<[number, string] | Identity> => new Promise(resolve => {
   const txnId = Buffer.alloc(4)
   txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
   const t = txnId.toString('hex')
   debug(`[UDP] [CLIENT] Auth attempt to ${hostname} with txnId=${t}`)
+  trace?.step('h1 sent, proving client identity')
   const timer = setTimeout(() => {
     server.cancelAwaiter(t)
     debug(`[UDP] [CLIENT] Auth timeout for ${hostname} txnId=${t} — no matching response received`)
+    trace?.step('Timeout waiting for h2')
     resolve([408, 'UDP auth timeout'])
   }, 10_000)
   server.awaitResponse(t, (msg) => {
@@ -29,18 +32,22 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
       clearTimeout(timer)
       const code = typeof msg.e[0] === 'number' ? msg.e[0] : 500
       const text = typeof msg.e[1] === 'string' ? msg.e[1] : String(msg.e[0])
+      trace?.step(`h2 error: ${text}`)
       resolve([code, text])
       return true
     }
     if (msg.y !== 'h2') return false
+    trace?.step('h2 received')
     debug(`[UDP] [CLIENT] Received h2 from ${hostname}, verifying...`)
     const verification = verifyServer(msg.h2 as unknown as Auth, hostname)
     if (verification !== true) {
       debug(`[UDP] [CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
       clearTimeout(timer)
+      trace?.step('HIP1 verifyServer → invalid')
       resolve(verification)
       return true
     }
+    trace?.step('HIP1 verifyServer → valid')
     const identity = msg.h2 as unknown as Identity
     authenticatedPeers.set(hostname, identity)
     log(`[UDP] [CLIENT] Authenticated server ${hostname}`)
@@ -58,43 +65,53 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
-  server.socket.send(bencode.encode({ h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t, y: 'h1' } satisfies HandshakeRequest), Number(port), host)
+  const payload: HandshakeRequest = { h1: proveClient(account, node, hostname), id: DHT_Node.getNodeId(node), t, y: 'h1' }
+  if (tid) payload.tid = tid
+  server.socket.send(bencode.encode(payload), Number(port), host)
   debug(`[UDP] [CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
 })
 
-export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node']): Promise<[number, string] | Identity> => new Promise(resolve => {
+export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node'], trace?: Trace): Promise<[number, string] | Identity> => new Promise(resolve => {
     const txnId = Buffer.alloc(4)
     txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
     const t = txnId.toString('hex')
+    const tid = trace?.traceId
     debug(`[UDP] [CLIENT] h0 discovery to ${hostname} with txnId=${t}`)
+    trace?.step('h0 discovery → sent')
 
     const timer = setTimeout(() => {
       server.cancelAwaiter(t)
       debug(`[UDP] [CLIENT] h0 timeout for ${hostname} txnId=${t}`)
+      trace?.step('h0 timeout')
       resolve([408, 'UDP h0 discovery timeout'])
     }, 10_000)
 
     server.awaitResponse(t, (msg) => {
       if (msg.y !== 'h0r') return false
       clearTimeout(timer)
+      trace?.step(`h0r received, server identifies as ${msg.h0r.hostname}`)
       debug(`[UDP] [CLIENT] Received h0r from ${hostname}, server identifies as ${msg.h0r.hostname}`)
 
       const canonicalHostname = msg.h0r.hostname as `${string}:${number}`
       if (canonicalHostname !== hostname) {
+        trace?.step(`Upgrading hostname → ${canonicalHostname}`)
         debug(`[UDP] [CLIENT] Upgrading hostname from ${hostname} to ${canonicalHostname}`)
-        authenticateServerUDP(server, canonicalHostname, account, node).then(result => {
+        const childTrace = trace?.child(`h1 handshake to ${canonicalHostname}`)
+        authenticateServerUDP(server, canonicalHostname, account, node, childTrace).then(result => {
           if (!Array.isArray(result)) authenticatedPeers.set(hostname, result)
           resolve(result)
         })
         return true
       }
 
-      doH1Handshake(server, hostname, account, node).then(resolve)
+      doH1Handshake(server, hostname, account, node, trace, tid).then(resolve)
       return true
     })
 
     const [host, port] = hostname.split(':') as [string, `${number}`]
-    server.socket.send(bencode.encode({ t, y: 'h0' } satisfies HandshakeDiscovery), Number(port), host)
+    const payload: HandshakeDiscovery = { t, y: 'h0' }
+    if (tid) payload.tid = tid
+    server.socket.send(bencode.encode(payload), Number(port), host)
     debug(`[UDP] [CLIENT] Sent h0 to ${host}:${port} txnId=${t}`)
   })
 
