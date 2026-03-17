@@ -13,6 +13,32 @@ import { type Auth, type Identity, proveClient, proveServer, verifyClient, verif
 import { DHT_Node } from '../dht'
 import { authenticatedPeers, type HandshakeDiscovery, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
+const doH0Probe = (server: UDP_Server, hostname: `${string}:${number}`): Promise<[number, string] | Identity> => new Promise(resolve => {
+  const txnId = Buffer.alloc(4)
+  txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
+  const t = txnId.toString('hex')
+  debug(`[UDP] [CLIENT] h0 probe to ${hostname} with txnId=${t}`)
+
+  const timer = setTimeout(() => {
+    server.cancelAwaiter(t)
+    debug(`[UDP] [CLIENT] h0 probe timeout for ${hostname} txnId=${t}`)
+    resolve([408, 'UDP h0 probe timeout'])
+  }, 10_000)
+
+  server.awaitResponse(t, (msg) => {
+    if (msg.y !== 'h0r') return false
+    clearTimeout(timer)
+    const identity = msg.h0r as unknown as Identity
+    debug(`[UDP] [CLIENT] h0 probe response from ${hostname}: address=${identity.address}`)
+    resolve(identity)
+    return true
+  })
+
+  const [host, port] = hostname.split(':') as [string, `${number}`]
+  const payload: HandshakeDiscovery = { t, y: 'h0' }
+  server.socket.send(bencode.encode(payload), Number(port), host)
+})
+
 const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node'], trace?: Trace, tid?: string): Promise<[number, string] | Identity> => new Promise(resolve => {
   const txnId = Buffer.alloc(4)
   txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
@@ -157,7 +183,7 @@ export class UDP_Client implements Socket {
       }
       
       debug(`[UDP] [CLIENT] Verifying claimed hostname ${claimedHostname} via h0 probe (actual=${actualIP}, claimed=${claimedHost})`)
-      const probeResult = await doH1Handshake(server, claimedHostname, peerManager.account, node)
+      const probeResult = await doH0Probe(server, claimedHostname)
       if (Array.isArray(probeResult)) {
         debug(`[UDP] [CLIENT] h0 probe to ${claimedHostname} failed: ${probeResult[1]}`)
         return probeResult
