@@ -5,7 +5,7 @@ import type { Repositories } from './db'
 import type { DHT_Node } from './networking/dht'
 import type PeerManager from './PeerManager'
 
-import { formatBytes, formatUptime, stats } from '../utils/log'
+import { formatBytes, formatUptime, stats, truncateAddress } from '../utils/log'
 import { Trace } from '../utils/trace'
 
 export class StatsReporter {
@@ -80,6 +80,12 @@ export class StatsReporter {
     const totalDL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalDL, 0)
     const uptime = formatUptime(Date.now() - this.startTime)
     stats(`[STATUS] ${peerCount} peers | ${dhtCount} DHT nodes | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
+    for (const peer of this.peers.peers.values()) {
+      const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
+      const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
+      const uptime = formatUptime(peer.uptimeMs)
+      stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
+    }
   }
 
   private report(): void {

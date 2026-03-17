@@ -67,6 +67,7 @@ const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer =>
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
 export default class PeerManager {
+  public readonly peers = new PeerMap()
   get apiPeer() {
     return this.peers.get('0x0')
   }
@@ -77,7 +78,6 @@ export default class PeerManager {
     return this.peers.addresses
   }
   private readonly knownPeers = new Set<`${string}:${number}`>() // TODO: prune old peers, mem leak
-  private readonly peers = new PeerMap()
 
   constructor(
     public readonly account: Account, 
