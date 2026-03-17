@@ -6,6 +6,7 @@ import fs from 'fs';
 import { AlbumRepository } from './repositories/AlbumRepository';
 import { ArtistRepository } from './repositories/ArtistRepository';
 import { PeerRepository } from './repositories/PeerRepository';
+import { SearchHistoryRepository } from './repositories/SearchHistoryRepository';
 import { StatsRepository } from './repositories/StatsRepository';
 import { TrackRepository } from './repositories/TrackRepository';
 import { schema } from './schema';
@@ -18,6 +19,7 @@ export interface Repositories {
   album: AlbumRepository
   artist: ArtistRepository
   peer: PeerRepository
+  searchHistory: SearchHistoryRepository
   stats: StatsRepository
   track: TrackRepository
 }
@@ -29,6 +31,7 @@ export const startDatabase = (pluginConfidenceFormula: string): Repositories => 
     album: new AlbumRepository(db),
     artist: new ArtistRepository(db),
     peer: new PeerRepository(db, pluginConfidenceFormula),
+    searchHistory: new SearchHistoryRepository(db),
     stats: new StatsRepository(db),
     track: new TrackRepository(db),
   }

@@ -14,12 +14,19 @@ export const PingSchema = z.object({
 })
 export type Ping = z.infer<typeof PingSchema>
 
+const SearchHistoryDataSchema = z.union([
+  z.literal('get'),
+  z.literal('clear'),
+  z.object({ remove: z.number() })
+])
+
 const MessageSchemas = {
   announce: AnnounceSchema,
   ping: PingSchema,
   pong: PingSchema,
   request: RequestSchema,
-  response: ResponseSchema
+  response: ResponseSchema,
+  search_history: SearchHistoryDataSchema
 }
 
 type Message<T extends keyof typeof MessageSchemas = keyof typeof MessageSchemas> = z.infer<typeof MessageSchemas[T]>
@@ -46,6 +53,7 @@ export class HIP2_Conn_Message {
     : 'announce' in result ? 'announce'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'
+    : 'search_history' in result ? 'search_history'
     : null
 
   parseMessage = (message: string): false | { data: Message, nonce: number; type: MessageType } => {

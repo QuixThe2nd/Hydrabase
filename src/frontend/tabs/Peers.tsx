@@ -12,7 +12,6 @@ interface Props {
   setSel: (p: null | PeerWithCountry) => void;
   sorted: PeerWithCountry[];
 }
-// TODO: show usernames
 export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
   <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 }}>
     <span style={{ color: MUTED, fontSize: 11 }}>Filter:</span>
@@ -27,9 +26,10 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
           <div style={{ alignItems: "center", display: "flex", gap: 8, marginBottom: 3 }}>
             <Identicon address={p.address} size={24} />
             <StatusDot status={p.connection !== undefined} />
-            <span style={{ fontSize: 12, fontWeight: 700 }}>{p.address}</span>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{p.connection?.username || p.address}</span>
             <span style={{ fontSize: 12 }}>{toEmoji(p.country)}</span>
           </div>
+          {p.connection?.username && <div style={{ color: MUTED, fontSize: 10, marginLeft: 12 }}>{p.address}</div>}
           <div style={{ color: MUTED, fontSize: 11, marginLeft: 12 }}>ws://{p.connection?.hostname}</div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>

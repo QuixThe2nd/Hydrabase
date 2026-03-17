@@ -1,8 +1,8 @@
 import { type JSX, useState } from "react";
 
-import type { Album, Artist, Props, Request, SearchResult, SearchResultsProps, Track } from "../../types/hydrabase-schemas";
+import type { Album, Artist, Props, Request, SearchHistoryEntry, SearchResult, SearchResultsProps, Track } from "../../types/hydrabase-schemas";
 
-import { BORD, MUTED, panel, SURF, TEXT } from "../theme";
+import { BORD, confColor, MUTED, panel, SURF, TEXT } from "../theme";
 
 const isTrack  = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Track  => type === "tracks" || type === "artist.tracks" || type === 'album.tracks'
 const isAlbum  = (_r: SearchResult[keyof SearchResult], type: Request['type']): _r is Album  => type === "albums" || type === "artist.albums"
@@ -27,7 +27,7 @@ const DetailPanel = ({ onClose, onTogglePlay, playingId, r, type }: { onClose: (
   const link = r.external_urls ? Object.values(r.external_urls)[0] as string : undefined;
   const isPlaying = playingId === r.id;
   const artStyle = isArtist(r, type) ? { borderRadius: "50%" } : { borderRadius: 6 };
-  const previewUrl = isTrack(r, type) ? r.preview_url : undefined; // TODO: Show text "280 results from 3 peers with average confidence of 0.78"
+  const previewUrl = isTrack(r, type) ? r.preview_url : undefined;
 
   return <div style={{ ...panel(), display: "flex", flexDirection: "column", gap: 12, padding: "16px 18px", position: "relative" }}>
     <div style={{ alignItems: "flex-start", display: "flex", gap: 14 }}>
@@ -104,9 +104,12 @@ const SearchResults = ({ onTogglePlay, playingId, searchElapsed, searchLoading, 
   if (searchResults === null || searchLoading) return undefined
   if (searchResults.length === 0) return <div style={{ color: MUTED, padding: "20px 14px" }}>No results found</div>
   const columns = getColumns(searchType)
+  const avgConfidence = searchResults.length > 0 
+    ? (searchResults as SearchResult[keyof SearchResult][]).reduce((sum, r) => sum + r.confidence, 0) / searchResults.length 
+    : 0
   return <>
     <div style={{ color: MUTED, fontSize: 11, marginBottom: 2 }}>
-      {searchResults.length} {searchType + (searchResults.length === 1 ? "" : "s")} found · {searchElapsed?.toFixed(0)}ms
+      {searchResults.length} {searchType + (searchResults.length === 1 ? "" : "s")} found · {searchElapsed?.toFixed(0)}ms · avg confidence <span style={{ color: confColor(avgConfidence) }}>{avgConfidence.toFixed(2)}</span>
       {selected && <span> · <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}>clear selection</button></span>}
     </div>
     <div style={{ ...panel(), overflow: "hidden", padding: 0 }}>
@@ -120,10 +123,22 @@ const SearchResults = ({ onTogglePlay, playingId, searchElapsed, searchLoading, 
   </>
 }
 
-export const SearchTab = ({ onSearch, onTogglePlay, playingId, searchElapsed, searchError, searchLoading, searchQuery, searchResults, searchType, setSearchQuery, setSearchResults, setSearchType }: Props) => {
+const formatRelativeTime = (timestamp: number): string => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+export const SearchTab = ({ onClearHistory, onHistorySelect, onRemoveHistory, onSearch, onTogglePlay, playingId, searchElapsed, searchError, searchHistory, searchLoading, searchQuery, searchResults, searchType, setSearchQuery, setSearchResults, setSearchType, setShowHistory, showHistory }: Props) => {
   const [selected, setSelected] = useState<null | SearchResult[keyof SearchResult]>(null)
   const handleSearch = () => {
     setSelected(null)
+    setShowHistory(false)
     onSearch()
   }
   return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -135,9 +150,27 @@ export const SearchTab = ({ onSearch, onTogglePlay, playingId, searchElapsed, se
         setSearchResults(null)
       }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>)}
     </div>
-    <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
-      <input onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Enter search query…" style={{ background: SURF, border: `1px solid ${BORD}`, borderRadius: 4, color: TEXT, flex: 1, fontFamily: "inherit", fontSize: 13, padding: "6px 10px" }} type="text" value={searchQuery} />
-      <button className="fbtn" disabled={searchLoading} onClick={handleSearch} style={searchLoading ? { cursor: "default", opacity: 0.5 } : {}}>SEARCH →</button>
+    <div style={{ position: "relative" }}>
+      <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
+        <input onBlur={() => setTimeout(() => setShowHistory(false), 200)} onChange={(e) => setSearchQuery(e.target.value)} onFocus={() => setShowHistory(true)} onKeyDown={(e) => e.key === "Enter" ? handleSearch() : e.key === "Escape" && setShowHistory(false)} placeholder="Enter search query…" style={{ background: SURF, border: `1px solid ${BORD}`, borderRadius: 4, color: TEXT, flex: 1, fontFamily: "inherit", fontSize: 13, padding: "6px 10px" }} type="text" value={searchQuery} />
+        <button className="fbtn" disabled={searchLoading} onClick={handleSearch} style={searchLoading ? { cursor: "default", opacity: 0.5 } : {}}>SEARCH →</button>
+      </div>
+      {showHistory && searchHistory.length > 0 && <div style={{ ...panel(), left: 0, marginTop: 4, maxHeight: 300, overflowY: "auto", position: "absolute", right: 0, top: "100%", zIndex: 10 }}>
+        {searchHistory.map((entry, i) => <div key={i} onClick={() => onHistorySelect(entry)} style={{ alignItems: "center", borderBottom: i < searchHistory.length - 1 ? `1px solid ${BORD}` : "none", cursor: "pointer", display: "flex", gap: 8, justifyContent: "space-between", padding: "8px 12px", transition: "background .15s" }} onMouseEnter={(e) => e.currentTarget.style.background = SURF} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.query}</div>
+            <div style={{ color: MUTED, fontSize: 10, marginTop: 2 }}>
+              <span style={{ background: "#21262d", border: `1px solid ${BORD}`, borderRadius: 3, padding: "1px 5px" }}>{entry.type}</span>
+              <span style={{ marginLeft: 6 }}>{entry.resultCount} results</span>
+              <span style={{ marginLeft: 6 }}>· {formatRelativeTime(entry.timestamp)}</span>
+            </div>
+          </div>
+          <button className="fbtn" onClick={(e) => onRemoveHistory(entry, e)} style={{ flexShrink: 0, fontSize: 10, padding: "2px 6px" }}>✕</button>
+        </div>)}
+        {searchHistory.length > 0 && <div style={{ borderTop: `1px solid ${BORD}`, padding: "6px 12px", textAlign: "center" }}>
+          <button className="fbtn" onClick={onClearHistory} style={{ fontSize: 10 }}>Clear all</button>
+        </div>}
+      </div>}
     </div>
     {searchLoading && <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {[1, 2, 3, 4, 5].map((i) => <div key={i} style={{ ...panel(), animation: "blink 1.2s infinite", height: 44 }} />)}

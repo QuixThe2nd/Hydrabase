@@ -1,5 +1,5 @@
 import type { NodeStats, PeerStats, Socket } from '../types/hydrabase';
-import type { Album, Artist, MetadataPlugin, Request, Response, Track } from '../types/hydrabase-schemas';
+import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas';
 import type { Repositories } from "./db";
 import type PeerManager from "./PeerManager";
 
@@ -97,8 +97,26 @@ export class Peer {
       this.totalPongs++
       stats(`[PEER] Current latency ${latency}ms (${Math.ceil(this.latency*10)/10}ms AVG) ${this.username} ${this.address} ${this.hostname}`)
     },
-    request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => this.HIP2_Conn_Message.send.response(await this.searchNode(request.type, request.query, this.address === '0x0'), nonce),
-    response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.peer.address}`)}
+    request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number) => {
+      const results = await this.searchNode(request.type, request.query, this.address === '0x0')
+      this.HIP2_Conn_Message.send.response(results, nonce)
+      if (this.address === '0x0') {
+        this.repos.searchHistory.add(request.query, request.type, results.length)
+      }
+    },
+    response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.peer.address}`)},
+    search_history: (data: 'clear' | 'get' | { remove: number }, nonce: number) => {
+      if (this.address !== '0x0') return
+      if (data === 'get') {
+        this.send({ nonce, search_history: this.repos.searchHistory.getAll() })
+      } else if (data === 'clear') {
+        this.repos.searchHistory.clear()
+        this.send({ nonce, search_history: [] })
+      } else if (typeof data === 'object' && 'remove' in data) {
+        this.repos.searchHistory.remove(data.remove)
+        this.send({ nonce, search_history: this.repos.searchHistory.getAll() })
+      }
+    }
   }
 
   private startTime?: number
@@ -138,6 +156,7 @@ export class Peer {
       else if (type === 'announce') this.handlers[type](data as Announce)
       else if (type === 'request') await this.handlers[type](data as Request, nonce)
       else if (type === 'response') this.handlers[type](data as Response, nonce)
+      else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
     })
   }
@@ -154,7 +173,7 @@ export class Peer {
     return response;
   }
 
-  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { stats: NodeStats }) & { nonce: number }) {
+  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats }) & { nonce: number }) {
     const message = JSON.stringify(payload)
     if (!this.socket.isOpened) {
       warn('DEVWARN:', `[PEER] [${this.type}] Cannot send ${Object.keys(payload).join(',')} to unconnected peer ${this.socket.peer.address}`)

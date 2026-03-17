@@ -55,5 +55,14 @@ export const soul = sqliteTable('soul', {
     plugin_idB: text('plugin_idB').notNull(),
     soul_id: text('soul_id').notNull(),
   }, table => [uniqueIndex('idx_soul').on(table.plugin_idA, table.plugin_idB, table.address)])
-export const schema = { album, artist, soul, track } as const
+
+export const searchHistory = sqliteTable('search_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  query: text('query').notNull(),
+  result_count: integer('result_count').notNull(),
+  timestamp: integer('timestamp').notNull(),
+  type: text('type').notNull(),
+})
+
+export const schema = { album, artist, searchHistory, soul, track } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts

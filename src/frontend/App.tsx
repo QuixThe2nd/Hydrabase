@@ -1,9 +1,9 @@
-/* eslint-disable max-lines-per-function */ // TODO: remove this eventually - file needs to be simplified
-// TODO: search history
+/* eslint-disable max-lines-per-function */
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { EventEntry, FilterState, NodeStats, PeerStats, PeerWithCountry, WsState } from "../types/hydrabase"
+import type { SearchHistoryEntry } from "../types/hydrabase-schemas"
 
 import { error, warn } from "../utils/log"
 import { ActivityFeed } from "./components/ActivityFeed"
@@ -18,7 +18,6 @@ import { SearchTab } from "./tabs/Search"
 import { VotesTab } from "./tabs/votes"
 import { BG, GLOBAL_STYLES, TEXT } from "./theme"
 import { getCountry } from "./utils";
-
 
 export interface BwPoint { dl: number; ul: number }
 
@@ -50,6 +49,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [filter, setFilter] = useState<FilterState>("all")
   const [stats, setStats] = useState<NodeStats | null>(null)
   const [dhtNodeCounts, setDhtNodeCounts] = useState<number[]>([])
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([])
+  const [showHistory, setShowHistory] = useState(false)
 
   const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => warn('DEVWARN:', '[WEBUI] onPeerStatsRef not initialised'))
   const wsRef = useRef<undefined | WebSocket>(undefined)
@@ -87,6 +88,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         if (destroyed) { ws.close(); return }
         setWsState("open")
         addLog("INFO", "WebSocket connected")
+        ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
       }
       ws.onmessage = (e: MessageEvent) => {
         if (destroyed) return
@@ -96,7 +98,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             const resolve = pendingSearches.current.get(data.nonce)
             if (resolve) { pendingSearches.current.delete(data.nonce); resolve(data.response); return }
           }
-          if (data.stats && data.stats.self.address) applyStats(data.stats)
+          if (data.search_history !== undefined) {
+            setSearchHistory(data.search_history)
+          } else if (data.stats && data.stats.self.address) applyStats(data.stats)
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog("DEBUG", `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
@@ -145,6 +149,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     setSearchElapsed(performance.now() - t0)
     setSearchResults(result)
     setSearchLoading(false)
+    
+    ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
   }, [searchQuery, searchType])
 
   const handleTogglePlay = useCallback((id: string, previewUrl: string) => {
@@ -161,6 +167,29 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
   }, [playingId])
 
+  const handleHistorySelect = useCallback((entry: SearchHistoryEntry) => {
+    setSearchQuery(entry.query)
+    setSearchType(entry.type)
+    setShowHistory(false)
+    setTimeout(() => doSearch(), 0)
+  }, [doSearch, setSearchQuery, setSearchType])
+
+  const handleRemoveHistory = useCallback((entry: SearchHistoryEntry, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: { remove: entry.id } }))
+    }
+  }, [])
+
+  const handleClearHistory = useCallback(() => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'clear' }))
+    }
+    setShowHistory(false)
+  }, [])
+
   const tLabels = Array.from({ length: 60 }, (_, i) => `${60 - i}s`).toReversed()
   // const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
   //   onPeerStatsRef.current = onPeerStats
@@ -174,7 +203,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === "peers" && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={setSel} sorted={filterPeers(peers, filter)} />}
       {tab === "dht" && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === "votes" && <VotesTab peers={peers} stats={stats} />}
-      {tab === "search" && <SearchTab onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} />}
+      {tab === "search" && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
     </div>
     <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
     <ActivityFeed eventLog={eventLog} />
