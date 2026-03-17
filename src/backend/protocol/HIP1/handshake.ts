@@ -4,6 +4,7 @@ import type { Config } from "../../../types/hydrabase";
 import type { Trace } from "../../../utils/trace";
 import type { Account } from "../../Crypto/Account";
 
+import { BRANCH } from "../..";
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../../../VERSION" with { type: "text" };
 import { Signature } from "../../Crypto/Signature";
@@ -29,7 +30,7 @@ export const proveServer = (account: Account, node: Config['node'], trace: Trace
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
     signature: account.sign(`I am ${node.hostname}:${node.port}`, trace).toString(),
-    userAgent: `Hydrabase/${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
     username: node.username
   }
 }
@@ -46,7 +47,7 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
     signature: account.sign(`I am connecting to ${hostname}`, trace).toString(),
-    userAgent: `Hydrabase/${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
     username: node.username
   } as const
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result

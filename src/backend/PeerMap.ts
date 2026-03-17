@@ -33,7 +33,7 @@ export class PeerMap extends Map<`0x${string}`, Peer> {
         const uptime = formatUptime(peer.uptimeMs)
         if ('new' in diff && peer.address === diff.new) stats(`  + ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname}`)
         else if ('old' in diff && peer.address === diff.old) stats(`  - ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname}`)
-        else stats(`  • ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
+        else stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
       }
       this.lastCount = this.count
     }

@@ -31,6 +31,8 @@ const isUDPPortInUse = (port: number) => new Promise<boolean>((res, rej) => {
   socket.bind(port)
 })
 
+export const BRANCH = process.env['BRANCH'] ?? 'unknown'
+
 const defaultPort = process.env['PORT'] ?? 4545
 let port = Number(defaultPort)
 while (await isTCPPortInUse(port) || await isUDPPortInUse(port)) port++
