@@ -7,9 +7,9 @@ import type PeerManager from '../../PeerManager'
 
 import { debug, error, log, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
-import { type Identity, proveClient, proveServer } from '../../protocol/HIP1/handshake'
+import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
 import { DHT_Node } from '../dht'
-import { UDP_Client } from './client'
+import { authenticateServerUDP, UDP_Client } from './client'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
@@ -135,15 +135,25 @@ type Message = z.infer<typeof rpcMessageSchema>
 const handleHydraQuery = (server: UDP_Server, socket: dgram.Socket, query: Query, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, peerManager: PeerManager, node: Config['node']): boolean => {
   if (!authenticatedPeers.has(peerHostname)) {
     warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
-    socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-    debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
+    authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
+      if (!Array.isArray(result)) {
+        debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+      } else {
+        warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      }
+    })
     return false
   }
   const connection = udpConnections.get(peerHostname)
   if (!connection) {
     warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
-    socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-    debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
+    authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
+      if (!Array.isArray(result)) {
+        debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+      } else {
+        warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      }
+    })
     return false
   }
   if (query.a.n !== undefined && query.a.n > 1) {

@@ -8,7 +8,7 @@ import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
 import type { Identity } from './protocol/HIP1/handshake';
 
-import { debug, log, warn } from '../utils/log';
+import { debug, log, truncateAddress, formatUptime, warn } from '../utils/log';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
 import { authenticateServerUDP, UDP_Client } from './networking/udp/client';
@@ -99,20 +99,19 @@ export default class PeerManager {
       }
       return false
     }
-    log(`[PEERS] Adding peer ${socket.peer.username} ${socket.peer.address} ${socket.peer.hostname}`)
-
-    // TODO: feedback endpoints, so soulsync can force set metadata votes to 0 or 1 confidence
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-    log(`[PEERS] [${peer.type}] Connecting to ${peer.username} ${peer.address} ${peer.hostname}`)
+    debug(`[PEERS] [${peer.type}] Connecting to ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => {
-      log(`[PEERS] [${peer.type}] Connection closed with ${socket.peer.username} ${socket.peer.address}`)
-      this.peers.delete(socket.peer.address) // TODO: fallback
+      const uptime = formatUptime(peer.uptimeMs)
+      log(`[PEERS] - ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
+      this.peers.delete(socket.peer.address)
     })
 
     socket.onOpen(() => {
       this.peers.set(socket.peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      log(`[PEERS] [${peer.type}] Connected with ${socket.peer.username} ${socket.peer.address}`)
+      const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
+      log(`[PEERS] + ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname}`)
       this.announce(peer)
     })
 

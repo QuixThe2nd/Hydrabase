@@ -22,3 +22,22 @@ export const warn = (level: 'DEVWARN:' | 'WARN:', message: Message, context?: Co
 export const stats = (message: Message, context?: Context): void => context === undefined ? console.log(time(), blue('STAT:'), blue(message)) : console.log(time(), blue('STAT:'), blue(message), context)
 export const debug = (message: Message, context?: Context): void => context === undefined ? console.log(time(), grey('DEBUG:'), grey(message)) : console.log(time(), grey('DEBUG:'), grey(message), context)
 export const log = (message: Message, context?: Context): void => context === undefined ? console.log(time(), 'LOG:', message) : console.log(time(), 'LOG:', message, context)
+
+export const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`
+}
+
+export const formatUptime = (ms: number): string => {
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h${minutes % 60}m`
+}
+
+export const truncateAddress = (address: string): string => 
+  address.length > 12 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address
