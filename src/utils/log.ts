@@ -1,13 +1,8 @@
 /* eslint-disable no-console */
 type Context = `- ${string}` | Event | Record<string, unknown>
+import { AsyncLocalStorage } from 'node:async_hooks'
 
-type AsyncLocalStorageType = { getStore(): { contexts: string[] } | undefined; run<T>(store: { contexts: string[] }, callback: () => T): T }
-let asyncLocalStorage: AsyncLocalStorageType | null = null
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { AsyncLocalStorage } = require('async_hooks') as { AsyncLocalStorage: new () => AsyncLocalStorageType }
-  asyncLocalStorage = new AsyncLocalStorage()
-} catch { /* browser environment — logContext is a no-op */ }
+const asyncLocalStorage = new AsyncLocalStorage()
 
 export const logContext = <T>(context: string, callback: () => T): T => {
   if (!asyncLocalStorage) return callback()
