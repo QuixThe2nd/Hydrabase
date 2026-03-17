@@ -103,12 +103,10 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
     txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
     const t = txnId.toString('hex')
     const tid = trace?.traceId
-    debug(`[UDP] [CLIENT] h0 discovery to ${hostname} with txnId=${t}`)
     trace?.step('h0 discovery → sent')
 
     const timer = setTimeout(() => {
       server.cancelAwaiter(t)
-      debug(`[UDP] [CLIENT] h0 timeout for ${hostname} txnId=${t}`)
       trace?.step('h0 timeout')
       resolve([408, 'UDP h0 discovery timeout'])
     }, 10_000)
@@ -117,12 +115,10 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
       if (msg.y !== 'h0r') return false
       clearTimeout(timer)
       trace?.step(`h0r received, server identifies as ${msg.h0r.hostname}`)
-      debug(`[UDP] [CLIENT] Received h0r from ${hostname}, server identifies as ${msg.h0r.hostname}`)
 
       const canonicalHostname = msg.h0r.hostname as `${string}:${number}`
       if (canonicalHostname !== hostname) {
         trace?.step(`Upgrading hostname → ${canonicalHostname}`)
-        debug(`[UDP] [CLIENT] Upgrading hostname from ${hostname} to ${canonicalHostname}`)
         const childTrace = trace?.child(`h1 handshake to ${canonicalHostname}`)
         authenticateServerUDP(server, canonicalHostname, account, node, childTrace).then(result => {
           if (!Array.isArray(result)) authenticatedPeers.set(hostname, result)
