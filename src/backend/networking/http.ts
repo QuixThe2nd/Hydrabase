@@ -58,14 +58,14 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
       const trace = Trace.start(`Inbound WS connection`)
       const ip = server.requestIP(req)
       if (!ip) {
-        trace.fail('DEVWARN:', 'Failed to get client IP')
+        trace.fail('Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
       trace.step(`Hostname: ${ip.address}:${ip.port}`)
       const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager)
       if (response === undefined) return response
       const {address, hostname, res} = response
-      trace.fail('DEVWARN:', `Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
+      trace.fail(`Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
       return new Response(res[1], { status: res[0] })
     },
     hostname: node.listenAddress,
