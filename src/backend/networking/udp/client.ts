@@ -127,30 +127,30 @@ export class UDP_Client implements Socket {
     setTimeout(() => this.openHandler?.(), 0)
   }
   static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId)
-  static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket): Promise<false | UDP_Client> => {
+  static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket, server: UDP_Server): Promise<false | UDP_Client> => {
     debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
     const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname): Promise<[number, string] | Identity> => {
       const [actualIP] = peerHostname.split(':')
-      let [claimedHost] = claimedHostname.split(':')
-      
-      if (!net.isIP(claimedHost)) {
-        try {
-          const addresses = await resolve4(claimedHost)
-          if (addresses.length > 0) {
-            debug(`[UDP] [CLIENT] Resolved ${claimedHost} to ${addresses[0]} for hostname verification`)
-            claimedHost = addresses[0]
-          }
-        } catch {
-          debug(`[UDP] [CLIENT] DNS resolution failed for ${claimedHost}, falling back to string comparison`)
-        }
-      }
+      const [claimedHost] = claimedHostname.split(':')
       
       if (actualIP === claimedHost) {
-        debug(`[UDP] [CLIENT] Hostname verified: ${peerHostname} matches claimed ${claimedHostname}`)
+        debug(`[UDP] [CLIENT] Hostname verified: ${peerHostname} matches claimed ${claimedHostname} (direct IP match)`)
         return { ...auth.h1, hostname: peerHostname } as unknown as Identity
       }
-      return [500, 'UDP hostname mismatch - different IPs'] as [number, string]
+      
+      debug(`[UDP] [CLIENT] Verifying claimed hostname ${claimedHostname} via h0 probe (actual=${actualIP}, claimed=${claimedHost})`)
+      const probeResult = await doH1Handshake(server, claimedHostname, peerManager.account, node)
+      if (Array.isArray(probeResult)) {
+        debug(`[UDP] [CLIENT] h0 probe to ${claimedHostname} failed: ${probeResult[1]}`)
+        return probeResult
+      }
+      if (probeResult.address !== (auth.h1 as unknown as Auth).address) {
+        debug(`[UDP] [CLIENT] h0 probe address mismatch: h1 claims ${(auth.h1 as unknown as Auth).address} but ${claimedHostname} has ${probeResult.address}`)
+        return [500, 'Address mismatch between h1 and h0 probe']
+      }
+      debug(`[UDP] [CLIENT] Hostname verified via h0 probe: ${claimedHostname} has same address ${probeResult.address}`)
+      return probeResult
     })
     debug(`[UDP] [CLIENT] verifyClient result for ${peerHostname}: ${Array.isArray(identity) ? identity.join(' ') : `success ${identity.username}`}`)
     if (Array.isArray(identity)) return warn('DEVWARN:', `[UDP] [CLIENT] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)

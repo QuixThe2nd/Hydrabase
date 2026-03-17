@@ -129,14 +129,14 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
   return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
 }
 
-const handleHandshake = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   if (query.y === 'h0') {
     debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
     return true
   } else if (query.y === 'h1') {
     log(`[UDP] [HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
-    const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket)
+    const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server)
     debug(`[UDP] [HANDSHAKE] h1 processing for ${peerHostname}: ${result ? 'success' : 'failed'}`)
     return result ? true : warn('DEVWARN:', '[UDP] [SERVER] Failed to validate UDP auth')
   } else if (query.y === 'h2') {
@@ -156,7 +156,7 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
     debug(`[UDP] [AUTH] Received hydra_auth query from ${peerHostname}`)
     return false
   }
-  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(socket, peerManager, query, peerHostname, peer, node, config, apiKey)
+  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, peerManager, query, peerHostname, peer, node, config, apiKey)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     log('[UDP] Received query', query)
@@ -185,9 +185,15 @@ export class UDP_Server {
       socket.close()
     })
     socket.on('message', async (_msg, peer) => {
-      const result = rpcMessageSchema.safeParse(bencode.decode(_msg))
+      let decoded: unknown
+      try {
+        decoded = bencode.decode(_msg)
+      } catch {
+        return
+      }
+      const result = rpcMessageSchema.safeParse(decoded)
       if (!result.data) {
-        warn('DEVWARN:', '[UDP] [SERVER] Unexpected payload', { err: result.error, payload: bencode.decode(_msg) })
+        warn('DEVWARN:', '[UDP] [SERVER] Unexpected payload', { err: result.error, payload: decoded })
         return
       }
       const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t) : undefined

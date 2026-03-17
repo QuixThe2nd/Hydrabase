@@ -302,11 +302,11 @@ describe('HIP1 handshake edge cases', () => {
     expect(code).toBe(403)
   })
 
-  // it('rejects tampered signature', async () => {
-  //   const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`)
-  //   auth.signature = 'invalid-signature-data'
-  //   expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'])).rejects.toThrow()
-  // })
+  it('rejects tampered signature', async () => {
+    const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`)
+    auth.signature = 'invalid-signature-data'
+    expect(() => verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'])).toThrow()
+  })
 
   it('verifies API key auth', async () => {
     const result = await verifyClient(config1, '', { apiKey: 'test-key' }, 'test-key', () => [500, 'unused'])
@@ -643,27 +643,27 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  // it('rejects when reverse auth succeeds but address mismatch', async () => {
-  //   const clientAccount = new Account(generatePrivateKey())
-  //   const differentAccount = new Account(generatePrivateKey())
-  //   const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
+  it('rejects when reverse auth succeeds but address mismatch', async () => {
+    const clientAccount = new Account(generatePrivateKey())
+    const differentAccount = new Account(generatePrivateKey())
+    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`)
 
-  //   const mockMismatchAuthenticator = () =>
-  //     Promise.resolve({
-  //       address: differentAccount.address,
-  //       hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
-  //       userAgent: 'Hydrabase/test',
-  //       username: mockNATClient.username
-  //     })
+    const mockMismatchAuthenticator = () =>
+      Promise.resolve({
+        address: differentAccount.address,
+        hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
+        userAgent: 'Hydrabase/test',
+        username: mockNATClient.username
+      })
 
-  //   const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockMismatchAuthenticator)
+    const result = await verifyClient(mockNode, `${mockNATClient.ip}:${mockNATClient.port}`, clientAuth, undefined, mockMismatchAuthenticator)
 
-  //   expect(Array.isArray(result)).toBe(true)
-  //   if (Array.isArray(result)) {
-  //     expect(result[0]).toBe(500)
-  //     expect(result[1]).toContain('Invalid address')
-  //   }
-  // })
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      expect(result[0]).toBe(500)
+      expect(result[1]).toContain('Invalid address')
+    }
+  })
 
   // it('rejects non-connection errors during reverse auth', async () => {
   //   const clientAccount = new Account(generatePrivateKey())
