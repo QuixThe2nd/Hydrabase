@@ -8,7 +8,7 @@ import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
 import type { Identity } from './protocol/HIP1/handshake';
 
-import { debug, log, truncateAddress, formatUptime, warn } from '../utils/log';
+import { debug, formatUptime, log, truncateAddress, warn } from '../utils/log';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
 import { authenticateServerUDP, UDP_Client } from './networking/udp/client';

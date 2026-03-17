@@ -97,15 +97,12 @@ export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y
 ]))
 type Message = z.infer<typeof rpcMessageSchema>
 
-const handleHydraQuery = (server: UDP_Server, socket: dgram.Socket, query: Query, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, peerManager: PeerManager, node: Config['node']): boolean => {
+const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
   if (!authenticatedPeers.has(peerHostname)) {
     warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
-      if (!Array.isArray(result)) {
-        debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
-      } else {
-        warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-      }
+      if (Array.isArray(result)) warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      else debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
     })
     return false
   }
@@ -113,11 +110,8 @@ const handleHydraQuery = (server: UDP_Server, socket: dgram.Socket, query: Query
   if (!connection) {
     warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
-      if (!Array.isArray(result)) {
-        debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
-      } else {
-        warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-      }
+      if (Array.isArray(result)) warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      else debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
     })
     return false
   }
@@ -166,7 +160,7 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     log('[UDP] Received query', query)
-    return handleHydraQuery(server, socket, query as Query, peerHostname, peer, peerManager, node)
+    return handleHydraQuery(server, query as Query, peerHostname, peerManager, node)
   }
   if (query.y === 'r') return false
   log(`[UDP] [SERVER] Unhandled query`, {query})
