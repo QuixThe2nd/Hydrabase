@@ -44,18 +44,18 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
   const txnId = Buffer.alloc(4)
   txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
   const t = txnId.toString('hex')
-  trace.step(`[UDP] [CLIENT] Auth attempt to ${hostname} with txnId=${t}`)
+  trace.step(`[CLIENT] Auth attempt to ${hostname} with txnId=${t}`)
   trace.step('h1 sent, proving client identity')
   const timer = setTimeout(() => {
     server.cancelAwaiter(t)
-    trace.step(`[UDP] [CLIENT] Auth timeout for ${hostname} txnId=${t} — no matching response received`)
+    trace.step(`[CLIENT] Auth timeout for ${hostname} txnId=${t} — no matching response received`)
     trace.step('Timeout waiting for h2')
     resolve([408, 'UDP auth timeout'])
   }, 10_000)
   server.awaitResponse(t, (msg) => {
-    trace.step(`[UDP] [CLIENT] Awaiter fired for txnId=${t}, msg.y=${msg.y}`)
+    trace.step(`[CLIENT] Awaiter fired for txnId=${t}, msg.y=${msg.y}`)
     if (msg.y === 'e') {
-      trace.step(`[UDP] [CLIENT] Auth error from ${hostname}: ${msg.e.join(' ')}`)
+      trace.step(`[CLIENT] Auth error from ${hostname}: ${msg.e.join(' ')}`)
       clearTimeout(timer)
       const code = typeof msg.e[0] === 'number' ? msg.e[0] : 500
       const text = typeof msg.e[1] === 'string' ? msg.e[1] : String(msg.e[0])
@@ -65,10 +65,10 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     }
     if (msg.y !== 'h2') return false
     trace.step('h2 received')
-    trace.step(`[UDP] [CLIENT] Received h2 from ${hostname}, verifying...`)
+    trace.step(`[CLIENT] Received h2 from ${hostname}, verifying...`)
     const verification = verifyServer(msg.h2 as unknown as Auth, hostname, trace)
     if (verification !== true) {
-      trace.step(`[UDP] [CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
+      trace.step(`[CLIENT] h2 verification failed for ${hostname}: ${JSON.stringify(verification)}`)
       clearTimeout(timer)
       trace.step('HIP1 verifyServer → invalid')
       resolve(verification)
@@ -77,7 +77,7 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
     trace.step('HIP1 verifyServer → valid')
     const identity = msg.h2 as unknown as Identity
     authenticatedPeers.set(hostname, identity)
-    trace.step(`[UDP] [CLIENT] Authenticated server ${hostname}`)
+    trace.step(`[CLIENT] Authenticated server ${hostname}`)
     clearTimeout(timer)
     resolve(identity)
     const [dnsHost] = hostname.split(':') as [string]
@@ -86,16 +86,16 @@ const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}`, acco
       if (addresses.length > 0 && addresses[0] !== dnsHost) {
         const ipHostname = `${addresses[0]}:${port}` as `${string}:${number}`
         authenticatedPeers.set(ipHostname, identity)
-        trace.step(`[UDP] [CLIENT] Also stored auth under resolved IP ${ipHostname}`)
+        trace.step(`[CLIENT] Also stored auth under resolved IP ${ipHostname}`)
       }
-    }).catch((error: Error) => warn('DEVWARN:', `[UDP] [CLIENT] Dns lookup threw error`, {error}))
+    }).catch((error: Error) => warn('DEVWARN:', `[CLIENT] Dns lookup threw error`, {error}))
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]
   const payload: HandshakeRequest = { h1: proveClient(account, node, hostname, trace, false), id: DHT_Node.getNodeId(node), t, y: 'h1' }
   if (tid) payload.tid = tid
   server.socket.send(bencode.encode(payload), Number(port), host)
-  trace.step(`[UDP] [CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
+  trace.step(`[CLIENT] Sent h1 to ${host}:${port} txnId=${t}`)
 })
 
 export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:${number}`, account: Account, node: Config['node'], trace: Trace): Promise<[number, string] | Identity> => new Promise(resolve => {
@@ -135,7 +135,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
     const payload: HandshakeDiscovery = { t, y: 'h0' }
     if (tid) payload.tid = tid
     server.socket.send(bencode.encode(payload), Number(port), host)
-    trace.step(`[UDP] [CLIENT] Sent h0 to ${host}:${port} txnId=${t}`)
+    trace.step(`[CLIENT] Sent h0 to ${host}:${port} txnId=${t}`)
   })
 
 export class UDP_Client implements Socket {
@@ -159,9 +159,9 @@ export class UDP_Client implements Socket {
         if (addresses.length > 0 && addresses[0] !== dnsHost) {
           const ipHostname = `${addresses[0]}:${portStr}` as `${string}:${number}`
           authenticatedPeers.set(ipHostname, peer)
-          trace.step(`[UDP] [CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
+          trace.step(`[CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
         }
-      }).catch((error: Error) => warn('DEVWARN:', `[UDP] [CLIENT] Dns lookup threw error`, {error}))
+      }).catch((error: Error) => warn('DEVWARN:', `[CLIENT] Dns lookup threw error`, {error}))
     }
     
     setTimeout(() => this.openHandler?.(), 0)
@@ -195,7 +195,7 @@ export class UDP_Client implements Socket {
     trace.step(`verifyClient result: ${Array.isArray(identity) ? identity[1] : identity.username}`)
     if (Array.isArray(identity)) {
       trace.fail(`UDP auth query verification failed: ${identity[1]}`)
-      return warn('DEVWARN:', `[UDP] [CLIENT] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)
+      return warn('DEVWARN:', `[CLIENT] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)
     }
     trace.step(`Authenticated peer ${identity.username} ${identity.address}`)
     trace.success()
@@ -238,7 +238,7 @@ export class UDP_Client implements Socket {
     const c = chunkId.toString('hex')
     const totalChunks = Math.ceil(message.length / MAX_CHUNK_PAYLOAD)
     
-    debug(`[UDP] [CLIENT] Chunking message to ${this.peer.hostname}: ${message.length} bytes -> ${totalChunks} chunks (chunkId=${c})`)
+    debug(`[CLIENT] Chunking message to ${this.peer.hostname}: ${message.length} bytes -> ${totalChunks} chunks (chunkId=${c})`)
     
     for (let i = 0; i < totalChunks; i++) {
       const start = i * MAX_CHUNK_PAYLOAD
@@ -256,7 +256,7 @@ export class UDP_Client implements Socket {
           Number(this.peer.hostname.split(':')[1]), 
           this.peer.hostname.split(':')[0]
         )
-        debug(`[UDP] [CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.peer.hostname} (${chunkData.length} bytes)`)
+        debug(`[CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.peer.hostname} (${chunkData.length} bytes)`)
       }
       
       if (i === 0) {
