@@ -29,7 +29,7 @@ export class DHT_Node {
     const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(udpServer), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
     this.dht = new DHT({ bootstrap: config.bootstrapNodes.split(','), host: net.isIP(node.hostname) ? node.hostname : node.ip, krpc: socket, nodeId: DHT_Node.getNodeId(node) })
     this.dht.listen(node.port, node.listenAddress, () => {
-      debug(`[DHT] Listening on port ${node.port}`)
+      debug(`Listening on port ${node.port}`)
       this.resolved.listening = true
     })
     config.bootstrapNodes.split(',').forEach(node => {
@@ -39,18 +39,18 @@ export class DHT_Node {
     this.loadCache()
     this.dht.on('error', err => logContext('DHT', () => error('ERROR:', '[DHT] An error occurred', {err})))
     this.dht.on('ready', () => logContext('DHT', () => {
-      stats(`[DHT] Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
+      stats(`Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
       this.resolved.ready = true
     }))
     let lastNodes = 0
-    this.dht.on('node', async () => logContext('DHT', async () => {
+    this.dht.on('node', () => logContext('DHT', async () => {
       const nodes = this.nodes.length
       if (nodes > 1 && !this.resolved.connected) {
-        stats(`[DHT] Connected to ${nodes} nodes`)
+        stats(`Connected to ${nodes} nodes`)
         this.resolved.connected = true
       }
       if (nodes % 25 === 0 && nodes !== lastNodes) {
-        stats(`[DHT] Connected to ${nodes} nodes`)
+        stats(`Connected to ${nodes} nodes`)
         lastNodes = nodes
       }
       if (nodes > 50 || !(await this.cacheFile.exists()) || (nodes > this.cacheSize && this.cacheSize !== 0)) {
@@ -62,7 +62,7 @@ export class DHT_Node {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
-      debug(`[DHT] Discovered peer ${hostname}`)
+      debug(`Discovered peer ${hostname}`)
       peers.add(hostname)
     }))
     this.dht.on('announce', (peer, _infoHash) => logContext('DHT', () => {
@@ -70,7 +70,7 @@ export class DHT_Node {
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId(config.roomSeed)) return
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
-      log(`[DHT] Received announce from ${hostname}`)
+      log(`Received announce from ${hostname}`)
       peers.add(hostname)
     }))
   }
@@ -82,22 +82,22 @@ export class DHT_Node {
       const { notResolved, resolved } = this.countResolved()
       if (!this.config.requireConnection) this.resolved.connected = true
       if (notResolved === 0) {
-        log(`[DHT] Started... ${resolved}/${resolved}`)
+        log(`Started... ${resolved}/${resolved}`)
         clearInterval(id)
         this.announce()
         setInterval(() => this.announce(), this.config.reannounce)
         res(undefined)
       } else if (this.lastResolved !== resolved) {
         const pending = Object.entries(this.resolved).filter(([, v]) => !v).map(([k]) => k)
-        log(`[DHT] Starting... ${resolved}/${resolved+notResolved} (waiting on: ${pending.join(', ')})`)
+        log(`Starting... ${resolved}/${resolved+notResolved} (waiting on: ${pending.join(', ')})`)
         this.lastResolved = resolved
       } // TODO: rate limiting
     }, 1_000)
   })
   private readonly announce = () => {
     const room = DHT_Node.getRoomId(this.config.roomSeed)
-    this.dht.announce(room, this.node.port, err => { if (err) warn('WARN:', `[DHT] An error occurred during announce - ${err.message} ${this.nodes.length}`) })
-    this.dht.lookup(room, err => { if (err) error('ERROR:', `[DHT] An error occurred during lookup ${err.message}`) })
+    this.dht.announce(room, this.node.port, err => { if (err) warn('WARN:', `An error occurred during announce - ${err.message} ${this.nodes.length}`) })
+    this.dht.lookup(room, err => { if (err) error('ERROR:', `An error occurred during lookup ${err.message}`) })
   }
   private readonly countResolved = () => {
     const resolved = Object.values(this.resolved).filter(resolved => resolved).length
