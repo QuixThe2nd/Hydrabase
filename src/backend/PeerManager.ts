@@ -112,7 +112,7 @@ export default class PeerManager {
     socket.onOpen(() => {
       this.peers.set(socket.peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      log(`[PEERS] [${peer.type}] Connected with  ${socket.peer.username} ${socket.peer.address}`)
+      log(`[PEERS] [${peer.type}] Connected with ${socket.peer.username} ${socket.peer.address}`)
       this.announce(peer)
     })
 
