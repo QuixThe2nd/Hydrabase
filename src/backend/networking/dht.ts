@@ -8,6 +8,7 @@ import type { Config } from '../../types/hydrabase';
 import type PeerManager from '../PeerManager';
 
 import { debug, error, log, logContext, stats, warn } from '../../utils/log';
+import { Trace } from '../../utils/trace';
 import { authenticatedPeers, UDP_Server } from './udp/server';
 
 export class DHT_Node {
@@ -62,16 +63,16 @@ export class DHT_Node {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
-      debug(`Discovered peer ${hostname}`)
-      peers.add(hostname)
+      const trace = Trace.start(`Discovered peer ${hostname}`)
+      peers.add(hostname, trace)
     }))
     this.dht.on('announce', (peer, _infoHash) => logContext('DHT', () => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId(config.roomSeed)) return
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
-      log(`Received announce from ${hostname}`)
-      peers.add(hostname)
+      const trace = Trace.start(`Received announce from ${hostname}`)
+      peers.add(hostname, trace)
     }))
   }
   static readonly getNodeId = (node: Config['node']) => SHA1.hash(`${node.hostname}:${node.port}`, 'hex')

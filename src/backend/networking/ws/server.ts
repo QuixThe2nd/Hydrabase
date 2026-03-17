@@ -3,7 +3,7 @@ import type { SocketAddress } from "bun";
 import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
-import { debug, log, logContext, warn } from "../../../utils/log";
+import { debug, logContext, warn } from "../../../utils/log";
 import { Trace } from "../../../utils/trace";
 import { type Identity, verifyClient } from "../../protocol/HIP1/handshake";
 import { authenticateServerHTTP } from '../http';
@@ -70,7 +70,8 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
   open: (ws: Bun.ServerWebSocket<WebSocketData>) => {
     logContext('WS', () => {
       const conn = new WebSocketServerConnection(ws)
-      peerManager.add(conn)
+      const trace = Trace.start(`Incoming WebSocket connection from ${conn.peer.username} ${conn.peer.address} ${conn.peer.hostname}`)
+      peerManager.add(conn, trace)
       ws.data = { ...ws.data, conn, isOpened: true }
       ws.data.conn?._handleOpen()
     })
@@ -95,7 +96,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     return { address: auth.address, hostname: auth.hostname, res: [409, 'Already connected'] }
   }
   const authenticateHostname = async (claimedHostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
-    const result = await authenticateServerHTTP(claimedHostname)
+    const result = await authenticateServerHTTP(claimedHostname, trace)
     if (!Array.isArray(result)) return result
     const actualIP = ip.address
     const [claimedIP] = claimedHostname.split(':')
@@ -111,7 +112,6 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   ])
   if (Array.isArray(peer)) {
     trace.fail(peer[1])
-    warn('DEVWARN:', `Failed to authenticate peer: ${peer[1]}`)
     return { res: peer }
   }
   trace.step('HIP1 verifyClient → valid')

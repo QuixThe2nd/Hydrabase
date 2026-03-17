@@ -104,8 +104,8 @@ type Message = z.infer<typeof rpcMessageSchema>
 
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
   if (!authenticatedPeers.has(peerHostname)) {
-    warn('DEVWARN:', `[SERVER] Received message from unauthenticated peer ${peerHostname}`)
-    authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
+    const trace = Trace.start(`[SERVER] Received message from unauthenticated peer ${peerHostname}`)
+    authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
       if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       else debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
     })
@@ -113,8 +113,8 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
   }
   const connection = udpConnections.get(peerHostname)
   if (!connection) {
-    warn('DEVWARN:', `[SERVER] Couldn't find connection ${peerHostname}`)
-    authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
+    const trace = Trace.start(`[SERVER] Couldn't find connection ${peerHostname}`)
+    authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
       if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       else debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
     })
@@ -136,8 +136,8 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
 
 const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   if (query.y === 'h0') {
-    debug(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
-    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' }
+    const trace = Trace.start(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
+    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node, trace), t: query.t, y: 'h0r' }
     if ('tid' in query && query.tid) payload.tid = query.tid
     socket.send(bencode.encode(payload), peer.port, peer.host)
     return true

@@ -1,5 +1,6 @@
 import z from 'zod'
 
+import type { Trace } from '../../../utils/trace'
 import type { Peer } from '../../peer'
 import type PeerManager from '../../PeerManager'
 
@@ -17,9 +18,9 @@ export class HIP3_Conn_Announce {
     await this.peers.add(announce.hostname)
   }
 
-  sendAnnounce(announce: Announce): void {
+  sendAnnounce(announce: Announce, trace: Trace): void {
     if (this.peer.hostname === announce.hostname || this.peer.address === this.peers.account.address) return
-    log(`[HIP3] Announcing server ${announce.hostname} ${this.peer.address}`)
-    this.peer.send({ announce, nonce: this.peer.nonce++ })
+    trace.step(`[HIP3] Announcing server ${announce.hostname} ${this.peer.address}`)
+    this.peer.send({ announce: { hostname: announce.hostname }, nonce: this.peer.nonce++ })
   }
 }

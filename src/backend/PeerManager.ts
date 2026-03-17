@@ -90,7 +90,7 @@ export default class PeerManager {
   ) {}
 
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, preferTransport = this.node.preferTransport, trace?: Trace): Promise<boolean> {
+  public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
     const socket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
     if (!socket) return false // TODO: try other 
     if (this.peers.has(socket.peer.address)) {
@@ -101,17 +101,17 @@ export default class PeerManager {
       return false
     }
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-    trace?.step(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
+    trace.step(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
-      log(`- ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
+      trace.fail(`- ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
       this.peers.delete(socket.peer.address)
     }))
 
     socket.onOpen(() => logContext('PEERS', () => {
       this.peers.set(socket.peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      this.announce(peer)
+      this.announce(peer, trace)
     }))
 
     return true
@@ -134,14 +134,14 @@ export default class PeerManager {
 
   public async loadCache(bootstrapPeers: string[]) {
     await Promise.all(bootstrapPeers.map(async hostname => {
-      log(`[PEERS] Connecting to bootstrap peer ${hostname}`)
-      await this.add(hostname as `${string}:${number}`)
+      const trace = Trace.start(`[PEERS] Connecting to bootstrap peer ${hostname}`)
+      await this.add(hostname as `${string}:${number}`, trace)
     }))
     if (!(await cacheFile.exists())) return
     const hostnames: `${string}:${number}`[] = await cacheFile.json()
     for (const hostname of hostnames) if (hostname && !bootstrapPeers.includes(hostname)) {
-      log(`[PEERS] Connecting to cached peer ${hostname}`)
-      await this.add(hostname)
+      const trace = Trace.start(`[PEERS] Connecting to cached peer ${hostname}`)
+      await this.add(hostname, trace)
     }
   } // TODO: time based confidence scores - older peers = more trustworthy
 
@@ -158,14 +158,14 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
-  private announce({ hostname }: Peer) {
+  private announce(peer: Peer, trace: Trace) {
     for (const peerAddress of this.peerAddresses) {
       const announceTo = this.peers.get(peerAddress)
       if (!announceTo) {
         warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
         continue
       }
-      announceTo.announcePeer({ hostname })
+      announceTo.announcePeer(peer, trace)
     }
   }
 
@@ -175,14 +175,14 @@ export default class PeerManager {
     
     if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {
       trace.fail('Attempted to connect to self')
-      return warn('DEVWARN:', `[PEERS] Not connecting to self ${hostname}`)
+      return false
     }
     const auth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
     if (Array.isArray(auth)) {
       trace.fail(auth[1])
-      return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${hostname} ${auth[1]}`)
+      return false
     }
-    const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth)
+    const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth, trace)
     if (!identity) {
       trace.fail('Peer verification failed')
       return identity
@@ -203,15 +203,33 @@ export default class PeerManager {
     return UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
   }
 
-  private verifyPeer(hostname: `${string}:${number}`, auth: Identity) {
-    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return warn('DEVWARN:', `[PEERS] Not connecting to self ${hostname}`)
-    if (this.knownPeers.has(hostname) || this.has(auth.address)) return warn('DEVWARN:', `[PEERS] Already connected/connecting to peer ${auth.username} ${auth.address} ${auth.hostname}`)
-    if (auth.address === this.account.address) return warn('DEVWARN:', `[PEERS] Not connecting to self ${auth.address}`)
+  private verifyPeer(hostname: `${string}:${number}`, auth: Identity, trace: Trace) {
+    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {
+      trace.step(`[PEERS] Not connecting to self ${hostname}`)
+      return false
+    }
+    if (this.knownPeers.has(hostname) || this.has(auth.address)) {
+      trace.step(`[PEERS] Already connected/connecting to peer ${auth.username} ${auth.address} ${auth.hostname}`)
+      return false
+    }
+    if (auth.address === this.account.address) {
+      trace.step(`[PEERS] Not connecting to self ${auth.address}`)
+      return false
+    }
 
     if ('hostname' in auth) {
-      if (auth.hostname === this.node.hostname) return false
-      if (auth.hostname === `${this.node.ip}:${this.node.port}`) return false
-      if (auth.hostname !== hostname && this.knownPeers.has(auth.hostname)) return false
+      if (auth.hostname === this.node.hostname) {
+        trace.step(`[PEERS] Not connecting to self ${hostname}`)
+        return false
+      }
+      if (auth.hostname === `${this.node.ip}:${this.node.port}`) {
+        trace.step(`[PEERS] Not connecting to self ${hostname}`)
+        return false
+      }
+      if (auth.hostname !== hostname && this.knownPeers.has(auth.hostname)) {
+        trace.step(`[PEERS] Not connecting to self ${hostname}`)
+        return false
+      }
       this.knownPeers.add(auth.hostname)
     }
 

@@ -1,5 +1,6 @@
 import type { NodeStats, PeerStats, Socket } from '../types/hydrabase';
 import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas';
+import type { Trace } from '../utils/trace';
 import type { Repositories } from "./db";
 import type PeerManager from "./PeerManager";
 
@@ -161,7 +162,7 @@ export class Peer {
     })
   }
 
-  public readonly announcePeer = (announce: Announce) => this.HIP4_Conn_Announce.sendAnnounce(announce)
+  public readonly announcePeer = (announce: Announce, trace: Trace) => this.HIP4_Conn_Announce.sendAnnounce(announce, trace)
 
   public async search<T extends Request['type']>(type: T, query: string): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type })

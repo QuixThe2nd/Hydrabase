@@ -60,8 +60,8 @@ export default class WebSocketClient implements Socket {
 
     const openTimeout = setTimeout(() => {
       if (!this._isOpened) {
-        this.trace?.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
-        this.trace?.fail('Connection timed out')
+        this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
+        this.trace.fail('Connection timed out')
         this.socket.close()
       }
     }, WebSocketClient.OPEN_TIMEOUT_MS)
@@ -70,8 +70,8 @@ export default class WebSocketClient implements Socket {
       clearTimeout(openTimeout)
       this.reconnectAttempts = 1
       this.reconnectTimer = null
-      this.trace?.step('Connected')
-      this.trace?.success()
+      this.trace.step('Connected')
+      this.trace.success()
       this._isOpened = true
       this._flushQueue()
       this.openHandler?.()
@@ -81,8 +81,8 @@ export default class WebSocketClient implements Socket {
       clearTimeout(openTimeout)
       const reason = ev.reason ?? 'Connection closed'
       const codeInfo = ev.code === 1000 ? '' : ` (code: ${ev.code})`
-      this.trace?.step(`Connection closed: ${reason}${codeInfo}`)
-      this.trace?.fail(`${reason}${codeInfo}`)
+      this.trace.step(`Connection closed: ${reason}${codeInfo}`)
+      this.trace.fail(`${reason}${codeInfo}`)
       this._isOpened = false
       for (const handler of this.closeHandlers) handler()
       if (!this.peers.isConnectionOpened(this.peer.address)) {this._scheduleReconnect(account)}
@@ -91,8 +91,8 @@ export default class WebSocketClient implements Socket {
     this.socket.addEventListener('error', err => {
       clearTimeout(openTimeout)
       const errorMsg = (err as unknown as { message: string }).message
-      this.trace?.step(`Connection failed: ${errorMsg}`)
-      this.trace?.fail(errorMsg)
+      this.trace.step(`Connection failed: ${errorMsg}`)
+      this.trace.fail(errorMsg)
       
       if (errorMsg.includes('Expected 101 status code') || errorMsg.includes('status code')) {
         this._fetchRejectionReason()
@@ -124,7 +124,7 @@ export default class WebSocketClient implements Socket {
       if (response && response.ok === false) {
         const body = await response.text().catch(() => '')
         const rejectionMsg = `HTTP ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`
-        this.trace?.step(`Server rejected: ${rejectionMsg}`)
+        this.trace.step(`Server rejected: ${rejectionMsg}`)
       }
     } catch {
       // Silently ignore fetch errors - this is just for debugging info
@@ -138,7 +138,7 @@ export default class WebSocketClient implements Socket {
   private _scheduleReconnect(account: Account) {
     if (this.reconnectTimer) return
     const delayMs = this.reconnectAttempts*5_000
-    this.trace?.step(`Reconnecting in ${delayMs}ms`)
+    this.trace.step(`Reconnecting in ${delayMs}ms`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       if (!this.dontReconnect) this._connect(account)
