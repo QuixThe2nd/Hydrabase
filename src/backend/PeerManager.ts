@@ -92,8 +92,9 @@ export default class PeerManager {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
-    const socket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
-    if (!socket) return false // TODO: try other 
+    const firstSocket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
+    const socket = firstSocket || await this.toSocket(_peer as `${string}:${number}`, typeof _peer === 'string' ? (preferTransport === 'TCP' ? 'UDP' : 'TCP') : (_peer instanceof UDP_Client ? 'TCP' : 'UDP'), trace)
+    if (!socket) return false
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
         debug(`[PEERS] Skipping duplicate connection to ${socket.peer.username} ${socket.peer.address} - already connected`)

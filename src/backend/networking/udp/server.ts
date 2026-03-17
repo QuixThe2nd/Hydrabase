@@ -105,7 +105,7 @@ export class UDP_Server {
       }
       const result = rpcMessageSchema.safeParse(decoded)
       if (!result.data) {
-        warn('DEVWARN:', '[SERVER] Unexpected payload', { err: result.error.message, payload: decoded })
+        warn('DEVWARN:', '[SERVER] Unexpected payload', { err: JSON.parse(result.error.message), payload: decoded })
         return
       }
       const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t) : undefined

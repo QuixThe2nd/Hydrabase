@@ -14,7 +14,15 @@ import { DHT_Node } from "../../networking/dht"
 import { UDP_Client } from "../../networking/udp/client"
 import { authenticatedPeers, type RPCMessage, UDP_Server } from "../../networking/udp/server"
 import { BaseMessage, BinaryHex, BinaryString } from "../DHT"
-import { type Auth, AuthSchema, type Identity, proveClient, proveServer, verifyServer } from "../HIP1_Identity"
+import { type Auth, type Identity, proveClient, proveServer, verifyServer } from "../HIP1_Identity"
+
+export const AuthSchema = z.object({
+  address: BinaryString,
+  hostname: BinaryString,
+  signature: BinaryString,
+  userAgent: BinaryString,
+  username:  BinaryString,
+}).strict()
 
 export const H0_HandshakeDiscoverySchema = BaseMessage.extend({
   tid: BinaryString.optional(),
