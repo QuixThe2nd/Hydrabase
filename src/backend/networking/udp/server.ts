@@ -73,7 +73,7 @@ const ErrorMessage = BaseMessage.extend({
     z.tuple([z.number()]),
   ]),
   y: z.literal('e'),
-}).strict()
+})
 export type HandshakeDiscovery = z.infer<typeof HandshakeDiscoverySchema>
 export type HandshakeDiscoveryResponse = z.infer<typeof HandshakeDiscoveryResponseSchema>
 export type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
