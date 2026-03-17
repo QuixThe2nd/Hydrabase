@@ -29,7 +29,7 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     
     if (auth.hostname !== hostname) {
       trace?.step(`Upgrading hostname → ${auth.hostname}`)
-      debug(`[HTTP] Upgrading hostname from ${hostname} to ${auth.hostname}`)
+      debug(`Upgrading hostname from ${hostname} to ${auth.hostname}`)
       return await authenticateServerHTTP(auth.hostname, trace)
     }
     
@@ -41,12 +41,12 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     trace?.step('HIP1 verifyServer → valid')
     
     authenticatedPeers.set(hostname, auth)
-    log(`[HTTP] Authenticated server ${hostname}`)
+    log(`Authenticated server ${hostname}`)
     return auth
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     trace?.step(`HTTP error: ${message}`)
-    warn('WARN:', `[HTTP] Authentication failed for ${hostname} - ${message}`)
+    warn('WARN:', `Authentication failed for ${hostname} - ${message}`)
     return [500, `Failed to authenticate server via HTTP: ${message}`]
   }
 }
@@ -58,13 +58,13 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
       if (req.headers.get("upgrade") !== "websocket") return serveStaticFile(url.pathname)
       const ip = server.requestIP(req)
       if (!ip) {
-        warn('DEVWARN:', '[SERVER] Failed to get client IP')
+        warn('DEVWARN:', 'Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
       const response = await handleConnection(server, req, ip, node, apiKey, peerManager)
       if (response === undefined) return response
       const {address, hostname, res} = response
-      warn('DEVWARN:', `[SERVER] Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
+      warn('DEVWARN:', `Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
       return new Response(res[1], { status: res[0] })
     }),
     hostname: node.listenAddress,
@@ -72,6 +72,6 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
     routes: { '/auth': () => new Response(JSON.stringify(proveServer(account, node))) },
     websocket: websocketHandlers(peerManager)
   })
-  debug(`[SERVER] Listening on port ${server.port}`)
+  debug(`Listening on port ${server.port}`)
   return server
 }

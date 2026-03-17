@@ -136,7 +136,7 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
 
 const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   if (query.y === 'h0') {
-    debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
+    debug(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' }
     if ('tid' in query && query.tid) payload.tid = query.tid
     socket.send(bencode.encode(payload), peer.port, peer.host)
@@ -145,23 +145,23 @@ const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerMan
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
     trace.step('Received h1')
-    log(`[UDP] [HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
+    log(`[HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
     trace.step('Sending h2')
     const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server)
-    debug(`[UDP] [HANDSHAKE] h1 processing for ${peerHostname}: ${result ? 'success' : 'failed'}`)
+    debug(`[HANDSHAKE] h1 processing for ${peerHostname}: ${result ? 'success' : 'failed'}`)
     if (result) {
       trace.step('HIP1 verifyClient → valid')
       trace.success()
       return true
     } else {
       trace.fail('Failed to validate UDP auth')
-      return warn('DEVWARN:', '[UDP] [SERVER] Failed to validate UDP auth')
+      return warn('DEVWARN:', '[SERVER] Failed to validate UDP auth')
     }
   } else if (query.y === 'h2') {
-    warn('DEVWARN:', `[UDP] [HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
+    warn('DEVWARN:', `[HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
     return false
   } else if (query.y === 'h0r') {
-    debug(`[UDP] [HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
+    debug(`[HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
     return false
   }
   return false

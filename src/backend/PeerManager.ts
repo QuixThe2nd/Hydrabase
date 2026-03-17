@@ -101,7 +101,7 @@ export default class PeerManager {
       return false
     }
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-    debug(`[PEERS] [${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
+    debug(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
       log(`- ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
@@ -179,7 +179,7 @@ export default class PeerManager {
       trace.fail('Attempted to connect to self')
       return warn('DEVWARN:', `[PEERS] Not connecting to self ${hostname}`)
     }
-    const auth = preferTransport === 'TCP' ? await authenticateServerHTTP(hostname, trace) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
+    const auth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
     if (Array.isArray(auth)) {
       trace.fail(auth[1])
       return warn('DEVWARN:', `[PEERS] Failed to authenticate peer ${hostname} ${auth[1]}`)
