@@ -146,12 +146,9 @@ const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerMan
     const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
     trace.step('Received h1')
     log(`[HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
-    trace.step('Sending h2')
-    const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server)
-    debug(`[HANDSHAKE] h1 processing for ${peerHostname}: ${result ? 'success' : 'failed'}`)
+    const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server, trace)
     if (result) {
       trace.step('HIP1 verifyClient → valid')
-      trace.success()
       return true
     } 
       trace.fail('Failed to validate UDP auth')

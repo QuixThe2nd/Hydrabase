@@ -14,15 +14,15 @@ import { type Auth, type Identity, proveClient, proveServer, verifyClient, verif
 import { DHT_Node } from '../dht'
 import { authenticatedPeers, type HandshakeDiscovery, type HandshakeRequest, type HandshakeResponse, type Query, UDP_Server, udpConnections } from './server'
 
-const doH0Probe = (server: UDP_Server, hostname: `${string}:${number}`): Promise<[number, string] | Identity> => new Promise(resolve => {
+const doH0Probe = (server: UDP_Server, hostname: `${string}:${number}`, trace?: Trace): Promise<[number, string] | Identity> => new Promise(resolve => {
   const txnId = Buffer.alloc(4)
   txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
   const t = txnId.toString('hex')
-  debug(`[UDP] [CLIENT] h0 probe to ${hostname} with txnId=${t}`)
+  trace?.step(`h0 probe → ${hostname}`)
 
   const timer = setTimeout(() => {
     server.cancelAwaiter(t)
-    debug(`[UDP] [CLIENT] h0 probe timeout for ${hostname} txnId=${t}`)
+    trace?.step('h0 probe timeout')
     resolve([408, 'UDP h0 probe timeout'])
   }, 10_000)
 
@@ -30,7 +30,7 @@ const doH0Probe = (server: UDP_Server, hostname: `${string}:${number}`): Promise
     if (msg.y !== 'h0r') return false
     clearTimeout(timer)
     const identity = msg.h0r as unknown as Identity
-    debug(`[UDP] [CLIENT] h0 probe response from ${hostname}: address=${identity.address}`)
+    trace?.step(`h0 probe response: ${identity.address}`)
     resolve(identity)
     return true
   })
@@ -148,10 +148,10 @@ export class UDP_Client implements Socket {
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
   private openHandler?: () => void
-  private constructor(private readonly peers: PeerManager, public readonly peer: Identity, private readonly config: Config['rpc'], private readonly id: string) {
+  private constructor(private readonly peers: PeerManager, public readonly peer: Identity, private readonly config: Config['rpc'], private readonly id: string, trace?: Trace) {
     authenticatedPeers.set(`${peer.hostname}`, peer)
     udpConnections.set(peer.hostname, this)
-    log(`[UDP] [CLIENT] Connecting to peer ${peer.hostname}`)
+    trace?.step(`UDP client connecting to ${peer.hostname}`)
     const [host, port] = peer.hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
     
@@ -170,38 +170,42 @@ export class UDP_Client implements Socket {
     
     setTimeout(() => this.openHandler?.(), 0)
   }
-  static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId)
+  static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string, trace?: Trace): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId, trace)
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket, server: UDP_Server, trace: Trace): Promise<false | UDP_Client> => {
-    debug(`[UDP] [CLIENT] Sending h2 to ${peerHostname} txnId=${auth.t}`)
+    trace.step('Sending h2')
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
     const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname): Promise<[number, string] | Identity> => {
       const [actualIP] = peerHostname.split(':')
       const [claimedHost] = claimedHostname.split(':')
       
       if (actualIP === claimedHost) {
-        debug(`[UDP] [CLIENT] Hostname verified: ${peerHostname} matches claimed ${claimedHostname} (direct IP match)`)
+        trace.step('Hostname verified (direct IP match)')
         return { ...auth.h1, hostname: peerHostname } as unknown as Identity
       }
       
-      debug(`[UDP] [CLIENT] Verifying claimed hostname ${claimedHostname} via h0 probe (actual=${actualIP}, claimed=${claimedHost})`)
-      const probeResult = await doH0Probe(server, claimedHostname)
+      trace.step(`Verifying claimed hostname ${claimedHostname} via h0 probe`)
+      const probeResult = await doH0Probe(server, claimedHostname, trace)
       if (Array.isArray(probeResult)) {
-        debug(`[UDP] [CLIENT] h0 probe to ${claimedHostname} failed: ${probeResult[1]}`)
+        trace.step(`h0 probe failed: ${probeResult[1]}`)
         return probeResult
       }
       if (probeResult.address !== (auth.h1 as unknown as Auth).address) {
-        debug(`[UDP] [CLIENT] h0 probe address mismatch: h1 claims ${(auth.h1 as unknown as Auth).address} but ${claimedHostname} has ${probeResult.address}`)
+        trace.step(`Address mismatch: h1 claims ${(auth.h1 as unknown as Auth).address} but probe returned ${probeResult.address}`)
         return [500, 'Address mismatch between h1 and h0 probe']
       }
-      debug(`[UDP] [CLIENT] Hostname verified via h0 probe: ${claimedHostname} has same address ${probeResult.address}`)
+      trace.step('Hostname verified via h0 probe')
       return probeResult
     }, trace)
-    debug(`[UDP] [CLIENT] verifyClient result for ${peerHostname}: ${Array.isArray(identity) ? identity.join(' ') : `success ${identity.username}`}`)
-    if (Array.isArray(identity)) return warn('DEVWARN:', `[UDP] [CLIENT] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)
-    log(`[UDP] [CLIENT] Authenticated peer ${identity.username} ${identity.address} at ${peerHostname} via UDP auth query`)
+    trace.step(`verifyClient result: ${Array.isArray(identity) ? identity[1] : identity.username}`)
+    if (Array.isArray(identity)) {
+      trace.fail(`UDP auth query verification failed: ${identity[1]}`)
+      return warn('DEVWARN:', `[UDP] [CLIENT] UDP auth query verification failed for ${peerHostname}: ${identity[1]}`)
+    }
+    trace.step(`Authenticated peer ${identity.username} ${identity.address}`)
+    trace.success()
     authenticatedPeers.set(peerHostname, identity)
-    if (!udpConnections.has(peerHostname)) peerManager.add(new UDP_Client(peerManager, { ...identity, hostname: peerHostname }, config, auth.id))
-    return new UDP_Client(peerManager, identity, config, auth.id)
+    if (!udpConnections.has(peerHostname)) peerManager.add(new UDP_Client(peerManager, { ...identity, hostname: peerHostname }, config, auth.id, trace))
+    return new UDP_Client(peerManager, identity, config, auth.id, trace)
   }
   public readonly close = () => {
     this.isOpened = false

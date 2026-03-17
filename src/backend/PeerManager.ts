@@ -101,7 +101,7 @@ export default class PeerManager {
       return false
     }
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-    trace.step(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
+    trace?.step(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
       log(`- ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
@@ -200,7 +200,7 @@ export default class PeerManager {
       return new WebSocketClient(identity, this, this.node)
     }
     trace.success()
-    return UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node)) || false
+    return UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
   }
 
   private verifyPeer(hostname: `${string}:${number}`, auth: Identity) {
