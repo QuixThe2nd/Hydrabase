@@ -9,7 +9,7 @@ import { Trace } from '../../../utils/trace'
 export const AnnounceSchema = z.object({ hostname: z.string().transform(a => a as `${string}:${number}`) })
 export type Announce = z.infer<typeof AnnounceSchema>
 
-export class HIP3_Conn_Announce {
+export class HIP3_AnnouncePeers {
   constructor(private readonly peer: Peer, private readonly peers: PeerManager) {}
 
   async handleAnnounce(announce: Announce): Promise<void> {

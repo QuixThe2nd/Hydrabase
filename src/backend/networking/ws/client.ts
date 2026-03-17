@@ -4,7 +4,7 @@ import type PeerManager from '../../PeerManager'
 
 import { warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
-import { type Identity, proveClient } from '../../protocol/HIP1/handshake'
+import { type Identity, proveClient } from '../../protocol/HIP1_Identity'
 
 export default class WebSocketClient implements Socket {
   private static readonly OPEN_TIMEOUT_MS = 30_000

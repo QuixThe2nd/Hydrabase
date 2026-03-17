@@ -8,7 +8,7 @@ import { BRANCH } from "../..";
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../../../VERSION" with { type: "text" };
 import { Signature } from "../../Crypto/Signature";
-import { upgradeHostname } from "../HIP4/upgrade";
+import { upgradeHostname } from "../HIP4_HostnameUpgrades";
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),

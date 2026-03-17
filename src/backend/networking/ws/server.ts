@@ -5,7 +5,7 @@ import type PeerManager from "../../PeerManager";
 
 import { logContext, warn } from "../../../utils/log";
 import { Trace } from "../../../utils/trace";
-import { type Identity, verifyClient } from "../../protocol/HIP1/handshake";
+import { type Identity, verifyClient } from "../../protocol/HIP1_Identity";
 import { authenticateServerHTTP } from '../http';
 
 export class WebSocketServerConnection implements Socket {

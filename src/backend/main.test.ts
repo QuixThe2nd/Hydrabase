@@ -18,10 +18,10 @@ import { handleConnection } from './networking/ws/server'
 import { Node } from './Node'
 import PeerManager from './PeerManager'
 import { PeerMap } from './PeerMap'
-import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from './protocol/HIP1/handshake'
-import { HIP2_Conn_Message } from './protocol/HIP2/message'
-import { type Ping, PingSchema } from './protocol/HIP2/message'
-import { AnnounceSchema } from './protocol/HIP3/announce'
+import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from './protocol/HIP1_Identity'
+import { HIP2_Messaging } from './protocol/HIP2_Messaging'
+import { type Ping, PingSchema } from './protocol/HIP2_Messaging'
+import { AnnounceSchema } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
 const config1 = {
@@ -428,7 +428,7 @@ describe('RequestManager', () => {
 describe('HIP2 message parsing', () => {
   it('identifies message types correctly', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const identify = (obj: any) => HIP2_Conn_Message.identifyType(obj)
+    const identify = (obj: any) => HIP2_Messaging.identifyType(obj)
     expect(identify({ request: { query: 'test', type: 'artists' } })).toBe('request')
     expect(identify({ response: [] })).toBe('response')
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')

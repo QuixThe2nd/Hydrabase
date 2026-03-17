@@ -6,7 +6,7 @@ import type { RequestManager } from '../../RequestManager';
 import { type Request, RequestSchema, type Response, ResponseSchema } from '../../../types/hydrabase-schemas';
 import { debug } from '../../../utils/log';
 import { type Peer } from '../../peer';
-import { AnnounceSchema } from '../HIP3/announce';
+import { AnnounceSchema } from '../HIP3_AnnouncePeers';
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
 
@@ -33,7 +33,7 @@ const MessageSchemas = {
 type Message<T extends keyof typeof MessageSchemas = keyof typeof MessageSchemas> = z.infer<typeof MessageSchemas[T]>
 type MessageType = keyof typeof MessageSchemas
 
-export class HIP2_Conn_Message {
+export class HIP2_Messaging {
   public readonly send = {
     request: async <T extends Request['type']>(request: Request & { type: T }, trace: Trace): Promise<Response<T>> => {
       const { nonce, promise } = this.requestManager.register<T>()
@@ -60,7 +60,7 @@ export class HIP2_Conn_Message {
   parseMessage = (message: string, trace: Trace): false | { data: Message, nonce: number; type: MessageType } => {
     const { nonce, ...result } = JSON.parse(message)
 
-    const type = HIP2_Conn_Message.identifyType(result)
+    const type = HIP2_Messaging.identifyType(result)
     if (!type) return trace.fail(`[HIP2] Unexpected message ${Object.keys(result)} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
 
     const {data,error} = MessageSchemas[type].safeParse(result[type])
