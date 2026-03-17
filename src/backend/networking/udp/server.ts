@@ -8,7 +8,6 @@ import type PeerManager from '../../PeerManager'
 import { debug, error, log, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
 import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
-import { DHT_Node } from '../dht'
 import { authenticateServerUDP, UDP_Client } from './client'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
@@ -27,45 +26,22 @@ export const AuthSchema = z.object({
   username:  BinaryString,
 }).strict()
 const BaseMessage = z.object({
-  ip: z.instanceof(Uint8Array).optional(),
   t: BinaryString.optional(),
-  v: BinaryString.optional(),
-  y: BinaryString,
-}).strict()
+})
 const QueryMessage = BaseMessage.extend({
   a: z.object({
     c: BinaryString.optional(),
-    cas: z.number().optional(),
     d: BinaryString.optional(),
     i: z.number().optional(),
     id: BinaryString,
-    implied_port: z.number().optional(),
-    info_hash: BinaryHex.optional(),
-    k: z.instanceof(Uint8Array).optional(),
     n: z.number().optional(),
-    noseed: z.number().optional(),
-    port: z.number().optional(),
-    salt: z.instanceof(Uint8Array).optional(),
-    scrape: z.number().optional(),
-    seq: z.number().optional(),
-    sig: z.instanceof(Uint8Array).optional(),
-    target: BinaryHex.optional(),
-    token: BinaryString.optional(),
-    v: z.unknown().optional(),
-    vote: z.number().optional(),
-    want: z.array(z.instanceof(Uint8Array)).optional(),
-  }).strict(),
+  }),
   q: BinaryString,
   y: z.literal('q'),
-}).strict()
+})
 const HydraAuthQueryMessage = BaseMessage.extend({
-  a: z.object({
-    address: BinaryString,
-    hostname: BinaryString,
+  a: AuthSchema.extend({
     id: BinaryString,
-    signature: BinaryString,
-    userAgent: BinaryString,
-    username: BinaryString,
   }).strict(),
   q: z.literal('hydra_auth'),
   y: z.literal('q'),
@@ -87,21 +63,9 @@ const HandshakeResponseSchema = BaseMessage.extend({
   y: z.literal('h2')
 }).strict()
 const ResponseMessageSchema = BaseMessage.extend({
-  r: z.object({
-    id: BinaryString,
-    ip: z.instanceof(Uint8Array).optional(),
-    k: z.instanceof(Uint8Array).optional(),
-    nodes: BinaryString.optional(),
-    nodes6: z.instanceof(Uint8Array).optional(),
-    p: z.number().optional(),
-    seq: z.number().optional(),
-    sig: z.instanceof(Uint8Array).optional(),
-    token: BinaryString.optional(),
-    v: z.unknown().optional(),
-    values: z.array(BinaryString).optional(),
-  }).strict(),
+  r: z.object({}),
   y: z.literal('r'),
-}).strict()
+})
 const ErrorMessage = BaseMessage.extend({
   e: z.union([
     z.tuple([z.number(), BinaryString]),
