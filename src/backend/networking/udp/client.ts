@@ -1,3 +1,4 @@
+/* eslint-disable max-lines-per-function */
 import bencode from 'bencode'
 import dgram from 'dgram'
 import { resolve4 } from 'dns/promises'

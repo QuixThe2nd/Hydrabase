@@ -169,10 +169,8 @@ export default class PeerManager {
     }
   }
 
-  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace?: Trace): Promise<false | Socket> {
-    if (!trace) {
-      trace = Trace.start(`Connection to ${hostname}`)
-    }
+  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', _trace?: Trace): Promise<false | Socket> {
+    const trace = _trace ?? Trace.start(`Connection to ${hostname}`)
     trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
     
     if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {

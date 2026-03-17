@@ -1,6 +1,6 @@
 import { type JSX, useState } from "react";
 
-import type { Album, Artist, Props, Request, SearchHistoryEntry, SearchResult, SearchResultsProps, Track } from "../../types/hydrabase-schemas";
+import type { Album, Artist, Props, Request, SearchResult, SearchResultsProps, Track } from "../../types/hydrabase-schemas";
 
 import { BORD, confColor, MUTED, panel, SURF, TEXT } from "../theme";
 
@@ -156,7 +156,7 @@ export const SearchTab = ({ onClearHistory, onHistorySelect, onRemoveHistory, on
         <button className="fbtn" disabled={searchLoading} onClick={handleSearch} style={searchLoading ? { cursor: "default", opacity: 0.5 } : {}}>SEARCH →</button>
       </div>
       {showHistory && searchHistory.length > 0 && <div style={{ ...panel(), left: 0, marginTop: 4, maxHeight: 300, overflowY: "auto", position: "absolute", right: 0, top: "100%", zIndex: 10 }}>
-        {searchHistory.map((entry, i) => <div key={i} onClick={() => onHistorySelect(entry)} style={{ alignItems: "center", borderBottom: i < searchHistory.length - 1 ? `1px solid ${BORD}` : "none", cursor: "pointer", display: "flex", gap: 8, justifyContent: "space-between", padding: "8px 12px", transition: "background .15s" }} onMouseEnter={(e) => e.currentTarget.style.background = SURF} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+        {searchHistory.map((entry, i) => <div key={i} onClick={() => onHistorySelect(entry)} onMouseEnter={e => { e.currentTarget.style.background = SURF }} onMouseLeave={e => { e.currentTarget.style.background = "transparent" }} style={{ alignItems: "center", borderBottom: i < searchHistory.length - 1 ? `1px solid ${BORD}` : "none", cursor: "pointer", display: "flex", gap: 8, justifyContent: "space-between", padding: "8px 12px", transition: "background .15s" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.query}</div>
             <div style={{ color: MUTED, fontSize: 10, marginTop: 2 }}>

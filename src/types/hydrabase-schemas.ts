@@ -75,14 +75,6 @@ export interface PendingRequest<T extends Request['type']> {
   startedAt: number
   timeout: ReturnType<typeof setTimeout>
 }
-export interface SearchHistoryEntry {
-  id: number
-  query: string
-  resultCount: number
-  timestamp: number
-  type: Request['type']
-}
-
 export type Props = SearchResultsProps & {
   onClearHistory: () => void
   onHistorySelect: (entry: SearchHistoryEntry) => void
@@ -97,8 +89,16 @@ export type Props = SearchResultsProps & {
   setShowHistory: (show: boolean) => void
   showHistory: boolean
 }
+
 export type Request = z.infer<typeof RequestSchema>
 export type Response<T extends keyof SearchResult = keyof SearchResult> = SearchResult[T][]
+export interface SearchHistoryEntry {
+  id: number
+  query: string
+  resultCount: number
+  timestamp: number
+  type: Request['type']
+}
 
 export interface SearchResult {
   'album.tracks': Track

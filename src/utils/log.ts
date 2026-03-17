@@ -2,7 +2,7 @@
 type Context = `- ${string}` | Event | Record<string, unknown>
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-const asyncLocalStorage = new AsyncLocalStorage()
+const asyncLocalStorage = new AsyncLocalStorage<{ contexts: string[] }>()
 
 export const logContext = <T>(context: string, callback: () => T): T => {
   if (!asyncLocalStorage) return callback()

@@ -51,6 +51,10 @@ export class SearchHistoryRepository {
     }
   }
 
+  clear(): void {
+    this.db.delete(schema.searchHistory).run()
+  }
+
   getAll(): SearchHistoryEntry[] {
     return this.db.select().from(schema.searchHistory)
       .orderBy(desc(schema.searchHistory.timestamp))
@@ -62,9 +66,5 @@ export class SearchHistoryRepository {
     this.db.delete(schema.searchHistory)
       .where(eq(schema.searchHistory.id, id))
       .run()
-  }
-
-  clear(): void {
-    this.db.delete(schema.searchHistory).run()
   }
 }

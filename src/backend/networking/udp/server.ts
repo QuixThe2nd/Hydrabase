@@ -153,10 +153,10 @@ const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerMan
       trace.step('HIP1 verifyClient → valid')
       trace.success()
       return true
-    } else {
+    } 
       trace.fail('Failed to validate UDP auth')
       return warn('DEVWARN:', '[SERVER] Failed to validate UDP auth')
-    }
+    
   } else if (query.y === 'h2') {
     warn('DEVWARN:', `[HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
     return false
@@ -202,7 +202,7 @@ export class UDP_Server {
       error('ERROR:', `[SERVER] An error was thrown ${err.name} - ${err.message}`)
       socket.close()
     })
-    socket.on('message', async (_msg, peer) => logContext('UDP', async () => {
+    socket.on('message', (_msg, peer) => logContext('UDP', async () => {
       let decoded: unknown
       try {
         decoded = bencode.decode(_msg)

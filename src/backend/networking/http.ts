@@ -53,7 +53,7 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
 
 export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string) => {
   const server = Bun.serve({
-    fetch: async (req, server) => logContext('HTTP', async () => {
+    fetch: (req, server) => logContext('HTTP', async () => {
       const url = new URL(req.url)
       if (req.headers.get("upgrade") !== "websocket") return serveStaticFile(url.pathname)
       const ip = server.requestIP(req)

@@ -302,7 +302,7 @@ describe('HIP1 handshake edge cases', () => {
     expect(code).toBe(403)
   })
 
-  it('rejects tampered signature', async () => {
+  it('rejects tampered signature', () => {
     const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`)
     auth.signature = 'invalid-signature-data'
     expect(() => verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'])).toThrow()

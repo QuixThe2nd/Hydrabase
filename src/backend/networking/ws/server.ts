@@ -91,7 +91,6 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     return { res: [400, 'Missing required handshake headers'] }
   }
   trace.step('Parsing auth headers')
-  
   if (peerManager && !('apiKey' in auth) && auth.address && peerManager.has(auth.address)) {
     trace.fail('Already connected')
     debug(`Skipping duplicate connection from ${auth.username} ${auth.address} - already connected`)
@@ -100,14 +99,12 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   const authenticateHostname = async (claimedHostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
     const result = await authenticateServerHTTP(claimedHostname)
     if (!Array.isArray(result)) return result
-    
     const actualIP = ip.address
     const [claimedIP] = claimedHostname.split(':')
     if (actualIP === claimedIP && 'address' in auth) {
       debug(`NAT detected: same IP (${actualIP}), accepting peer ${auth.address} at claimed ${claimedHostname}`)
       return { address: auth.address as `0x${string}`, hostname: claimedHostname, userAgent: auth.userAgent as string, username: auth.username as string }
     }
-    
     return result
   }
   const peer = await Promise.race([
@@ -121,9 +118,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   }
   trace.step('HIP1 verifyClient → valid')
   const { address, hostname, userAgent, username } = peer
-  if (hostname !== `${node.hostname}:${node.port}`) {
-    trace.step('HIP4 hostname matches')
-  }
+  if (hostname !== `${node.hostname}:${node.port}`) trace.step('HIP4 hostname matches')
   log(`Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
   if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
     trace.success()
