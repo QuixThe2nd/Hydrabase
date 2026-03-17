@@ -100,7 +100,7 @@ export default class PeerManager {
       return false
     }
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-    debug(`[PEERS] [${peer.type}] Connecting to ${peer.username} ${peer.address} ${peer.hostname}`)
+    debug(`[PEERS] [${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => {
       const uptime = formatUptime(peer.uptimeMs)
       log(`[PEERS] - ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
@@ -110,8 +110,6 @@ export default class PeerManager {
     socket.onOpen(() => {
       this.peers.set(socket.peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
-      log(`[PEERS] + ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname}`)
       this.announce(peer)
     })
 

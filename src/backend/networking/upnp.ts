@@ -5,18 +5,18 @@ import type { Config } from '../../types/hydrabase';
 import { debug, warn } from '../../utils/log';
 
 const upnp = natUpnp.createClient();
-const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP') => new Promise((res, rej) => {
+const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP', renew = false) => new Promise((res, rej) => {
   upnp.portMapping({ description, private: port, protocol, public: port, ttl }, err => {
     if (err) rej(err)
     else {
-      debug(`[UPnP] Successfully forwarded ${protocol} port ${port}`)
+      debug(`[UPnP] Successfully ${renew ? 'renewed' : ''} forwarded ${protocol} port ${port}`)
       res(undefined)
     }
   })
 })
 const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP' = 'TCP') => {
   await mapPort(port, description, ttl, protocol)
-  setInterval(() => mapPort(port, description, ttl, protocol), announceInterval)
+  setInterval(() => mapPort(port, description, ttl, protocol, true), announceInterval)
 }
 
 export const requestPort = async (node: Config['node'], upnp: Config['upnp']) => {

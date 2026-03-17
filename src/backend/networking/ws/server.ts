@@ -73,7 +73,7 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
 const VERIFY_TIMEOUT_MS = 15_000
 
 export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, peerManager?: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
-  log(`[SERVER] Connecting to client ${ip?.address}`)
+  log(`[HTTP] [SERVER] Connecting to client ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, }
   if (!('apiKey' in auth) && (!auth.address || !auth.hostname || !auth.signature || !auth.username)) {

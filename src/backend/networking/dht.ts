@@ -39,7 +39,7 @@ export class DHT_Node {
     this.loadCache()
     this.dht.on('error', err => error('ERROR:', '[DHT] An error occurred', {err}))
     this.dht.on('ready', () => {
-      log(`[DHT] Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
+      stats(`[DHT] Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
       this.resolved.ready = true
     })
     let lastNodes = 0
