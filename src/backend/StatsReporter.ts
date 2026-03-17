@@ -5,9 +5,11 @@ import type { Repositories } from './db'
 import type { DHT_Node } from './networking/dht'
 import type PeerManager from './PeerManager'
 
-import { error } from '../utils/log'
+import { error, formatBytes, formatUptime, stats } from '../utils/log'
 
 export class StatsReporter {
+  private readonly startTime = Date.now()
+
   constructor(
     private readonly node: Config['node'],
     private readonly account: Account,
@@ -19,6 +21,8 @@ export class StatsReporter {
   ) {
     this.report()
     setInterval(() => this.report(), this.intervalMs)
+    this.logStatus()
+    setInterval(() => this.logStatus(), 60_000)
   }
 
   private collectStats(): NodeStats {
@@ -66,6 +70,15 @@ export class StatsReporter {
         }
       })(),
     } satisfies ApiPeer))
+  }
+
+  private logStatus(): void {
+    const peerCount = this.peers.connectedPeers.filter(p => p.address !== '0x0').length
+    const dhtCount = this.dht.nodes.length
+    const totalUL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalUL, 0)
+    const totalDL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalDL, 0)
+    const uptime = formatUptime(Date.now() - this.startTime)
+    stats(`[STATUS] ${peerCount} peers | ${dhtCount} DHT nodes | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
   }
 
   private report(): void {

@@ -46,7 +46,7 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
         warn('DEVWARN:', '[SERVER] Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
-      const response = await handleConnection(server, req, ip, node, apiKey)
+      const response = await handleConnection(server, req, ip, node, apiKey, peerManager)
       if (response === undefined) return response
       const {address, hostname, res} = response
       warn('DEVWARN:', `[SERVER] Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)

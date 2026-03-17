@@ -1,6 +1,6 @@
 import type { Peer } from "./peer"
 
-import { stats } from "../utils/log"
+import { formatUptime, stats, truncateAddress } from "../utils/log"
 
 export class PeerMap extends Map<`0x${string}`, Peer> {
   get addresses(): `0x${string}`[] {
@@ -25,8 +25,15 @@ export class PeerMap extends Map<`0x${string}`, Peer> {
 
   private log() {
     if (this.lastCount !== this.count) {
-      stats(`[PEERS] Connected to ${this.count} peer${this.count === 1 ? '' : 's'}`)
+      stats(`[PEERS] ${this.count} peer${this.count === 1 ? '' : 's'} connected:`)
+      for (const peer of this.values()) {
+        if (peer.address === '0x0') continue
+        const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
+        const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
+        const uptime = formatUptime(peer.uptimeMs)
+        stats(`[PEERS]   • ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
+      }
       this.lastCount = this.count
-    } // TODO: encrypt private key
+    }
   }
 }

@@ -1,8 +1,8 @@
 name: Build Dev Docker Image
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [dev]
 
 env:
   REGISTRY: ghcr.io
@@ -14,7 +14,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      pull-requests: write 
 
     steps:
       - name: Checkout
@@ -36,37 +35,6 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache,mode=max
-
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const marker = '<!-- docker-pr-comment -->';
-            const body = `${marker}\n## 🐳 Dev Docker Image\n\`\`\`\ndocker pull ghcr.io/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}\n\`\`\``;
-
-            const comments = await github.rest.issues.listComments({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-
-            const existing = comments.data.find(c => c.body.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                comment_id: existing.id,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            }

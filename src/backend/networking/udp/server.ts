@@ -7,9 +7,8 @@ import type PeerManager from '../../PeerManager'
 
 import { debug, error, log, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
-import { type Identity, proveClient, proveServer } from '../../protocol/HIP1/handshake'
-import { DHT_Node } from '../dht'
-import { UDP_Client } from './client'
+import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
+import { authenticateServerUDP, UDP_Client } from './client'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
@@ -28,32 +27,23 @@ export const AuthSchema = z.object({
 }).strict()
 const BaseMessage = z.object({
   t: BinaryString.optional(),
-  v: BinaryString.optional(),
-  y: BinaryString,
-}).strict()
+})
 const QueryMessage = BaseMessage.extend({
   a: z.object({
     c: BinaryString.optional(),
-    cas: z.number().optional(),
     d: BinaryString.optional(),
     i: z.number().optional(),
     id: BinaryString,
-    implied_port: z.number().optional(),
-    info_hash: BinaryHex.optional(),
-    k: z.instanceof(Uint8Array).optional(),
     n: z.number().optional(),
-    noseed: z.number().optional(),
-    port: z.number().optional(),
-    salt: z.instanceof(Uint8Array).optional(),
-    scrape: z.number().optional(),
-    seq: z.number().optional(),
-    sig: z.instanceof(Uint8Array).optional(),
-    target: BinaryHex.optional(),
-    token: BinaryString.optional(),
-    v: z.unknown().optional(),
-    want: z.array(z.instanceof(Uint8Array)).optional(),
-  }).strict(),
+  }),
   q: BinaryString,
+  y: z.literal('q'),
+})
+const HydraAuthQueryMessage = BaseMessage.extend({
+  a: AuthSchema.extend({
+    id: BinaryString,
+  }).strict(),
+  q: z.literal('hydra_auth'),
   y: z.literal('q'),
 }).strict()
 const HandshakeDiscoverySchema = BaseMessage.extend({
@@ -73,19 +63,9 @@ const HandshakeResponseSchema = BaseMessage.extend({
   y: z.literal('h2')
 }).strict()
 const ResponseMessageSchema = BaseMessage.extend({
-  r: z.object({
-    id: BinaryString,
-    k: z.instanceof(Uint8Array).optional(),
-    nodes: BinaryString.optional(),
-    p: z.number().optional(),
-    seq: z.number().optional(),
-    sig: z.instanceof(Uint8Array).optional(),
-    token: BinaryString.optional(),
-    v: z.unknown().optional(),
-    values: z.array(BinaryString).optional(),
-  }).strict(),
+  r: z.object({}),
   y: z.literal('r'),
-}).strict()
+})
 const ErrorMessage = BaseMessage.extend({
   e: z.union([
     z.tuple([z.number(), BinaryString]),
@@ -98,24 +78,58 @@ export type HandshakeDiscovery = z.infer<typeof HandshakeDiscoverySchema>
 export type HandshakeDiscoveryResponse = z.infer<typeof HandshakeDiscoveryResponseSchema>
 export type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
 export type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
+export type HydraAuthQuery = z.infer<typeof HydraAuthQueryMessage>
 export type Query = z.infer<typeof QueryMessage>
 export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
   y: decoder.decode(msg.y),
-}), z.discriminatedUnion('y', [
-  QueryMessage,
-  ResponseMessageSchema,
-  ErrorMessage,
-  HandshakeDiscoverySchema,
-  HandshakeDiscoveryResponseSchema,
-  HandshakeRequestSchema,
-  HandshakeResponseSchema,
+}), z.union([
+  HydraAuthQueryMessage,
+  z.discriminatedUnion('y', [
+    QueryMessage,
+    ResponseMessageSchema,
+    ErrorMessage,
+    HandshakeDiscoverySchema,
+    HandshakeDiscoveryResponseSchema,
+    HandshakeRequestSchema,
+    HandshakeResponseSchema,
+  ])
 ]))
 type Message = z.infer<typeof rpcMessageSchema>
 
-const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
-  const peerHostname = `${peer.host}:${peer.port}` as const
-  if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
+const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
+  if (!authenticatedPeers.has(peerHostname)) {
+    warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
+    authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
+      if (Array.isArray(result)) warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      else debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+    })
+    return false
+  }
+  const connection = udpConnections.get(peerHostname)
+  if (!connection) {
+    warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
+    authenticateServerUDP(server, peerHostname, peerManager.account, node).then(result => {
+      if (Array.isArray(result)) warn('DEVWARN:', `[UDP] [SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      else debug(`[UDP] [SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+    })
+    return false
+  }
+  if (query.a.n !== undefined && query.a.n > 1) {
+    if (query.a.c === undefined || query.a.i === undefined || query.a.d === undefined) {
+      warn('DEVWARN:', `[UDP] [SERVER] Malformed chunk from ${peerHostname}: missing c, i, or d`)
+      return false
+    }
+    server.processChunk(query.a.c, query.a.i, query.a.n, query.a.d, connection)
+    return true
+  }
+  const message = query.a['d']
+  if (!message) return false
+  connection.messageHandlers.forEach(handler => handler(message))
+  return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
+}
+
+const handleHandshake = async (socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   if (query.y === 'h0') {
     debug(`[UDP] [HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     socket.send(bencode.encode({ h0r: proveServer(peerManager.account, node), t: query.t, y: 'h0r' } satisfies HandshakeDiscoveryResponse), peer.port, peer.host)
@@ -131,35 +145,24 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
   } else if (query.y === 'h0r') {
     debug(`[UDP] [HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
     return false
-  }else if (query.y === 'q') {
+  }
+  return false
+}
+
+const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+  const peerHostname = `${peer.host}:${peer.port}` as const
+  if (query.y === 'e') return warn('DEVWARN:', `[UDP] [SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
+  if (query.y === 'q' && 'q' in query && query.q === 'hydra_auth') {
+    debug(`[UDP] [AUTH] Received hydra_auth query from ${peerHostname}`)
+    return false
+  }
+  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(socket, peerManager, query, peerHostname, peer, node, config, apiKey)
+  if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     log('[UDP] Received query', query)
-    if (!authenticatedPeers.has(peerHostname)) {
-      warn('DEVWARN:', `[UDP] [SERVER] Received message from unauthenticated peer ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-      debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
-      return false
-    }
-    const connection = udpConnections.get(peerHostname)
-    if (!connection) {
-      warn('DEVWARN:', `[UDP] [SERVER] Couldn't find connection ${peerHostname}`)
-      socket.send(bencode.encode({ h1: proveClient(peerManager.account, node, peerHostname), id: DHT_Node.getNodeId(node), t: query.t, y: 'h1' } satisfies HandshakeRequest), peer.port, peer.host)
-      debug(`[UDP] [SERVER] Sent re-auth h1 to ${peerHostname} — note: will fail if peer is behind NAT (signature uses NATted address)`)
-      return false
-    }
-    if (query.a.n !== undefined && query.a.n > 1) {
-      if (query.a.c === undefined || query.a.i === undefined || query.a.d === undefined) {
-        warn('DEVWARN:', `[UDP] [SERVER] Malformed chunk from ${peerHostname}: missing c, i, or d`)
-        return false
-      }
-      server.processChunk(query.a.c, query.a.i, query.a.n, query.a.d, connection)
-      return true
-    }
-    const message = query.a['d']
-    if (!message) return false
-    connection.messageHandlers.forEach(handler => handler(message))
-    return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[UDP] [SERVER] Couldn't find message handler ${peerHostname}`) : true
-  } else if (query.y === 'r') return false
+    return handleHydraQuery(server, query as Query, peerHostname, peerManager, node)
+  }
+  if (query.y === 'r') return false
   log(`[UDP] [SERVER] Unhandled query`, {query})
   return false
 }

@@ -72,13 +72,18 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
 
 const VERIFY_TIMEOUT_MS = 15_000
 
-export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
+export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, peerManager?: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   log(`[SERVER] Connecting to client ${ip?.address}`)
   const headers = Object.fromEntries(req.headers.entries())
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-userAgent'] as string, username: headers['x-username'] as string, }
   if (!('apiKey' in auth) && (!auth.address || !auth.hostname || !auth.signature || !auth.username)) {
     warn('DEVWARN:', `[SERVER] Rejected connection from ${ip?.address}: missing handshake headers`)
     return { res: [400, 'Missing required handshake headers'] }
+  }
+  
+  if (peerManager && !('apiKey' in auth) && auth.address && peerManager.has(auth.address)) {
+    debug(`[SERVER] Skipping duplicate connection from ${auth.username} ${auth.address} - already connected`)
+    return { address: auth.address, hostname: auth.hostname, res: [409, 'Already connected'] }
   }
   const authenticateHostname = async (claimedHostname: `${string}:${number}`): Promise<[number, string] | Identity> => {
     const result = await authenticateServerHTTP(claimedHostname)
@@ -103,5 +108,8 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
   }
   const { address, hostname, userAgent, username } = peer
   log(`[SERVER] Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
-  return server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } }) ? undefined : { address, hostname, res: [500, "Upgrade failed"] }
+  if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
+    return undefined
+  }
+  return { address, hostname, res: [500, "Upgrade failed"] }
 }
