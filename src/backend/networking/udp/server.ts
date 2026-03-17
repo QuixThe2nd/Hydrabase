@@ -174,7 +174,7 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
   if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, peerManager, query, peerHostname, peer, node, config, apiKey)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
-    log('Received query', query)
+    log(`Received query - ${query.q}`)
     return handleHydraQuery(server, query as Query, peerHostname, peerManager, node)
   }
   if (query.y === 'r') return false
