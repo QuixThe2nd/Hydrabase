@@ -8,7 +8,7 @@ import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
 import type { Identity } from './protocol/HIP1/handshake';
 
-import { debug, formatUptime, log, truncateAddress, warn } from '../utils/log';
+import { debug, formatUptime, log, logContext, truncateAddress, warn } from '../utils/log';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
 import { authenticateServerUDP, UDP_Client } from './networking/udp/client';
@@ -101,17 +101,17 @@ export default class PeerManager {
     }
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
     debug(`[PEERS] [${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
-    socket.onClose(() => {
+    socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
       log(`[PEERS] - ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
       this.peers.delete(socket.peer.address)
-    })
+    }))
 
-    socket.onOpen(() => {
+    socket.onOpen(() => logContext('PEERS', () => {
       this.peers.set(socket.peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
       this.announce(peer)
-    })
+    }))
 
     return true
   }

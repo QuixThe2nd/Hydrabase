@@ -3,7 +3,7 @@ import type { SocketAddress } from "bun";
 import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
-import { debug, log, warn } from "../../../utils/log";
+import { debug, log, logContext, warn } from "../../../utils/log";
 import { type Identity, verifyClient } from "../../protocol/HIP1/handshake";
 import { authenticateServerHTTP } from '../http';
 
@@ -54,19 +54,25 @@ export class WebSocketServerConnection implements Socket {
 
 export const websocketHandlers = (peerManager: PeerManager) => ({
   close(ws: Bun.ServerWebSocket<WebSocketData>) {
-    ws.data = { ...ws.data, isOpened: false }
-    ws.data.conn?._handleClose()
+    logContext('WS', () => {
+      ws.data = { ...ws.data, isOpened: false }
+      ws.data.conn?._handleClose()
+    })
   },
   data: {} as WebSocketData,
   message: (ws: Bun.ServerWebSocket<WebSocketData>, message: Buffer<ArrayBuffer> | string) => {
-    if (typeof message !== 'string') return
-    ws.data.conn?._handleMessage(message)
+    logContext('WS', () => {
+      if (typeof message !== 'string') return
+      ws.data.conn?._handleMessage(message)
+    })
   },
   open: (ws: Bun.ServerWebSocket<WebSocketData>) => {
-    const conn = new WebSocketServerConnection(ws)
-    peerManager.add(conn)
-    ws.data = { ...ws.data, conn, isOpened: true }
-    ws.data.conn?._handleOpen()
+    logContext('WS', () => {
+      const conn = new WebSocketServerConnection(ws)
+      peerManager.add(conn)
+      ws.data = { ...ws.data, conn, isOpened: true }
+      ws.data.conn?._handleOpen()
+    })
   }
 })
 

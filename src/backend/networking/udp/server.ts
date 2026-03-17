@@ -5,7 +5,7 @@ import z from 'zod'
 import type { Config } from '../../../types/hydrabase'
 import type PeerManager from '../../PeerManager'
 
-import { debug, error, log, warn } from '../../../utils/log'
+import { debug, error, log, logContext, warn } from '../../../utils/log'
 import { FSMap } from '../../FSMap'
 import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
 import { authenticateServerUDP, UDP_Client } from './client'
@@ -184,7 +184,7 @@ export class UDP_Server {
       error('ERROR:', `[UDP] [SERVER] An error was thrown ${err.name} - ${err.message}`)
       socket.close()
     })
-    socket.on('message', async (_msg, peer) => {
+    socket.on('message', async (_msg, peer) => logContext('UDP', async () => {
       let decoded: unknown
       try {
         decoded = bencode.decode(_msg)
@@ -207,7 +207,7 @@ export class UDP_Server {
       }
       if (result.data.y === 'h2') debug(`[UDP] [SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
       await messageHandler(this, socket, peerManager(), result.data, { host: peer.address, port: peer.port }, node, config, apiKey)
-    })
+    }))
   }
 
   static init(peerManager: () => PeerManager, config: Config['rpc'], node: Config['node'], apiKey: string | undefined): Promise<UDP_Server> {

@@ -7,7 +7,7 @@ import net from 'net'
 import type { Config } from '../../types/hydrabase';
 import type PeerManager from '../PeerManager';
 
-import { debug, error, log, stats, warn } from '../../utils/log';
+import { debug, error, log, logContext, stats, warn } from '../../utils/log';
 import { authenticatedPeers, UDP_Server } from './udp/server';
 
 export class DHT_Node {
@@ -37,13 +37,13 @@ export class DHT_Node {
       this.dht.addNode({ host, port: Number(port) })
     })
     this.loadCache()
-    this.dht.on('error', err => error('ERROR:', '[DHT] An error occurred', {err}))
-    this.dht.on('ready', () => {
+    this.dht.on('error', err => logContext('DHT', () => error('ERROR:', '[DHT] An error occurred', {err})))
+    this.dht.on('ready', () => logContext('DHT', () => {
       stats(`[DHT] Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
       this.resolved.ready = true
-    })
+    }))
     let lastNodes = 0
-    this.dht.on('node', async () => {
+    this.dht.on('node', async () => logContext('DHT', async () => {
       const nodes = this.nodes.length
       if (nodes > 1 && !this.resolved.connected) {
         stats(`[DHT] Connected to ${nodes} nodes`)
@@ -57,22 +57,22 @@ export class DHT_Node {
         this.cacheFile.write(JSON.stringify(this.nodes))
         this.cacheSize = nodes
       }
-    })
-    this.dht.on('peer', peer => {
+    }))
+    this.dht.on('peer', peer => logContext('DHT', () => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
       debug(`[DHT] Discovered peer ${hostname}`)
       peers.add(hostname)
-    })
-    this.dht.on('announce', (peer, _infoHash) => {
+    }))
+    this.dht.on('announce', (peer, _infoHash) => logContext('DHT', () => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId(config.roomSeed)) return
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
       log(`[DHT] Received announce from ${hostname}`)
       peers.add(hostname)
-    })
+    }))
   }
   static readonly getNodeId = (node: Config['node']) => SHA1.hash(`${node.hostname}:${node.port}`, 'hex')
   static readonly getRoomId = (roomSeed: string) => Bun.SHA1.hash(roomSeed + String(Math.round(Date.now()/1000/60/60/6)), 'hex')
