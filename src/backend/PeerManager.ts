@@ -67,18 +67,24 @@ const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer =>
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
 export default class PeerManager {
+  private static readonly RECONNECT_BASE_DELAY_MS = 5_000
+  private static readonly RECONNECT_MAX_ATTEMPTS = 10
+  private static readonly RECONNECT_MAX_DELAY_MS = 300_000
   public readonly peers = new PeerMap()
   get apiPeer() {
     return this.peers.get('0x0')
   }
+
   get connectedPeers() {
     return [...this.peers.values()]
   }
+
   get peerAddresses() {
     return this.peers.addresses
   }
-  private readonly knownPeers = new Set<`${string}:${number}`>() // TODO: prune old peers, mem leak
-
+  private readonly knownPeers = new Set<`${string}:${number}`>()
+  private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
+  private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
   constructor(
     public readonly account: Account, 
     private readonly metadataManager: MetadataManager, 
@@ -100,6 +106,8 @@ export default class PeerManager {
       const uptime = formatUptime(peer.uptimeMs)
       trace.fail(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
       this.peers.delete(peer.address)
+      this.knownPeers.delete(peer.hostname)
+      this.scheduleReconnect(peer.hostname)
     }))
 
     this.peers.set(peer.address, peer)
@@ -178,6 +186,38 @@ export default class PeerManager {
     trace.step(`Authenticating peer with ${preferTransport === 'TCP' ? 'UDP' : 'TCP'}`)
     const fallbackAuth = preferTransport === 'UDP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
     return fallbackAuth
+  }
+
+  private scheduleReconnect(hostname: `${string}:${number}`) {
+    const existing = this.reconnectTimers.get(hostname)
+    if (existing) clearTimeout(existing)
+
+    const attempt = (this.reconnectAttempts.get(hostname) ?? 0) + 1
+    if (attempt > PeerManager.RECONNECT_MAX_ATTEMPTS) {
+      warn('WARN:', `[PEERS] Giving up reconnection to ${hostname} after ${PeerManager.RECONNECT_MAX_ATTEMPTS} attempts`)
+      this.reconnectAttempts.delete(hostname)
+      this.reconnectTimers.delete(hostname)
+      return
+    }
+
+    const delay = Math.min(PeerManager.RECONNECT_BASE_DELAY_MS * 2**(attempt - 1), PeerManager.RECONNECT_MAX_DELAY_MS)
+
+    this.reconnectAttempts.set(hostname, attempt)
+    const trace = Trace.start(`[PEERS] Reconnecting to ${hostname} (attempt ${attempt}/${PeerManager.RECONNECT_MAX_ATTEMPTS}, delay ${delay / 1000}s)`)
+
+    const timer = setTimeout(async () => {
+      this.reconnectTimers.delete(hostname)
+      this.knownPeers.delete(hostname)
+      const success = await this.add(hostname, trace)
+      if (success) {
+        trace.success()
+        this.reconnectAttempts.delete(hostname)
+      } else {
+        trace.fail('Reconnection failed')
+        this.scheduleReconnect(hostname)
+      }
+    }, delay)
+    this.reconnectTimers.set(hostname, timer)
   }
 
   private shouldAuthenticate(hostname: `${string}:${number}`): string | true {
