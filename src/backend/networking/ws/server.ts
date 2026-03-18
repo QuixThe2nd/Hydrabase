@@ -81,7 +81,7 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
 const VERIFY_TIMEOUT_MS = 15_000
 
 export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, trace: Trace, peerManager: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
-  trace.step(`Client connecting from ${ip?.address}`)
+  trace.step(`Client connecting from ${ip.address}:${ip.port}`)
   const headers = Object.fromEntries(req.headers.entries())
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-useragent'] as string, username: headers['x-username'] as string, }
   if (!('apiKey' in auth) && (!auth.address || !auth.hostname || !auth.signature || !auth.username)) {
@@ -113,9 +113,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     trace.fail(peer[1])
     return { res: peer }
   }
-  trace.step('HIP1 verifyClient → valid')
   const { address, hostname, userAgent, username } = peer
-  if (hostname !== `${node.hostname}:${node.port}`) trace.step('HIP4 hostname matches')
   trace.step(`Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
   if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
     trace.success()

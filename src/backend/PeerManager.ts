@@ -8,7 +8,7 @@ import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
 import type { Identity } from './protocol/HIP1_Identity';
 
-import { debug, formatUptime, logContext, truncateAddress, warn } from '../utils/log';
+import { formatUptime, logContext, truncateAddress, warn } from '../utils/log';
 import { Trace } from '../utils/trace';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
@@ -92,29 +92,21 @@ export default class PeerManager {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
-    const firstSocket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
-    if (firstSocket === 'exit') return false
-    const socket = firstSocket || (await this.toSocket(_peer as `${string}:${number}`, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace))
-    if (!socket || socket === 'exit') return false
-    if (this.peers.has(socket.peer.address)) {
-      if (socket.peer.address !== '0x0') {
-        debug(`[PEERS] Skipping duplicate connection to ${socket.peer.username} ${socket.peer.address} - already connected`)
-        socket.close()
-      }
-      return false
-    }
+    const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
+    if (socket === false) return false
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
     trace.step(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
-      trace.fail(`- ${socket.peer.username} (${truncateAddress(socket.peer.address)}) disconnected after ${uptime}`)
-      this.peers.delete(socket.peer.address)
+      trace.fail(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
+      this.peers.delete(peer.address)
     }))
 
     socket.onOpen(() => logContext('PEERS', () => {
-      this.peers.set(socket.peer.address, peer)
+      this.peers.set(peer.address, peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
       this.announce(peer, trace)
+      this.knownPeers.add(peer.hostname)
     }))
 
     return true
@@ -172,70 +164,56 @@ export default class PeerManager {
     }
   }
 
-  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', _trace: Trace): Promise<'exit' | false | Socket> {
-    const trace = _trace ?? Trace.start(`Connection to ${hostname}`)
-    trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
-    
-    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {
-      trace.fail('Attempted to connect to self')
-      return 'exit'
-    }
-    const auth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
-    if (Array.isArray(auth)) {
-      trace.fail(auth[1])
-      return false
-    }
-    const identity = this.verifyPeer(authenticatedPeers.get(hostname)?.hostname ?? hostname, auth, trace)
-    if (!identity || identity === 'exit') {
-      trace.fail('Peer verification failed')
-      return identity
-    }
-    
-    if (this.peers.has(identity.address)) {
-      debug(`[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`)
-      trace.fail('Already connected')
-      return 'exit'
-    }
-    
-    if (preferTransport === 'TCP') {
-      trace.step('WebSocket upgrade → connected')
-      trace.success()
-      return new WebSocketClient(identity, this, this.node)
-    }
-    trace.success()
-    return UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
+  private async authenticatePeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<[number, string] | Identity> {
+    trace.step(`Authenticating peer with ${preferTransport}`)
+    const preferredAuth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
+    if (!Array.isArray(preferredAuth)) return preferredAuth
+    trace.caughtError(preferredAuth[1])
+    trace.step(`Authenticating peer with ${preferTransport === 'TCP' ? 'UDP' : 'TCP'}`)
+    const fallbackAuth = preferTransport === 'UDP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
+    return fallbackAuth
   }
 
-  private verifyPeer(hostname: `${string}:${number}`, identity: Identity, trace: Trace): 'exit' | false | Identity {
-    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) {
-      trace.step(`[PEERS] Not connecting to self ${hostname}`)
-      return 'exit'
-    }
-    if (this.knownPeers.has(hostname) || this.has(identity.address)) {
-      trace.step(`[PEERS] Already connected/connecting to peer ${identity.username} ${identity.address} ${identity.hostname}`)
-      return 'exit'
-    }
-    if (identity.address === this.account.address) {
-      trace.step(`[PEERS] Not connecting to self ${identity.address}`)
-      return 'exit'
-    }
+  private shouldAuthenticate(hostname: `${string}:${number}`): string | true {
+    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return `[PEERS] Not connecting to self ${hostname}`
+    if (this.knownPeers.has(hostname)) return `[PEERS] Already connected to peer ${hostname}`
+    return true
+  }
 
-    if ('hostname' in identity) {
-      if (identity.hostname === `${this.node.hostname}:${this.node.port}`) {
-        trace.step(`[PEERS] Not connecting to self ${hostname}`)
-        return 'exit'
-      }
-      if (identity.hostname === `${this.node.ip}:${this.node.port}`) {
-        trace.step(`[PEERS] Not connecting to self ${hostname}`)
-        return 'exit'
-      }
-      if (identity.hostname !== hostname && this.knownPeers.has(identity.hostname)) {
-        trace.step(`[PEERS] Not connecting to self ${hostname}`)
-        return 'exit'
-      }
-      this.knownPeers.add(identity.hostname)
-    }
+  private shouldConnect(hostname: `${string}:${number}`, identity: Identity): string | true {
+    if (this.has(identity.address)) return `[PEERS] Already connected/connecting to peer ${identity.username} ${identity.address} ${identity.hostname}`
+    if (identity.address === this.account.address) return `[PEERS] Not connecting to self ${identity.address}`
+    if (identity.hostname === `${this.node.hostname}:${this.node.port}`) return `[PEERS] Not connecting to self ${hostname}`
+    if (identity.hostname === `${this.node.ip}:${this.node.port}`) return `[PEERS] Not connecting to self ${hostname}`
+    if (identity.hostname !== hostname && this.knownPeers.has(identity.hostname)) return `[PEERS] Not connecting to self ${hostname}`
+    if (this.peers.has(identity.address)) return `[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`
+    return true
+  }
+  
+  private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<false | Socket> {
+    trace.step('Creating socket')
+    const shouldAuthenticate = this.shouldAuthenticate(authenticatedPeers.get(hostname)?.hostname ?? hostname)
+    if (typeof shouldAuthenticate === 'string') return trace.fail(shouldAuthenticate)
+    const identity = await this.authenticatePeer(hostname, preferTransport, trace)
+    if (Array.isArray(identity)) return trace.fail(identity[1])
 
-    return identity
+    const shouldConnect = this.shouldConnect(authenticatedPeers.get(hostname)?.hostname ?? hostname, identity)
+    if (typeof shouldConnect === 'string') return trace.fail(shouldConnect)
+
+    const firstSocket = this.toSocket(hostname, preferTransport, trace, identity)
+    if (typeof firstSocket === 'object') return firstSocket
+    if (typeof firstSocket === 'string') return trace.fail(firstSocket)
+    trace.caughtError('Peer verification failed')
+
+    const socket = this.toSocket(hostname, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace, identity)
+    if (typeof socket === 'string') return trace.fail(socket)
+    trace.success()
+    return socket
+  }
+  
+  private toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): false | Socket | string {
+    trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
+    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return 'Attempted to connect to self'
+    return preferTransport === 'TCP' ? new WebSocketClient(identity, this, this.node) : UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
   }
 }
