@@ -84,7 +84,7 @@ export default class PeerManager {
     private readonly metadataManager: MetadataManager, 
     private readonly repos: Repositories,
     private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>,
-    private readonly node: Config['node'],
+    public readonly node: Config['node'],
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
     public readonly socket: dgram.Socket,
