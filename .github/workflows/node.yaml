@@ -17,6 +17,7 @@ jobs:
 
     env:
       USERNAME: "Github-Dev-Node"
+      BRANCH: "dev"
       REQUIRE_DHT_READY: "false"
 
     steps:
