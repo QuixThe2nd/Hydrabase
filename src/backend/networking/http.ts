@@ -73,7 +73,7 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
     routes: { '/auth': () => {
       const trace = Trace.start(`Peer requested server auth`)
       return new Response(JSON.stringify(proveServer(account, node, trace))) 
-    }},
+    } },
     websocket: websocketHandlers(peerManager)
   })
   debug(`Listening on port ${server.port}`)

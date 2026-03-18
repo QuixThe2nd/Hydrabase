@@ -1,0 +1,1 @@
+export const BRANCH = process.env['BRANCH'] ?? 'unknown'
