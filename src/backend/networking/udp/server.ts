@@ -8,99 +8,28 @@ import type PeerManager from '../../PeerManager'
 import { debug, error, log, logContext, warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
 import { FSMap } from '../../FSMap'
-import { type Identity, proveServer } from '../../protocol/HIP1/handshake'
-import { authenticateServerUDP, UDP_Client } from './client'
+import { decoder, ErrorMessage, type Query, QueryMessage, ResponseMessageSchema } from '../../protocol/DHT'
+import { type Identity } from '../../protocol/HIP1_Identity'
+import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
+import { UDP_Client } from './client'
 
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
-type ResponseAwaiter = (msg: Message, rinfo: { address: string, port: number }) => boolean
 
-const decoder = new TextDecoder()
-const BinaryString = z.instanceof(Uint8Array).transform(m => decoder.decode(m))
-const BinaryHex = z.instanceof(Uint8Array).transform(m => m.toHex())
-
-export const AuthSchema = z.object({
-  address: BinaryString,
-  hostname: BinaryString,
-  signature: BinaryString,
-  userAgent: BinaryString,
-  username:  BinaryString,
-}).strict()
-const BaseMessage = z.object({
-  t: BinaryString.optional(),
-})
-const QueryMessage = BaseMessage.extend({
-  a: z.object({
-    c: BinaryString.optional(),
-    d: BinaryString.optional(),
-    i: z.number().optional(),
-    id: BinaryString,
-    n: z.number().optional(),
-  }),
-  q: BinaryString,
-  y: z.literal('q'),
-})
-const HydraAuthQueryMessage = BaseMessage.extend({
-  a: AuthSchema.extend({
-    id: BinaryString,
-  }).strict(),
-  q: z.literal('hydra_auth'),
-  y: z.literal('q'),
-}).strict()
-const HandshakeDiscoverySchema = BaseMessage.extend({
-  tid: BinaryString.optional(),
-  y: z.literal('h0')
-}).strict()
-const HandshakeDiscoveryResponseSchema = BaseMessage.extend({
-  h0r: AuthSchema,
-  tid: BinaryString.optional(),
-  y: z.literal('h0r')
-}).strict()
-const HandshakeRequestSchema = BaseMessage.extend({ 
-  h1: AuthSchema,
-  id: BinaryHex,
-  tid: BinaryString.optional(),
-  y: z.literal('h1') 
-}).strict()
-const HandshakeResponseSchema = BaseMessage.extend({ 
-  h2: AuthSchema,
-  tid: BinaryString.optional(),
-  y: z.literal('h2')
-}).strict()
-const ResponseMessageSchema = BaseMessage.extend({
-  r: z.object({}),
-  y: z.literal('r'),
-})
-const ErrorMessage = BaseMessage.extend({
-  e: z.union([
-    z.tuple([z.number(), BinaryString]),
-    z.tuple([BinaryString]),
-    z.tuple([z.number()]),
-  ]),
-  y: z.literal('e'),
-})
-export type HandshakeDiscovery = z.infer<typeof HandshakeDiscoverySchema>
-export type HandshakeDiscoveryResponse = z.infer<typeof HandshakeDiscoveryResponseSchema>
-export type HandshakeRequest = z.infer<typeof HandshakeRequestSchema>
-export type HandshakeResponse = z.infer<typeof HandshakeResponseSchema>
-export type HydraAuthQuery = z.infer<typeof HydraAuthQueryMessage>
-export type Query = z.infer<typeof QueryMessage>
+type ResponseAwaiter = (msg: RPCMessage, rinfo: { address: string, port: number }) => boolean
 export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
   y: decoder.decode(msg.y),
-}), z.union([
-  HydraAuthQueryMessage,
-  z.discriminatedUnion('y', [
-    QueryMessage,
-    ResponseMessageSchema,
-    ErrorMessage,
-    HandshakeDiscoverySchema,
-    HandshakeDiscoveryResponseSchema,
-    HandshakeRequestSchema,
-    HandshakeResponseSchema,
-  ])
+}), z.discriminatedUnion('y', [
+  QueryMessage,
+  ResponseMessageSchema,
+  ErrorMessage,
+  H0_HandshakeDiscoverySchema,
+  H0R_HandshakeDiscoveryResponseSchema,
+  H1_HandshakeRequestSchema,
+  H2_HandshakeResponseSchema,
 ]))
-type Message = z.infer<typeof rpcMessageSchema>
+export type RPCMessage = z.infer<typeof rpcMessageSchema>
 
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
   const identity = authenticatedPeers.get(peerHostname)
@@ -136,43 +65,9 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
   return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[SERVER] Couldn't find message handler ${peerHostname}`) : true
 }
 
-const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
-  if (query.y === 'h0') {
-    const trace = Trace.start(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
-    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node, trace), t: query.t, y: 'h0r' }
-    if ('tid' in query && query.tid) payload.tid = query.tid
-    socket.send(bencode.encode(payload), peer.port, peer.host)
-    return true
-  } else if (query.y === 'h1') {
-    const tid = 'tid' in query && query.tid ? query.tid : undefined
-    const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
-    trace.step('Received h1')
-    log(`[HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
-    const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server, trace)
-    if (result) {
-      trace.step('HIP1 verifyClient → valid')
-      return true
-    } 
-      trace.fail('Failed to validate UDP auth')
-      return warn('DEVWARN:', '[SERVER] Failed to validate UDP auth')
-    
-  } else if (query.y === 'h2') {
-    warn('DEVWARN:', `[HANDSHAKE] Received h2 from ${peerHostname} txnId=${query.t} but no awaiter matched — this means the txnId doesn't match any pending auth request`)
-    return false
-  } else if (query.y === 'h0r') {
-    debug(`[HANDSHAKE] Received orphaned h0r from ${peerHostname}`)
-    return false
-  }
-  return false
-}
-
-const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: Message, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
-  if (query.y === 'q' && 'q' in query && query.q === 'hydra_auth') {
-    debug(`[AUTH] Received hydra_auth query from ${peerHostname}`)
-    return false
-  }
   if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, peerManager, query, peerHostname, peer, node, config, apiKey)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
@@ -210,7 +105,7 @@ export class UDP_Server {
       }
       const result = rpcMessageSchema.safeParse(decoded)
       if (!result.data) {
-        warn('DEVWARN:', '[SERVER] Unexpected payload', { err: result.error, payload: decoded })
+        warn('DEVWARN:', '[SERVER] Unexpected payload', { err: JSON.parse(result.error.message), payload: decoded })
         return
       }
       const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t) : undefined
@@ -229,15 +124,14 @@ export class UDP_Server {
 
   static init(peerManager: () => PeerManager, config: Config['rpc'], node: Config['node'], apiKey: string | undefined): Promise<UDP_Server> {
     const server = dgram.createSocket('udp4')
-    // server.bind(port)
+    server.bind(node.port)
 
     return new Promise<UDP_Server>(res => {
-      // server.on('listening', () => {
-      //   const {address,port} = server.address()
-      //   log(`[UDP] [SERVER] listening at ${address}:${port}`)
-      //   res(new UDP_Server(server))
-      // })
-      res(new UDP_Server(peerManager, server, node, config, apiKey))
+      server.on('listening', () => {
+        const {address,port} = server.address()
+        log(`[UDP] [SERVER] listening at ${address}:${port}`)
+        res(new UDP_Server(peerManager, server, node, config, apiKey))
+      })
     })
   }
 
@@ -245,9 +139,7 @@ export class UDP_Server {
   public readonly cancelAwaiter = (txnId: string) => this.responseAwaiters.delete(txnId)
   
   public readonly processChunk = (chunkId: string, chunkIndex: number, totalChunks: number, chunkData: string, connection: UDP_Client): void => {
-    if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) {
-      this.evictOldestChunkGroup()
-    }
+    if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) this.evictOldestChunkGroup()
     
     let group = this.chunkBuffer.get(chunkId)
     if (!group) {

@@ -11,8 +11,8 @@ export class Trace {
   ) {
     this.startTime = new Date()
     setTimeout(() => {
-      if (!this.finished) this.fail('Trace took over 60s')
-    }, 60_000)
+      if (!this.finished) this.fail('Trace took over 5m')
+    }, 300_000)
   }
 
   static formatTime(date: Date): string {

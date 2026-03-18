@@ -6,8 +6,9 @@ import type { Account } from "../../Crypto/Account";
 
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../../../VERSION" with { type: "text" };
+import { BRANCH } from "../../branch";
 import { Signature } from "../../Crypto/Signature";
-import { upgradeHostname } from "../HIP4/upgrade";
+import { upgradeHostname } from "../HIP4_HostnameUpgrades";
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
@@ -29,7 +30,7 @@ export const proveServer = (account: Account, node: Config['node'], trace: Trace
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
     signature: account.sign(`I am ${node.hostname}:${node.port}`, trace).toString(),
-    userAgent: `Hydrabase/${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
     username: node.username
   }
 }
@@ -46,7 +47,7 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
     signature: account.sign(`I am connecting to ${hostname}`, trace).toString(),
-    userAgent: `Hydrabase/${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
     username: node.username
   } as const
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result

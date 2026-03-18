@@ -7,8 +7,8 @@ import { stats, warn } from '../utils/log';
 import { Trace } from '../utils/trace';
 import { UDP_Client } from './networking/udp/client';
 import WebSocketClient from './networking/ws/client';
-import { HIP2_Conn_Message, type Ping } from "./protocol/HIP2/message";
-import { type Announce, HIP3_Conn_Announce } from "./protocol/HIP3/announce";
+import { HIP2_Messaging, type Ping } from "./protocol/HIP2_Messaging";
+import { type Announce, HIP3_AnnouncePeers } from "./protocol/HIP3_AnnouncePeers";
 import { RequestManager } from './RequestManager';
 
 export class Peer {
@@ -68,8 +68,8 @@ export class Peer {
 
   private _dl = 0
   private _ul = 0 
-  private readonly HIP2_Conn_Message: HIP2_Conn_Message
-  private readonly HIP4_Conn_Announce: HIP3_Conn_Announce
+  private readonly HIP2_Conn_Message: HIP2_Messaging
+  private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
   private lastPing = {
     nonce: -1,
     time: 0
@@ -130,8 +130,8 @@ export class Peer {
     private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>
   ) {
     this.requestManager = new RequestManager()
-    this.HIP2_Conn_Message = new HIP2_Conn_Message(this, this.requestManager)
-    this.HIP4_Conn_Announce = new HIP3_Conn_Announce(this, peers)
+    this.HIP2_Conn_Message = new HIP2_Messaging(this, this.requestManager)
+    this.HIP4_Conn_Announce = new HIP3_AnnouncePeers(this, peers)
     // Log(`Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
     let id: NodeJS.Timeout | undefined
     this.socket.onOpen(() => {

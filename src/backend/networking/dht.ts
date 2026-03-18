@@ -15,7 +15,6 @@ export class DHT_Node {
   public readonly resolved = {
     cacheLoaded: false,
     connected: false,
-    listening: false,
     ready: false,
   }
   get nodes() {
@@ -24,16 +23,11 @@ export class DHT_Node {
   private cacheSize = 0
   private readonly dht: DHT
   private readonly knownPeers: Set<`${string}:${number}`> // TODO: prune old peers, mem leak
-  private lastResolved = 0
   private readonly startupTrace = Trace.start(`[DHT] Startup`)
   constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], udpServer: UDP_Server, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     this.knownPeers = new Set<`${string}:${number}`>([`${node.hostname}:${node.port}`,`${node.ip}:${node.port}`])
     const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(udpServer), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
     this.dht = new DHT({ bootstrap: config.bootstrapNodes.split(','), host: net.isIP(node.hostname) ? node.hostname : node.ip, krpc: socket, nodeId: DHT_Node.getNodeId(node) })
-    this.dht.listen(node.port, node.listenAddress, () => {
-      this.startupTrace.step(`Listening on port ${node.port}`)
-      this.resolved.listening = true
-    })
     config.bootstrapNodes.split(',').forEach(node => {
       const [host, port] = node.split(':') as [string, `${number}`]
       this.dht.addNode({ host, port: Number(port) })
@@ -41,15 +35,17 @@ export class DHT_Node {
     this.loadCache()
     this.dht.on('error', err => logContext('DHT', () => error('ERROR:', 'An error occurred', {err})))
     this.dht.on('ready', () => logContext('DHT', () => {
-      this.startupTrace.step(`Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
       this.resolved.ready = true
+      const {notResolved,resolved} = this.countResolved()
+      this.startupTrace.step(`${resolved}/${resolved+notResolved} Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
     }))
     let lastNodes = 0
     this.dht.on('node', () => logContext('DHT', async () => {
       const nodes = this.nodes.length
       if (nodes > 1 && !this.resolved.connected) {
-        this.startupTrace.step(`Connected to ${nodes} nodes`)
         this.resolved.connected = true
+        const {notResolved,resolved} = this.countResolved()
+        this.startupTrace.step(`${resolved}/${resolved+notResolved} Connected to ${nodes} nodes`)
       }
       if (nodes % 25 === 0 && nodes !== lastNodes) {
         stats(`Connected to ${nodes} nodes`)
@@ -81,19 +77,12 @@ export class DHT_Node {
   public readonly add = (node: DHTNode) => this.dht.addNode(node)
   public readonly isReady = () => new Promise<undefined>(res => {
     const id = setInterval(() => {
-      const { notResolved, resolved } = this.countResolved()
-      if (!this.config.requireConnection) this.resolved.connected = true
-      if (notResolved === 0) {
-        this.startupTrace.step(`Started... ${resolved}/${resolved}`)
+      if (this.countResolved().notResolved === 0) {
         clearInterval(id)
         this.announce()
         setInterval(() => this.announce(), this.config.reannounce)
         this.startupTrace.success()
         res(undefined)
-      } else if (this.lastResolved !== resolved) {
-        const pending = Object.entries(this.resolved).filter(([, v]) => !v).map(([k]) => k)
-        this.startupTrace.step(`Starting... ${resolved}/${resolved+notResolved} (waiting on: ${pending.join(', ')})`)
-        this.lastResolved = resolved
       } // TODO: rate limiting
     }, 1_000)
   })
@@ -111,7 +100,8 @@ export class DHT_Node {
     if (!(await this.cacheFile.exists())) return
     const peers: DHTNode[] = await this.cacheFile.json()
     for (const peer of peers) this.add(peer)
-    this.startupTrace.step('Loaded cached nodes')
     this.resolved.cacheLoaded = true
+    const {notResolved,resolved} = this.countResolved()
+    this.startupTrace.step(`${resolved}/${resolved+notResolved} Loaded cached nodes`)
   }
 }

@@ -4,7 +4,7 @@ import type PeerManager from '../PeerManager';
 
 import { debug, log, logContext } from '../../utils/log';
 import { Trace } from '../../utils/trace';
-import { AuthSchema, type Identity, proveServer, verifyServer } from "../protocol/HIP1/handshake";
+import { AuthSchema, type Identity, proveServer, verifyServer } from "../protocol/HIP1_Identity";
 import { serveStaticFile } from "../webui";
 import { authenticatedPeers } from "./udp/server";
 import { handleConnection, websocketHandlers } from "./ws/server";
@@ -43,39 +43,39 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     authenticatedPeers.set(hostname, auth)
     log(`Authenticated server ${hostname}`)
     return auth
-  } catch (err) {
+  } catch (err) { // TODO: on peer disconnect, retry with new transport
     const message = err instanceof Error ? err.message : 'Unknown error'
     trace.fail(`HTTP error: ${message}`)
     return [500, `Failed to authenticate server via HTTP: ${message}`]
   }
 }
 
-export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string) => {
+export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string) => logContext('HTTP', () => {
   const server = Bun.serve({
-    fetch: (req, server) => logContext('HTTP', async () => {
+    fetch: async (req, server) => {
       const url = new URL(req.url)
       if (req.headers.get("upgrade") !== "websocket") return serveStaticFile(url.pathname)
       const trace = Trace.start(`Inbound WS connection`)
       const ip = server.requestIP(req)
       if (!ip) {
-        trace.fail('DEVWARN:', 'Failed to get client IP')
+        trace.fail('Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
       trace.step(`Hostname: ${ip.address}:${ip.port}`)
       const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager)
       if (response === undefined) return response
       const {address, hostname, res} = response
-      trace.fail('DEVWARN:', `Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
+      trace.fail(`Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
       return new Response(res[1], { status: res[0] })
-    }),
+    },
     hostname: node.listenAddress,
     port: node.port,
     routes: { '/auth': () => {
       const trace = Trace.start(`Peer requested server auth`)
       return new Response(JSON.stringify(proveServer(account, node, trace))) 
-    }},
+    } },
     websocket: websocketHandlers(peerManager)
   })
   debug(`Listening on port ${server.port}`)
   return server
-}
+})

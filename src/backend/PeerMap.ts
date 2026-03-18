@@ -25,15 +25,15 @@ export class PeerMap extends Map<`0x${string}`, Peer> {
 
   private log(diff: { new: `0x${string}` } | { old: `0x${string}` }) {
     if (this.lastCount !== this.count) {
-      stats(`[PEERS] ${this.count} peer${this.count === 1 ? '' : 's'} connected:`)
+      stats(`${this.count} peer${this.count === 1 ? '' : 's'} connected:`)
       for (const peer of this.values()) {
         if (peer.address === '0x0') continue
         const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
         const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
         const uptime = formatUptime(peer.uptimeMs)
-        if ('new' in diff && peer.address === diff.new) stats(`  + ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname}`)
-        else if ('old' in diff && peer.address === diff.old) stats(`  - ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname}`)
-        else stats(`  • ${peer.username} (${truncateAddress(peer.address)}) via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
+        if ('new' in diff && peer.address === diff.new) stats(`  + ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname}`)
+        else if ('old' in diff && peer.address === diff.old) stats(`  - ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname}`)
+        else stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
       }
       this.lastCount = this.count
     }

@@ -16,5 +16,5 @@ fi
 
 chown -R "$PUID:$PGID" /app/data
 
-exec gosu "$PUID:$PGID" bun start
+exec gosu "$PUID:$PGID" bun run src/backend
 

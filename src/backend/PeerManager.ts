@@ -6,18 +6,19 @@ import type { Request, Response, SearchResult } from '../types/hydrabase-schemas
 import type { Account } from './Crypto/Account';
 import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
-import type { Identity } from './protocol/HIP1/handshake';
+import type { Identity } from './protocol/HIP1_Identity';
 
 import { debug, formatUptime, logContext, truncateAddress, warn } from '../utils/log';
 import { Trace } from '../utils/trace';
 import { DHT_Node } from './networking/dht';
 import { authenticateServerHTTP } from './networking/http';
-import { authenticateServerUDP, UDP_Client } from './networking/udp/client';
+import { UDP_Client } from './networking/udp/client';
 import { authenticatedPeers, UDP_Server } from './networking/udp/server';
 import WebSocketClient from "./networking/ws/client";
 import { WebSocketServerConnection } from './networking/ws/server';
 import { Peer } from "./peer";
 import { PeerMap } from './PeerMap';
+import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery';
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
@@ -66,6 +67,7 @@ const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer =>
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
 export default class PeerManager {
+  public readonly peers = new PeerMap()
   get apiPeer() {
     return this.peers.get('0x0')
   }
@@ -76,7 +78,6 @@ export default class PeerManager {
     return this.peers.addresses
   }
   private readonly knownPeers = new Set<`${string}:${number}`>() // TODO: prune old peers, mem leak
-  private readonly peers = new PeerMap()
 
   constructor(
     public readonly account: Account, 
@@ -91,8 +92,12 @@ export default class PeerManager {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
-    const socket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
-    if (!socket) return false // TODO: try other 
+    const firstSocket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
+    const shouldTryFallback = !firstSocket && typeof _peer === 'string' && !this.knownPeers.has(_peer as `${string}:${number}`)
+    const socket = firstSocket || (shouldTryFallback
+      ? await this.toSocket(_peer as `${string}:${number}`, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace)
+      : false)
+    if (!socket) return false
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
         debug(`[PEERS] Skipping duplicate connection to ${socket.peer.username} ${socket.peer.address} - already connected`)
@@ -218,7 +223,7 @@ export default class PeerManager {
     }
 
     if ('hostname' in auth) {
-      if (auth.hostname === this.node.hostname) {
+      if (auth.hostname === `${this.node.hostname}:${this.node.port}`) {
         trace.step(`[PEERS] Not connecting to self ${hostname}`)
         return false
       }
