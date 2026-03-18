@@ -1,4 +1,3 @@
-/* eslint-disable max-lines-per-function */
 import DHT, { type DHTNode } from 'bittorrent-dht'
 import { SHA1 } from 'bun';
 import krpc from 'k-rpc'
@@ -16,7 +15,6 @@ export class DHT_Node {
   public readonly resolved = {
     cacheLoaded: false,
     connected: false,
-    listening: false,
     ready: false,
   }
   get nodes() {
@@ -30,11 +28,6 @@ export class DHT_Node {
     this.knownPeers = new Set<`${string}:${number}`>([`${node.hostname}:${node.port}`,`${node.ip}:${node.port}`])
     const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(udpServer), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
     this.dht = new DHT({ bootstrap: config.bootstrapNodes.split(','), host: net.isIP(node.hostname) ? node.hostname : node.ip, krpc: socket, nodeId: DHT_Node.getNodeId(node) })
-    this.dht.listen(node.port, node.listenAddress, () => {
-      this.resolved.listening = true
-      const {notResolved,resolved} = this.countResolved()
-      this.startupTrace.step(`${resolved}/${resolved+notResolved} Listening on port ${node.port}`)
-    })
     config.bootstrapNodes.split(',').forEach(node => {
       const [host, port] = node.split(':') as [string, `${number}`]
       this.dht.addNode({ host, port: Number(port) })

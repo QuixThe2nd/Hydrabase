@@ -90,7 +90,7 @@ export class StatsReporter {
 
   private report(): void {
     const client = this.peers.apiPeer
-    const trace = Trace.start('Sending cache to api client')
+    const trace = Trace.start('Sending stats to api client')
     try {
       if (client?.isOpened) client.sendStats(this.collectStats(), trace)
       trace.success()

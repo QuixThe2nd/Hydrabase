@@ -124,14 +124,14 @@ export class UDP_Server {
 
   static init(peerManager: () => PeerManager, config: Config['rpc'], node: Config['node'], apiKey: string | undefined): Promise<UDP_Server> {
     const server = dgram.createSocket('udp4')
-    // server.bind(port)
+    server.bind(4545)
 
     return new Promise<UDP_Server>(res => {
-      // server.on('listening', () => {
-      //   const {address,port} = server.address()
-      //   log(`[UDP] [SERVER] listening at ${address}:${port}`)
-      //   res(new UDP_Server(server))
-      // })
+      server.on('listening', () => {
+        const {address,port} = server.address()
+        log(`[UDP] [SERVER] listening at ${address}:${port}`)
+        res(new UDP_Server(peerManager, server, node, config, apiKey))
+      })
       res(new UDP_Server(peerManager, server, node, config, apiKey))
     })
   }
@@ -140,9 +140,7 @@ export class UDP_Server {
   public readonly cancelAwaiter = (txnId: string) => this.responseAwaiters.delete(txnId)
   
   public readonly processChunk = (chunkId: string, chunkIndex: number, totalChunks: number, chunkData: string, connection: UDP_Client): void => {
-    if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) {
-      this.evictOldestChunkGroup()
-    }
+    if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) this.evictOldestChunkGroup()
     
     let group = this.chunkBuffer.get(chunkId)
     if (!group) {
