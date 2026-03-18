@@ -4,10 +4,9 @@
 <p align="center">
   <img src="./public/logo-black.svg">
 </p>
-
-[![Build and Push Docker Image](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg)](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml)
-[![Checks](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg)](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml)
-
+<p align="center">
+<img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
+<img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
 
 ## Install
 ### Port Forwarding
