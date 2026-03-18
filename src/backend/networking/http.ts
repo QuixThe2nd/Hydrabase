@@ -59,8 +59,8 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
       }
       const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager)
       if (response === undefined) return response
-      const {address, hostname, res} = response
-      trace.fail(`Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
+      const {res} = response
+      trace.fail(res[1])
       return new Response(res[1], { status: res[0] })
     },
     hostname: node.listenAddress,
