@@ -6,7 +6,7 @@ import { debug, logContext } from '../../utils/log';
 import { Trace } from '../../utils/trace';
 import { AuthSchema, type Identity, proveServer, verifyServer } from "../protocol/HIP1_Identity";
 import { serveStaticFile } from "../webui";
-import { authenticatedPeers } from "./udp/server";
+import { authenticatedPeers, UDP_Server } from "./udp/server";
 import { handleConnection, websocketHandlers } from "./ws/server";
 
 export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
@@ -40,13 +40,13 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     trace.step('[HIP1] Successfully verified server')
     authenticatedPeers.set(hostname, auth)
     return auth
-  } catch (err) { // TODO: on peer disconnect, retry with new transport
+  } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return [500, message]
   }
 }
 
-export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string) => logContext('HTTP', () => {
+export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string, preferTransport: 'TCP' | 'UDP', udpServer: UDP_Server, identity: Identity) => logContext('HTTP', () => {
   const server = Bun.serve({
     fetch: async (req, server) => {
       const url = new URL(req.url)
@@ -57,7 +57,7 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
         trace.fail('Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
-      const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager)
+      const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager, preferTransport, udpServer, account, identity)
       if (response === undefined) return response
       const {res} = response
       trace.fail(res[1])

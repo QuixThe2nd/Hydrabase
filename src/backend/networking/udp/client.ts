@@ -39,6 +39,12 @@ export class UDP_Client implements Socket {
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket, server: UDP_Server, trace: Trace): Promise<false | UDP_Client> => {
     trace.step('Sending h2')
     socket.send(bencode.encode({ h2: proveServer(peerManager.account, node, trace), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
+
+    const udpServer = server
+    const account = peerManager.account
+    const identityInfo = auth.h1 as unknown as Identity
+    const ip = { address: peerHostname.split(':')[0] }
+
     const identity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, async (claimedHostname): Promise<[number, string] | Identity> => {
       const [actualIP] = peerHostname.split(':')
       const [claimedHost] = claimedHostname.split(':')
@@ -60,7 +66,7 @@ export class UDP_Client implements Socket {
       }
       trace.step('Hostname verified via h0 probe')
       return probeResult
-    }, trace)
+    }, trace, udpServer, account, identityInfo, ip)
     trace.step(`verifyClient result: ${Array.isArray(identity) ? identity[1] : identity.username}`)
     if (Array.isArray(identity)) {
       trace.fail(`UDP auth query verification failed: ${identity[1]}`)

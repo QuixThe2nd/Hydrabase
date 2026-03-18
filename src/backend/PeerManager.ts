@@ -25,6 +25,16 @@ const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) =>
 const parser = new Parser()
 parser.functions.avg = (...args: number[]) => avg(args)
 
+export const authenticatePeer = async (hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, udpServer: UDP_Server, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
+  trace.step(`Authenticating peer with ${preferTransport}`)
+  const preferredAuth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(udpServer, hostname, account, node, trace)
+  if (!Array.isArray(preferredAuth)) return preferredAuth
+  trace.caughtError(preferredAuth[1])
+  trace.step(`Authenticating peer with ${preferTransport === 'TCP' ? 'UDP' : 'TCP'}`)
+  const fallbackAuth = preferTransport === 'UDP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(udpServer, hostname, account, node, trace)
+  return fallbackAuth
+}
+
 const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHashes: Set<bigint>) => {
   const pluginMatches: Record<string, { match: number, mismatch: number }> = {}
   for (const _result of peerResults) {
@@ -178,16 +188,6 @@ export default class PeerManager {
     }
   }
 
-  private async authenticatePeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<[number, string] | Identity> {
-    trace.step(`Authenticating peer with ${preferTransport}`)
-    const preferredAuth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
-    if (!Array.isArray(preferredAuth)) return preferredAuth
-    trace.caughtError(preferredAuth[1])
-    trace.step(`Authenticating peer with ${preferTransport === 'TCP' ? 'UDP' : 'TCP'}`)
-    const fallbackAuth = preferTransport === 'UDP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(this.udpServer, hostname, this.account, this.node, trace)
-    return fallbackAuth
-  }
-
   private scheduleReconnect(hostname: `${string}:${number}`) {
     const existing = this.reconnectTimers.get(hostname)
     if (existing) clearTimeout(existing)
@@ -240,7 +240,7 @@ export default class PeerManager {
     trace.step('Creating socket')
     const shouldAuthenticate = this.shouldAuthenticate(authenticatedPeers.get(hostname)?.hostname ?? hostname)
     if (typeof shouldAuthenticate === 'string') return trace.fail(shouldAuthenticate)
-    const identity = await this.authenticatePeer(hostname, preferTransport, trace)
+    const identity = await authenticatePeer(hostname, preferTransport, trace, this.udpServer, this.account, this.node)
     if (Array.isArray(identity)) return trace.fail(identity[1])
 
     const shouldConnect = this.shouldConnect(authenticatedPeers.get(hostname)?.hostname ?? hostname, identity)

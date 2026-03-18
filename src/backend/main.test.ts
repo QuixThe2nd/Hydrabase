@@ -528,7 +528,6 @@ describe('Peer search integration', () => {
   }, { timeout: 30_000 })
 })
 
-// TODO: test dht
 // TODO: reconnect to a disconnected peer
 
 const mockNode: Config['node'] = {
