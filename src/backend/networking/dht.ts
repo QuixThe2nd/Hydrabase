@@ -98,9 +98,10 @@ export class DHT_Node {
     return { notResolved, resolved }
   }
   private readonly loadCache = async () => {
-    if (!(await this.cacheFile.exists())) return
-    const peers: DHTNode[] = await this.cacheFile.json()
-    for (const peer of peers) this.add(peer)
+    if (await this.cacheFile.exists()) {
+      const peers: DHTNode[] = await this.cacheFile.json()
+      for (const peer of peers) this.add(peer)
+    }
     this.resolved.cacheLoaded = true
     const {notResolved,resolved} = this.countResolved()
     this.startupTrace.step(`${resolved}/${resolved+notResolved} Loaded cached nodes`)
