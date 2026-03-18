@@ -1,6 +1,6 @@
 {
   "name": "hydrabase",
-  "module": "src/index.ts",
+  "module": "src/backend/index.ts",
   "type": "module",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
