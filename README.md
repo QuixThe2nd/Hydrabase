@@ -28,7 +28,7 @@ bun install
 
 To run:
 ```bash
-bun src
+bun start
 ```
 
 ## Networking
