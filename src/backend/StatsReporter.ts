@@ -90,12 +90,14 @@ export class StatsReporter {
 
   private report(): void {
     const client = this.peers.apiPeer
-    const trace = Trace.start('Sending stats to api client')
-    try {
-      if (client?.isOpened) client.sendStats(this.collectStats(), trace)
-      trace.success()
-    } catch (err) {
-      trace.fail(`[STATS] Failed to collect/send stats`, err)
+    if (client?.isOpened)  {
+      const trace = Trace.start('Sending stats to api client')
+      try {
+        client.sendStats(this.collectStats(), trace)
+        trace.success()
+      } catch (err) {
+        trace.fail(`[STATS] Failed to collect/send stats`, err)
+      }
     }
   }
 }

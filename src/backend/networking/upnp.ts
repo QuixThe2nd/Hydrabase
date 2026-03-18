@@ -26,12 +26,12 @@ export const requestPort = async (node: Config['node'], upnp: Config['upnp']) =>
   try {
     await portForward(node.port, 'Hydrabase (TCP)', upnp.reannounce, upnp.ttl, 'TCP', trace)
   } catch (err) {
-    trace.fail('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
+    trace.fail(`${(err as Error).message} - Ignore if manually port forwarded`)
   }
   try {
     await portForward(node.port, 'Hydrabase (UDP)', upnp.reannounce, upnp.ttl, 'UDP', trace)
   } catch (err) {
-    trace.fail('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
+    trace.fail(`${(err as Error).message} - Ignore if manually port forwarded`)
   }
   trace.success()
 }
