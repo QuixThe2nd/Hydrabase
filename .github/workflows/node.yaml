@@ -1,4 +1,4 @@
-name: Run P2P Node
+name: Run Test Node
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: p2p-node
+  group: test-node
   cancel-in-progress: true
 
 jobs:
