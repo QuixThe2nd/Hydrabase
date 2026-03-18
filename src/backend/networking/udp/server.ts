@@ -1,5 +1,6 @@
 import bencode from 'bencode'
 import dgram from 'dgram'
+import fs from 'fs'
 import z from 'zod'
 
 import type { Config } from '../../../types/hydrabase'
@@ -13,6 +14,7 @@ import { type Identity } from '../../protocol/HIP1_Identity'
 import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
 import { UDP_Client } from './client'
 
+if (!fs.existsSync('./data/authenticated-peers.json')) fs.mkdirSync('./data')
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
 
