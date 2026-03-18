@@ -68,7 +68,7 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
     logContext('WS', async () => {
       const conn = new WebSocketServerConnection(ws)
       const trace = Trace.start(`Incoming WebSocket connection from ${conn.identity.username} ${conn.identity.address} ${conn.identity.hostname}`)
-      await peerManager.add(conn, trace)
+      if (await peerManager.add(conn, trace)) trace.success()
       ws.data = { ...ws.data, conn, isOpened: true }
     })
   }

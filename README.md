@@ -5,6 +5,10 @@
   <img src="./public/logo-black.svg">
 </p>
 
+[![Build and Push Docker Image](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg)](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml)
+[![Checks](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg)](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml)
+
+
 ## Install
 ### Port Forwarding
 Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
