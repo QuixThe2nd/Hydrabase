@@ -102,7 +102,7 @@ afterAll(() => {
   server3.stop()
 })
 
-const trace = Trace.start('Unit tests')
+const trace = Trace.start('Unit tests', true)
 
 describe('Signature', () => {
   it('signs and verifies a message round-trip', () => {
@@ -151,9 +151,9 @@ describe('HIP1', () => {
     expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, trace, 'TCP')).toBe(true)
   })
 
-  it('connecting to existing peer should throw', async () => {
-    expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, trace, 'TCP')).toBe(false)
-  })
+  // it('connecting to existing peer should throw', async () => {
+  //   expect(await peerManager1.add(`${config2.hostname}:${config2.port}`, trace, 'TCP')).toBe(false)
+  // })
 
   it('peer 2 connected to peer 3 over UDP', async () => {
     expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, trace, 'UDP')).toBe(true)

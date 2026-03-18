@@ -8,6 +8,7 @@ export class Trace {
   constructor(
     public readonly traceId: string,
     public readonly label: string,
+    private readonly noPrint = false
   ) {
     this.startTime = new Date()
     setTimeout(() => {
@@ -23,9 +24,9 @@ export class Trace {
     return `${hours}:${minutes}:${seconds}.${millis}`
   }
 
-  static start(label: string): Trace {
+  static start(label: string, noPrint = false): Trace {
     const traceId = Math.random().toString(16).slice(2, 6)
-    return new Trace(traceId, label)
+    return new Trace(traceId, label, noPrint)
   }
 
   caughtError(msg: string): false {
@@ -57,6 +58,7 @@ export class Trace {
   }
 
   private print(isSuccess: boolean, failReason?: string, indent = 0): void {
+    if (this.noPrint) return
     const elapsed = (Date.now() - this.startTime.getTime()) / 1000
     const symbol = isSuccess ? '✓' : '✗'
     const red = '\x1b[31m'
