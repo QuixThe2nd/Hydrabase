@@ -33,7 +33,7 @@ services:
       # PGID: 1000
 
       # Advanced:
-      # REQUIRE_DHT_CONNECTION: true
+      # REQUIRE_DHT_READY: true
       # PREFER_TRANSPORT: TCP # TCP or UDP
 
       # Uncomment to enable Spotify plugin:

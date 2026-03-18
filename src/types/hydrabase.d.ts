@@ -9,7 +9,7 @@ export interface Config {
   dht: {
     bootstrapNodes: string
     reannounce: number
-    requireConnection: boolean
+    requireReady: boolean
     roomSeed: string
   }
   formulas: {

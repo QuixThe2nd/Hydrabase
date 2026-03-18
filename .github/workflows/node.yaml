@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 360
 
     env:
-      REQUIRE_DHT_CONNECTION: "false"
+      REQUIRE_DHT_READY: "false"
 
     steps:
       - name: Checkout repo

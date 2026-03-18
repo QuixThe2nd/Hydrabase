@@ -77,6 +77,7 @@ export class DHT_Node {
   public readonly add = (node: DHTNode) => this.dht.addNode(node)
   public readonly isReady = () => new Promise<undefined>(res => {
     const id = setInterval(() => {
+      if (this.config.requireReady) this.resolved.ready = true
       if (this.countResolved().notResolved === 0) {
         clearInterval(id)
         this.announce()
