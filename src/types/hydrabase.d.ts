@@ -49,13 +49,6 @@ export interface Connection {
   votes: Votes
 }
 
-export interface Connection2 {
-  address: `0x${string}`
-  hostname: `${string}:${number}`
-  userAgent: string
-  username: string
-}
-
 export interface EventEntry {
   lv: string
   m: string
@@ -102,11 +95,9 @@ export interface PluginAccuracy {
 
 export interface Socket {
   readonly close: () => void
-  readonly isOpened: boolean
+  readonly identity: Identity
   readonly onClose: (handler: () => void) => void
   readonly onMessage: (handler: (message: string) => void) => void
-  readonly onOpen: (handler: () => void) => void
-  readonly peer: Connection2
   readonly send: (message: string) => void
 }
 
@@ -114,11 +105,6 @@ export interface Votes {
   albums: number
   artists: number
   tracks: number
-}
-
-export type WebSocketData = Connection2 & {
-  conn?: WebSocketServerConnection
-  isOpened: boolean
 }
 
 export type WsState = "closed" | "connecting" | "error" | "open"

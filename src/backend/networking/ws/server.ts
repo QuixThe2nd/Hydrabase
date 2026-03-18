@@ -1,6 +1,6 @@
 import type { SocketAddress } from "bun";
 
-import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
+import type { Config, Socket } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
 import { logContext, warn } from "../../../utils/log";
@@ -8,11 +8,13 @@ import { Trace } from "../../../utils/trace";
 import { type Identity, verifyClient } from "../../protocol/HIP1_Identity";
 import { authenticateServerHTTP } from '../http';
 
+export type WebSocketData = Identity & {
+  conn?: WebSocketServerConnection
+  isOpened: boolean
+}
+
 export class WebSocketServerConnection implements Socket {
-  get isOpened() {
-    return this.socket.data.isOpened
-  }
-  get peer() {
+  get identity() {
     return {
       address: this.socket.data.address,
       hostname: this.socket.data.hostname,
@@ -20,9 +22,11 @@ export class WebSocketServerConnection implements Socket {
       username: this.socket.data.username
     }
   }
+  get isOpened() {
+    return this.socket.data.isOpened
+  }
   private closeHandlers: (() => void)[] = []
   private messageHandlers: ((message: string) => void)[] = []
-  private openHandler?: () => void
 
   constructor(private readonly socket: Bun.ServerWebSocket<WebSocketData>) {}
 
@@ -30,13 +34,10 @@ export class WebSocketServerConnection implements Socket {
     for (const handler of this.closeHandlers) handler()
   }
   _handleMessage(message: string) {
-    if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.peer.hostname}`)
+    if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.identity.hostname}`)
     this.messageHandlers.forEach(handler => {
       handler(message)
     })
-  }
-  _handleOpen() {
-    this.openHandler?.();
   }
   public readonly close = () => this.socket.close()
   public onClose(handler: () => void) {
@@ -44,11 +45,7 @@ export class WebSocketServerConnection implements Socket {
   }
   public onMessage(handler: (message: string) => void) {
     this.messageHandlers.push(handler);
-  }
-  public onOpen(handler: () => void) {
-    this.openHandler = handler;
-  }
-  public readonly send = (message: string) => {
+  }  public readonly send = (message: string) => {
     if (this.isOpened) {this.socket.send(message)}
   }
 }
@@ -68,12 +65,11 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
     })
   },
   open: (ws: Bun.ServerWebSocket<WebSocketData>) => {
-    logContext('WS', () => {
+    logContext('WS', async () => {
       const conn = new WebSocketServerConnection(ws)
-      const trace = Trace.start(`Incoming WebSocket connection from ${conn.peer.username} ${conn.peer.address} ${conn.peer.hostname}`)
-      peerManager.add(conn, trace)
+      const trace = Trace.start(`Incoming WebSocket connection from ${conn.identity.username} ${conn.identity.address} ${conn.identity.hostname}`)
+      await peerManager.add(conn, trace)
       ws.data = { ...ws.data, conn, isOpened: true }
-      ws.data.conn?._handleOpen()
     })
   }
 })

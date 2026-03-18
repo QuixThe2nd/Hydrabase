@@ -2,7 +2,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import z from 'zod'
 
-import type { Config, WebSocketData } from '../types/hydrabase'
+import type { Config } from '../types/hydrabase'
 import type { Peer } from './peer'
 
 import { RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
@@ -14,7 +14,7 @@ import MetadataManager from './Metadata'
 import ITunes from './Metadata/plugins/iTunes'
 import { startServer } from './networking/http'
 import { authenticatedPeers, UDP_Server } from './networking/udp/server'
-import { handleConnection } from './networking/ws/server'
+import { handleConnection, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
 import PeerManager from './PeerManager'
 import { PeerMap } from './PeerMap'

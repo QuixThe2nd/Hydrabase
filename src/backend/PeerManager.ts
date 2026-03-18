@@ -95,19 +95,18 @@ export default class PeerManager {
     const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
     if (socket === false) return false
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
-    trace.step(`[${peer.type}] Waiting for connection to open ${peer.username} ${peer.address} ${peer.hostname}`)
+
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
       trace.fail(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
       this.peers.delete(peer.address)
     }))
 
-    socket.onOpen(() => logContext('PEERS', () => {
-      this.peers.set(peer.address, peer)
-      cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      this.announce(peer, trace)
-      this.knownPeers.add(peer.hostname)
-    }))
+    this.peers.set(peer.address, peer)
+    cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
+    this.announcePeerToAll(peer, trace)
+    this.announceAllToPeer(peer, trace)
+    this.knownPeers.add(peer.hostname)
 
     return true
   }
@@ -120,12 +119,6 @@ export default class PeerManager {
 
   // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
   public readonly has = (address: `0x${string}`) => this.peers.has(address)
-
-  public isConnectionOpened(address: `0x${string}`): boolean {
-    const peer = this.peers.get(address)
-    if (!peer) return false
-    return peer.isOpened
-  }
 
   public async loadCache(bootstrapPeers: string[]) {
     await Promise.all(bootstrapPeers.map(async hostname => {
@@ -153,7 +146,20 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
-  private announce(peer: Peer, trace: Trace) {
+  private announceAllToPeer(announceTo: Peer, trace: Trace) {
+    trace.step('[PEERS] Sending peer list')
+    for (const peerAddress of this.peerAddresses) {
+      const peer = this.peers.get(peerAddress)
+      if (!peer) {
+        warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
+        continue
+      }
+      announceTo.announcePeer(peer, trace)
+    }
+  }
+
+  private announcePeerToAll(peer: Peer, trace: Trace) {
+    trace.step('[PEERS] Announcing peer')
     for (const peerAddress of this.peerAddresses) {
       const announceTo = this.peers.get(peerAddress)
       if (!announceTo) {
@@ -200,20 +206,20 @@ export default class PeerManager {
     const shouldConnect = this.shouldConnect(authenticatedPeers.get(hostname)?.hostname ?? hostname, identity)
     if (typeof shouldConnect === 'string') return trace.fail(shouldConnect)
 
-    const firstSocket = this.toSocket(hostname, preferTransport, trace, identity)
+    const firstSocket = await this.toSocket(hostname, preferTransport, trace, identity)
     if (typeof firstSocket === 'object') return firstSocket
     if (typeof firstSocket === 'string') return trace.fail(firstSocket)
     trace.caughtError('Peer verification failed')
 
-    const socket = this.toSocket(hostname, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace, identity)
+    const socket = await this.toSocket(hostname, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace, identity)
     if (typeof socket === 'string') return trace.fail(socket)
     trace.success()
     return socket
   }
   
-  private toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): false | Socket | string {
+  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): Promise<false | Socket | string> {
     trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
     if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return 'Attempted to connect to self'
-    return preferTransport === 'TCP' ? new WebSocketClient(identity, this, this.node) : UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
+    return preferTransport === 'TCP' ? await WebSocketClient.init(identity, this, this.node) : UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
   }
 }

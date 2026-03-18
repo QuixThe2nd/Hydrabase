@@ -14,32 +14,26 @@ import { doH0Probe, type HandshakeRequest, type HandshakeResponse } from '../../
 import { authenticatedPeers, UDP_Server, udpConnections } from './server'
 
 export class UDP_Client implements Socket {
-  public isOpened = true
   public readonly messageHandlers: ((message: string) => void)[] = []
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
-  private openHandler?: () => void
-  private constructor(private readonly peers: PeerManager, public readonly peer: Identity, private readonly config: Config['rpc'], private readonly id: string, trace: Trace) {
-    authenticatedPeers.set(`${peer.hostname}`, peer)
-    udpConnections.set(peer.hostname, this)
-    trace.step(`UDP client connecting to ${peer.hostname}`)
-    const [host, port] = peer.hostname.split(':') as [string, `${number}`]
+  private constructor(private readonly peers: PeerManager, public readonly identity: Identity, private readonly config: Config['rpc'], private readonly id: string, trace: Trace) {
+    authenticatedPeers.set(`${identity.hostname}`, identity)
+    udpConnections.set(identity.hostname, this)
+    trace.step(`UDP client connecting to ${identity.hostname}`)
+    const [host, port] = identity.hostname.split(':') as [string, `${number}`]
     this.node = { host, port: Number(port) }
-    
-    // Also store under resolved IP
-    const [dnsHost] = peer.hostname.split(':') as [string]
-    const [,portStr] = peer.hostname.split(':')
+    const [dnsHost] = identity.hostname.split(':') as [string]
+    const [,portStr] = identity.hostname.split(':')
     if (!net.isIP(dnsHost)) {
       resolve4(dnsHost).then(addresses => {
         if (addresses.length > 0 && addresses[0] !== dnsHost) {
           const ipHostname = `${addresses[0]}:${portStr}` as `${string}:${number}`
-          authenticatedPeers.set(ipHostname, peer)
+          authenticatedPeers.set(ipHostname, identity)
           trace.step(`[CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
         }
       }).catch((error: Error) => warn('DEVWARN:', `[CLIENT] Dns lookup threw error`, {error}))
     }
-    
-    setTimeout(() => this.openHandler?.(), 0)
   }
   static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string, trace: Trace): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId, trace)
   static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket, server: UDP_Server, trace: Trace): Promise<false | UDP_Client> => {
@@ -84,7 +78,6 @@ export class UDP_Client implements Socket {
     return udpConnections.get(peerHostname) ?? false
   }
   public readonly close = () => {
-    this.isOpened = false
     udpConnections.delete(`${this.node.host}:${this.node.port}`)
     this.closeHandlers.map(handler => handler())
   }
@@ -94,9 +87,6 @@ export class UDP_Client implements Socket {
   public onMessage(handler: (message: string) => void) {
     this.messageHandlers.push(handler)
   }
-  public onOpen(handler: () => void) {
-    this.openHandler = () => handler()
-  }
   public readonly send = (message: string) => {
     const MAX_CHUNK_PAYLOAD = 1200
     const tid = Buffer.alloc(4)
@@ -104,7 +94,7 @@ export class UDP_Client implements Socket {
     const txnId = tid.toString('hex')
     
     if (message.length <= MAX_CHUNK_PAYLOAD) {
-      this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.peer.hostname.split(':')[1]), this.peer.hostname.split(':')[0])
+      this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
       return
     }
     
@@ -113,7 +103,7 @@ export class UDP_Client implements Socket {
     const c = chunkId.toString('hex')
     const totalChunks = Math.ceil(message.length / MAX_CHUNK_PAYLOAD)
     
-    debug(`[CLIENT] Chunking message to ${this.peer.hostname}: ${message.length} bytes -> ${totalChunks} chunks (chunkId=${c})`)
+    debug(`[CLIENT] Chunking message to ${this.identity.hostname}: ${message.length} bytes -> ${totalChunks} chunks (chunkId=${c})`)
     
     for (let i = 0; i < totalChunks; i++) {
       const start = i * MAX_CHUNK_PAYLOAD
@@ -128,10 +118,10 @@ export class UDP_Client implements Socket {
             t: txnId, 
             y: 'q' 
           } satisfies Query), 
-          Number(this.peer.hostname.split(':')[1]), 
-          this.peer.hostname.split(':')[0]
+          Number(this.identity.hostname.split(':')[1]), 
+          this.identity.hostname.split(':')[0]
         )
-        debug(`[CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.peer.hostname} (${chunkData.length} bytes)`)
+        debug(`[CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.identity.hostname} (${chunkData.length} bytes)`)
       }
       
       if (i === 0) {
