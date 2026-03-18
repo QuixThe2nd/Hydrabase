@@ -124,7 +124,7 @@ export class UDP_Server {
 
   static init(peerManager: () => PeerManager, config: Config['rpc'], node: Config['node'], apiKey: string | undefined): Promise<UDP_Server> {
     const server = dgram.createSocket('udp4')
-    server.bind(4545)
+    server.bind(node.port)
 
     return new Promise<UDP_Server>(res => {
       server.on('listening', () => {
@@ -132,7 +132,6 @@ export class UDP_Server {
         log(`[UDP] [SERVER] listening at ${address}:${port}`)
         res(new UDP_Server(peerManager, server, node, config, apiKey))
       })
-      res(new UDP_Server(peerManager, server, node, config, apiKey))
     })
   }
 

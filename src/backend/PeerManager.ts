@@ -93,7 +93,10 @@ export default class PeerManager {
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
     const firstSocket = typeof _peer === 'string' ? await this.toSocket(_peer, preferTransport, trace) : _peer
-    const socket = firstSocket || await this.toSocket(_peer as `${string}:${number}`, typeof _peer === 'string' ? (preferTransport === 'TCP' ? 'UDP' : 'TCP') : (_peer instanceof UDP_Client ? 'TCP' : 'UDP'), trace)
+    const shouldTryFallback = !firstSocket && typeof _peer === 'string' && !this.knownPeers.has(_peer as `${string}:${number}`)
+    const socket = firstSocket || (shouldTryFallback
+      ? await this.toSocket(_peer as `${string}:${number}`, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace)
+      : false)
     if (!socket) return false
     if (this.peers.has(socket.peer.address)) {
       if (socket.peer.address !== '0x0') {
@@ -220,7 +223,7 @@ export default class PeerManager {
     }
 
     if ('hostname' in auth) {
-      if (auth.hostname === this.node.hostname) {
+      if (auth.hostname === `${this.node.hostname}:${this.node.port}`) {
         trace.step(`[PEERS] Not connecting to self ${hostname}`)
         return false
       }
