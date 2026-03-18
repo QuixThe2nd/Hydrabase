@@ -26,4 +26,4 @@ jobs:
         run: bun install
 
       - name: Start node
-        run: timeout 5h 50m bun start
+        run: timeout 5h50m bun start
