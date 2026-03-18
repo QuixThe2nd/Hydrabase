@@ -138,12 +138,11 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
   const t = txnId.toString('hex')
   const tid = trace.traceId
-  trace.step('h0 discovery → sent')
+  trace.step('[HIP5] Sending h0 discovery request')
 
   const timer = setTimeout(() => {
     server.cancelAwaiter(t)
-    trace.step('h0 timeout')
-    resolve([408, 'UDP h0 discovery timeout'])
+    resolve([408, '[HIP5] h0 discovery request timed out'])
   }, 10_000)
 
   server.awaitResponse(t, (msg) => {
@@ -170,7 +169,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   const payload: HandshakeDiscovery = { t, y: 'h0' }
   if (tid) payload.tid = tid
   server.socket.send(bencode.encode(payload), Number(port), host)
-  trace.step(`[CLIENT] Sent h0 to ${host}:${port} txnId=${t}`)
+  trace.step(`[HIP5] Sent h0 discovery request with txnId=${t}`)
 })
 
 export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {

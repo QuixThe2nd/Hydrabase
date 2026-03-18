@@ -59,7 +59,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('3/14 Initialising account')
   const account = new Account(key)
   trace.step('4/14 Starting database')
-  const repos = startDatabase(CONFIG.formulas.pluginConfidence)
+  const repos = await startDatabase(CONFIG.formulas.pluginConfidence)
   trace.step('5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos, CONFIG.soulIdCutoff)
   trace.step('6/14 Starting node')

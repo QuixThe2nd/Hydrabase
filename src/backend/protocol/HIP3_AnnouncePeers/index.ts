@@ -18,8 +18,8 @@ export class HIP3_AnnouncePeers {
   }
 
   sendAnnounce(announce: Announce, trace: Trace): void {
-    if (this.peer.hostname === announce.hostname || this.peer.address === this.peers.account.address) return
-    trace.step(`[HIP3] Announcing server ${announce.hostname} ${this.peer.address}`)
+    if (this.peer.hostname === announce.hostname || announce.hostname === this.peers.node.hostname) return
+    trace.step(`[HIP3] Announcing peer ${announce.hostname} ${this.peer.address}`)
     this.peer.send({ announce: { hostname: announce.hostname }, nonce: this.peer.nonce++ }, trace)
   }
 }

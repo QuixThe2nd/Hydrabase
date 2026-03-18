@@ -2,7 +2,7 @@ import type { Config } from "../../types/hydrabase";
 import type { Account } from "../Crypto/Account";
 import type PeerManager from '../PeerManager';
 
-import { debug, log, logContext } from '../../utils/log';
+import { debug, logContext } from '../../utils/log';
 import { Trace } from '../../utils/trace';
 import { AuthSchema, type Identity, proveServer, verifyServer } from "../protocol/HIP1_Identity";
 import { serveStaticFile } from "../webui";
@@ -12,21 +12,20 @@ import { handleConnection, websocketHandlers } from "./ws/server";
 export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
   const cache = authenticatedPeers.get(hostname)
   if (cache) {
-    trace.step('HTTP auth cached')
+    trace.step('[HTTP] Using cached auth')
     return cache
   }
   
   try {
-    trace.step('HTTP GET /auth')
+    trace.step('[HTTP] Fetching auth')
     const response = await fetch(`http://${hostname}/auth`, { signal: AbortSignal.timeout(10_000) })
-    trace.step(`HTTP GET /auth → ${response.status}`)
+    trace.step(`[HTTP] Fetched auth → ${response.status}`)
     const body = await response.text()
     const auth = AuthSchema.safeParse(JSON.parse(body)).data
     if (!auth) {
-      trace.step('Failed to parse server authentication')
-      return [500, 'Failed to parse server authentication']
+      trace.step('[HIP1] Failed to parse server authentication')
+      return [500, '[HIP1] Failed to parse server authentication']
     }
-    
     if (auth.hostname !== hostname) {
       trace.step(`Upgrading hostname → ${auth.hostname}`)
       debug(`Upgrading hostname from ${hostname} to ${auth.hostname}`)
@@ -35,18 +34,15 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
     
     const authResults = verifyServer(auth, hostname, trace)
     if (authResults !== true) {
-      trace.step('HIP1 verifyServer → invalid')
+      trace.step('[HIP1] Failed to verify server')
       return authResults
     }
-    trace.step('HIP1 verifyServer → valid')
-    
+    trace.step('[HIP1] Successfully verified server')
     authenticatedPeers.set(hostname, auth)
-    log(`Authenticated server ${hostname}`)
     return auth
   } catch (err) { // TODO: on peer disconnect, retry with new transport
     const message = err instanceof Error ? err.message : 'Unknown error'
-    trace.fail(`HTTP error: ${message}`)
-    return [500, `Failed to authenticate server via HTTP: ${message}`]
+    return [500, message]
   }
 }
 
@@ -61,11 +57,10 @@ export const startServer = (account: Account, peerManager: PeerManager, node: Co
         trace.fail('Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
-      trace.step(`Hostname: ${ip.address}:${ip.port}`)
       const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager)
       if (response === undefined) return response
-      const {address, hostname, res} = response
-      trace.fail(`Rejected connection with client ${address || hostname ? [address,hostname].join(' ') : 'N/A'} for reason: ${res[1]}`)
+      const {res} = response
+      trace.fail(res[1])
       return new Response(res[1], { status: res[0] })
     },
     hostname: node.listenAddress,

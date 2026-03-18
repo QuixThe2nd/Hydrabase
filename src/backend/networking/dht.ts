@@ -77,6 +77,7 @@ export class DHT_Node {
   public readonly add = (node: DHTNode) => this.dht.addNode(node)
   public readonly isReady = () => new Promise<undefined>(res => {
     const id = setInterval(() => {
+      if (this.config.requireReady) this.resolved.ready = true
       if (this.countResolved().notResolved === 0) {
         clearInterval(id)
         this.announce()
@@ -97,9 +98,10 @@ export class DHT_Node {
     return { notResolved, resolved }
   }
   private readonly loadCache = async () => {
-    if (!(await this.cacheFile.exists())) return
-    const peers: DHTNode[] = await this.cacheFile.json()
-    for (const peer of peers) this.add(peer)
+    if (await this.cacheFile.exists()) {
+      const peers: DHTNode[] = await this.cacheFile.json()
+      for (const peer of peers) this.add(peer)
+    }
     this.resolved.cacheLoaded = true
     const {notResolved,resolved} = this.countResolved()
     this.startupTrace.step(`${resolved}/${resolved+notResolved} Loaded cached nodes`)

@@ -1,6 +1,6 @@
 import type { SocketAddress } from "bun";
 
-import type { Config, Socket, WebSocketData } from "../../../types/hydrabase";
+import type { Config, Socket } from "../../../types/hydrabase";
 import type PeerManager from "../../PeerManager";
 
 import { logContext, warn } from "../../../utils/log";
@@ -8,11 +8,13 @@ import { Trace } from "../../../utils/trace";
 import { type Identity, verifyClient } from "../../protocol/HIP1_Identity";
 import { authenticateServerHTTP } from '../http';
 
+export type WebSocketData = Identity & {
+  conn?: WebSocketServerConnection
+  isOpened: boolean
+}
+
 export class WebSocketServerConnection implements Socket {
-  get isOpened() {
-    return this.socket.data.isOpened
-  }
-  get peer() {
+  get identity() {
     return {
       address: this.socket.data.address,
       hostname: this.socket.data.hostname,
@@ -20,9 +22,11 @@ export class WebSocketServerConnection implements Socket {
       username: this.socket.data.username
     }
   }
+  get isOpened() {
+    return this.socket.data.isOpened
+  }
   private closeHandlers: (() => void)[] = []
   private messageHandlers: ((message: string) => void)[] = []
-  private openHandler?: () => void
 
   constructor(private readonly socket: Bun.ServerWebSocket<WebSocketData>) {}
 
@@ -30,13 +34,10 @@ export class WebSocketServerConnection implements Socket {
     for (const handler of this.closeHandlers) handler()
   }
   _handleMessage(message: string) {
-    if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.peer.hostname}`)
+    if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.identity.hostname}`)
     this.messageHandlers.forEach(handler => {
       handler(message)
     })
-  }
-  _handleOpen() {
-    this.openHandler?.();
   }
   public readonly close = () => this.socket.close()
   public onClose(handler: () => void) {
@@ -44,11 +45,7 @@ export class WebSocketServerConnection implements Socket {
   }
   public onMessage(handler: (message: string) => void) {
     this.messageHandlers.push(handler);
-  }
-  public onOpen(handler: () => void) {
-    this.openHandler = handler;
-  }
-  public readonly send = (message: string) => {
+  }  public readonly send = (message: string) => {
     if (this.isOpened) {this.socket.send(message)}
   }
 }
@@ -68,12 +65,11 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
     })
   },
   open: (ws: Bun.ServerWebSocket<WebSocketData>) => {
-    logContext('WS', () => {
+    logContext('WS', async () => {
       const conn = new WebSocketServerConnection(ws)
-      const trace = Trace.start(`Incoming WebSocket connection from ${conn.peer.username} ${conn.peer.address} ${conn.peer.hostname}`)
-      peerManager.add(conn, trace)
+      const trace = Trace.start(`Incoming WebSocket connection from ${conn.identity.username} ${conn.identity.address} ${conn.identity.hostname}`)
+      if (await peerManager.add(conn, trace)) trace.success()
       ws.data = { ...ws.data, conn, isOpened: true }
-      ws.data.conn?._handleOpen()
     })
   }
 })
@@ -81,7 +77,7 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
 const VERIFY_TIMEOUT_MS = 15_000
 
 export const handleConnection = async (server: Bun.Server<WebSocketData>, req: Request, ip: SocketAddress, node: Config['node'], apiKey: string, trace: Trace, peerManager: PeerManager): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
-  trace.step(`Client connecting from ${ip?.address}`)
+  trace.step(`Client connecting from ${ip.address}:${ip.port}`)
   const headers = Object.fromEntries(req.headers.entries())
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-useragent'] as string, username: headers['x-username'] as string, }
   if (!('apiKey' in auth) && (!auth.address || !auth.hostname || !auth.signature || !auth.username)) {
@@ -113,9 +109,7 @@ export const handleConnection = async (server: Bun.Server<WebSocketData>, req: R
     trace.fail(peer[1])
     return { res: peer }
   }
-  trace.step('HIP1 verifyClient → valid')
   const { address, hostname, userAgent, username } = peer
-  if (hostname !== `${node.hostname}:${node.port}`) trace.step('HIP4 hostname matches')
   trace.step(`Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
   if (server.upgrade(req, { data: { address, hostname, isOpened: false, userAgent, username } })) {
     trace.success()

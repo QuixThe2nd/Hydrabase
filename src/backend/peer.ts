@@ -14,16 +14,13 @@ import { RequestManager } from './RequestManager';
 export class Peer {
   public nonce = 0
   get address() {
-    return this.socket.peer.address
+    return this.socket.identity.address
   }
   get historicConfidence(): number {
     return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
   }
   get hostname() {
-    return this.socket.peer.hostname
-  }
-  get isOpened() {
-    return this.socket.isOpened
+    return this.socket.identity.hostname
   }
   get latency(): number {
     return this.totalLatency/this.totalPongs
@@ -52,11 +49,11 @@ export class Peer {
   }
 
   get userAgent() {
-    return this.socket.peer.userAgent
+    return this.socket.identity.userAgent
   }
 
   get username() {
-    return this.socket.peer.username
+    return this.socket.identity.username
   }
   // get votes(): Votes {
   //   return {
@@ -105,7 +102,7 @@ export class Peer {
         this.repos.searchHistory.add(request.query, request.type, results.length)
       }
     },
-    response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.peer.address}`)},
+    response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.identity.address}`)},
     search_history: (data: 'clear' | 'get' | { remove: number }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       if (data === 'get') {
@@ -132,24 +129,20 @@ export class Peer {
     this.requestManager = new RequestManager()
     this.HIP2_Conn_Message = new HIP2_Messaging(this, this.requestManager)
     this.HIP4_Conn_Announce = new HIP3_AnnouncePeers(this, peers)
-    // Log(`Creating peer ${socket.address} as ${socket instanceof WebSocketClient ? 'client' : 'server'}`)
-    let id: NodeJS.Timeout | undefined
-    this.socket.onOpen(() => {
-      this.startTime = Number(new Date())
-      id = setInterval(() => {
-        const nonce = this.nonce++
-        const time = Number(new Date())
-        this.lastPing = { nonce, time }
-        const trace = Trace.start(`Pinging ${socket.peer.hostname}`)
-        this.send({ nonce, ping: { time } }, trace)
-      }, 60_000)
-    })
+    this.startTime = Number(new Date())
+    const id = setInterval(() => {
+      const nonce = this.nonce++
+      const time = Number(new Date())
+      this.lastPing = { nonce, time }
+      const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
+      this.send({ nonce, ping: { time } }, trace)
+    }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()
       if (id) clearInterval(id)
     })
     this.socket.onMessage(async message => {
-      const trace = Trace.start(`Received message from ${socket.peer.hostname}`)
+      const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
       if (!result) return
@@ -169,19 +162,15 @@ export class Peer {
   public async search<T extends Request['type']>(type: T, query: string, trace: Trace): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type }, trace)
     for (const result of response) {
-      if (type === 'tracks' || type === 'artist.tracks' || type === 'album.tracks') this.repos.track.upsertFromPeer(result as Track, this.socket.peer.address)
-      else if (type === 'albums' || type === 'artist.albums') this.repos.album.upsertFromPeer(result as Album, this.socket.peer.address)
-      else if (type === 'artists') this.repos.artist.upsertFromPeer(result as Artist, this.socket.peer.address)
+      if (type === 'tracks' || type === 'artist.tracks' || type === 'album.tracks') this.repos.track.upsertFromPeer(result as Track, this.socket.identity.address)
+      else if (type === 'albums' || type === 'artist.albums') this.repos.album.upsertFromPeer(result as Album, this.socket.identity.address)
+      else if (type === 'artists') this.repos.artist.upsertFromPeer(result as Artist, this.socket.identity.address)
     }
     return response;
   }
 
   send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
-    if (!this.socket.isOpened) {
-      trace.fail(`[PEER] [${this.type}] Cannot send ${Object.keys(payload).join(',')} to unconnected peer ${this.socket.peer.address}`)
-      return
-    }
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))
     trace.step(`[PEER] [${this.type}] Sending ${keys.join(',')} to ${this.username} ${this.address} ${this.hostname}`)

@@ -5,44 +5,21 @@
   <img src="./public/logo-black.svg">
 </p>
 
+[![Build and Push Docker Image](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg)](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml)
+[![Checks](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg)](https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml)
+
+
 ## Install
+### Port Forwarding
+Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
+
+### Config
+All config is listed in the docker compose file. Hydrabase works out of the box with 0 config. Though consider setting a username and enabling Spotify.
 
 ### Docker
-
-```yml
-services:
-  hydrabase:
-    image: ghcr.io/quixthe2nd/hydrabase
-    container_name: hydrabase
-    restart: always
-    network_mode: host # Can be replaced with ports if not using UPnP
-    # ports: # Ports must be manually forwarded if uncommented - Whitelist 4545 in your firewall
-    #   - 4545:4545/tcp
-    #   - 4545:4545/udp
-    volumes:
-      - ./data:/app/data
-    environment:
-      USERNAME: Anonymous
-      # API_KEY: $API_KEY - Use `openssl rand -hex 16` to generate an api key
-
-      # Defaults:
-      # PORT: 4545
-      # domain: [external ip]
-      # LISTEN_ADDRESS: 0.0.0.0
-      # PUID: 1000
-      # PGID: 1000
-
-      # Advanced:
-      # REQUIRE_DHT_CONNECTION: true
-      # PREFER_TRANSPORT: TCP # TCP or UDP
-
-      # Uncomment to enable Spotify plugin:
-      # SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
-      # SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
-```
+The compose file is available [here](https://raw.githubusercontent.com/QuixThe2nd/Hydrabase/refs/heads/main/compose.yaml).
 
 ### Manual
-
 To install:
 ```bash
 git clone https://github.com/QuixThe2nd/Hydrabase
@@ -51,7 +28,6 @@ bun install
 ```
 
 To run:
-
 ```bash
 bun src
 ```

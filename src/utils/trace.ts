@@ -3,16 +3,17 @@ export class Trace {
   private children: Trace[] = []
   private finished = false
   private startTime: Date
-  private steps: { msg: string; time: Date; }[] = []
+  private steps: { error?: true; msg: string; time: Date; }[] = []
 
   constructor(
     public readonly traceId: string,
     public readonly label: string,
+    private readonly noPrint = false
   ) {
     this.startTime = new Date()
     setTimeout(() => {
       if (!this.finished) this.fail('Trace took over 5m')
-    }, 300_000)
+    }, 120_000)
   }
 
   static formatTime(date: Date): string {
@@ -23,9 +24,14 @@ export class Trace {
     return `${hours}:${minutes}:${seconds}.${millis}`
   }
 
-  static start(label: string): Trace {
+  static start(label: string, noPrint = false): Trace {
     const traceId = Math.random().toString(16).slice(2, 6)
-    return new Trace(traceId, label)
+    return new Trace(traceId, label, noPrint)
+  }
+
+  caughtError(msg: string): false {
+    this.steps.push({ error: true, msg, time: new Date() })
+    return false
   }
 
   child(label: string): Trace {
@@ -52,9 +58,11 @@ export class Trace {
   }
 
   private print(isSuccess: boolean, failReason?: string, indent = 0): void {
+    if (this.noPrint) return
     const elapsed = (Date.now() - this.startTime.getTime()) / 1000
     const symbol = isSuccess ? '✓' : '✗'
-    const color = isSuccess ? '\x1b[32m' : '\x1b[31m'
+    const red = '\x1b[31m'
+    const color = isSuccess ? '\x1b[32m' : red
     const reset = '\x1b[0m'
     const grey = '\x1b[90m'
 
@@ -65,7 +73,7 @@ export class Trace {
     const stepPrefix = indent === 0 ? '    ' : '│   '.repeat(indent)
     for (const step of this.steps) {
       const timeStr = Trace.formatTime(step.time)
-      console.log(`${grey}${stepPrefix}${timeStr} ${step.msg}${reset}`)
+      console.log(`${'error' in step ? red : grey}${stepPrefix}${timeStr} ${step.msg}${reset}`)
     }
 
     for (const child of this.children) {

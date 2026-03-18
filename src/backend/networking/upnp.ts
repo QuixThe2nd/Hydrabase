@@ -23,15 +23,20 @@ const portForward = async (port: number, description: string, announceInterval: 
 
 export const requestPort = async (node: Config['node'], upnp: Config['upnp']) => {
   const trace = Trace.start('[UPnP] Requesting port')
+  const errors: string[] = []
   try {
     await portForward(node.port, 'Hydrabase (TCP)', upnp.reannounce, upnp.ttl, 'TCP', trace)
   } catch (err) {
-    trace.fail('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
+    errors.push(`TCP: ${(err as Error).message} - Ignore if manually port forwarded`)
   }
   try {
     await portForward(node.port, 'Hydrabase (UDP)', upnp.reannounce, upnp.ttl, 'UDP', trace)
   } catch (err) {
-    trace.fail('WARN:', `[UPnP] Failed: ${(err as Error).message} - Ignore if manually port forwarded`)
+    errors.push(`UDP: ${(err as Error).message} - Ignore if manually port forwarded`)
   }
-  trace.success()
+  for (let i = 0; i < errors.length; i++) {
+    if (i === errors.length-1) trace.fail(errors[i] ?? 'Error not found??')
+    else trace.caughtError(errors[i] ?? 'Error not found??')
+  }
+  if (errors.length === 0) trace.success()
 }
