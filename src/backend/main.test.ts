@@ -67,7 +67,7 @@ let server3: Bun.Server<WebSocketData>
 
 beforeAll(async () => {
   authenticatedPeers.clear()
-  const repos = startDatabase(formulas.pluginConfidence)
+  const repos = await startDatabase(formulas.pluginConfidence)
   const metadataManager = new MetadataManager([new ITunes()], repos, 32)
 
   // Start Node 1

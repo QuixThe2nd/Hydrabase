@@ -11,9 +11,6 @@ import { StatsRepository } from './repositories/StatsRepository';
 import { TrackRepository } from './repositories/TrackRepository';
 import { schema } from './schema';
 
-if (!(await Bun.file('data').exists())) {fs.mkdirSync('data', { recursive: true })}
-const sqlite = new Database('data/db.sqlite')
-
 export type DB = BunSQLiteDatabase<typeof schema>
 export interface Repositories {
   album: AlbumRepository
@@ -24,7 +21,9 @@ export interface Repositories {
   track: TrackRepository
 }
 
-export const startDatabase = (pluginConfidenceFormula: string): Repositories => {
+export const startDatabase = async (pluginConfidenceFormula: string): Promise<Repositories> => {
+const sqlite = new Database('data/db.sqlite')
+  if (!(await Bun.file('data').exists())) fs.mkdirSync('data', { recursive: true })
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: "./drizzle" });
   return {
