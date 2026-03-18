@@ -79,7 +79,7 @@ export class StatsReporter {
     const totalUL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalUL, 0)
     const totalDL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalDL, 0)
     const uptime = formatUptime(Date.now() - this.startTime)
-    stats(`${peerCount} peers | ${dhtCount} DHT nodes | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
+    stats(`${peerCount} peers | ${dhtCount} DHT node${dhtCount === 1 ? '' : 's'} | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
     for (const peer of this.peers.peers.values()) {
       const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
       const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'

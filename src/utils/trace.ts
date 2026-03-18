@@ -13,7 +13,7 @@ export class Trace {
     this.startTime = new Date()
     setTimeout(() => {
       if (!this.finished) this.fail('Trace took over 5m')
-    }, 300_000)
+    }, 120_000)
   }
 
   static formatTime(date: Date): string {
