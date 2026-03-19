@@ -1,25 +1,32 @@
 import { log } from '../utils/log'
+// @ts-expect-error: This is supported by bun
+import VERSION from "../../VERSION" with { type: "text" };
+import { BRANCH } from './branch'
+import { makeSentryRelease } from '../utils/sentryRelease'
 
 const initTelemetry = async (): Promise<void> => {
   if (process.env['HYDRABASE_TELEMETRY'] !== 'true') {
-    log('[TELEMETRY] Disabled (set HYDRABASE_TELEMETRY=1 to enable)')
+    log('[TELEMETRY] Disabled (set HYDRABASE_TELEMETRY=true to enable)')
     return
   }
-
   const Sentry = await import('@sentry/bun')
+  const release = makeSentryRelease({ app: 'hydrabase', branch: BRANCH, version: VERSION })
   Sentry.init({
     dsn: 'https://e048333b5d85bdc50499b9de2c440f81@o4511068837314560.ingest.de.sentry.io/4511068838625360',
     enableLogs: true,
+    integrations: [Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] })],
+    release,
     sendDefaultPii: true,
     tracesSampleRate: 1.0,
   })
-  log('[TELEMETRY] Enabled (Sentry)')
-
+  log(`[TELEMETRY] Enabled (Sentry) release=${release}`)
   ;(globalThis as typeof globalThis & {
+    __hydrabaseSentryLogger__?: unknown
+  }).__hydrabaseSentryLogger__ = Sentry.logger
+  (globalThis as typeof globalThis & {
     __hydrabaseCaptureException__?: (exception: unknown) => void
-  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception)
-
-  ;(globalThis as typeof globalThis & {
+  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception);
+  (globalThis as typeof globalThis & {
     __hydrabaseLogEvent__?: (event: {
       category: string
       context?: unknown
@@ -34,19 +41,13 @@ const initTelemetry = async (): Promise<void> => {
   }) => {
     Sentry.addBreadcrumb({
       category: event.category,
-      data:
-        event.context && typeof event.context === 'object'
-          ? (event.context as Record<string, unknown>)
-          : { context: event.context },
+      data: event.context && typeof event.context === 'object' ? (event.context as Record<string, unknown>) : { context: event.context },
       level: event.level,
       message: event.message,
       timestamp: Date.now() / 1000,
       type: 'default',
     })
-
-    if (event.level === 'error' || event.level === 'warning') {
-      Sentry.captureMessage(event.message, event.level)
-    }
+    if (event.level === 'error') Sentry.captureMessage(event.message, event.level)
   }
 }
 

@@ -2,12 +2,23 @@
 
 type HydrabaseGlobal = typeof globalThis & {
   __hydrabaseCaptureException__?: (exception: unknown) => void
+  __hydrabaseSentryLogger__?: {
+    debug: (message: string, data?: Record<string, unknown>) => void
+    error: (message: string, data?: Record<string, unknown>) => void
+    info: (message: string, data?: Record<string, unknown>) => void
+    warn: (message: string, data?: Record<string, unknown>) => void
+  }
   __hydrabaseLogEvent__?: (event: {
     category: string
     context?: unknown
     level: 'debug' | 'error' | 'info' | 'warning'
     message: string
   }) => void
+}
+
+const getSentryLogger = (): HydrabaseGlobal['__hydrabaseSentryLogger__'] => {
+  const globalWithCapture = globalThis as HydrabaseGlobal
+  return globalWithCapture.__hydrabaseSentryLogger__
 }
 
 const captureException = (exception: unknown): void => {
@@ -23,6 +34,15 @@ const logEvent = (event: {
 }): void => {
   const globalWithCapture = globalThis as HydrabaseGlobal
   globalWithCapture.__hydrabaseLogEvent__?.(event)
+}
+
+const exceptionFromContext = (message: string, context?: unknown): unknown => {
+  if (context instanceof Error) return context
+  if (context && typeof context === 'object') {
+    const maybeErr = (context as Record<string, unknown>)['err']
+    if (maybeErr instanceof Error) return maybeErr
+  }
+  return new Error(message)
 }
 
 export class Trace {
@@ -43,6 +63,7 @@ export class Trace {
       level: 'info',
       message: `Trace started: ${this.label}`,
     })
+    getSentryLogger()?.info('Trace started', { label: this.label, traceId: this.traceId })
     setTimeout(() => {
       if (!this.finished) this.fail('Trace took over 5m')
     }, 120_000)
@@ -69,7 +90,8 @@ export class Trace {
       level: 'error',
       message: msg,
     })
-    captureException(msg)
+    getSentryLogger()?.error(msg, { label: this.label, traceId: this.traceId })
+    captureException(exceptionFromContext(msg, { label: this.label, traceId: this.traceId }))
     return false
   }
 
@@ -89,7 +111,12 @@ export class Trace {
       level: 'error',
       message: reason,
     })
-    captureException(reason)
+    getSentryLogger()?.error(reason, {
+      context: context && typeof context === 'object' ? (context as Record<string, unknown>) : { context },
+      label: this.label,
+      traceId: this.traceId,
+    })
+    captureException(exceptionFromContext(reason, context))
     return false
   }
 
@@ -101,6 +128,7 @@ export class Trace {
       level: 'debug',
       message: msg,
     })
+    getSentryLogger()?.debug(msg, { label: this.label, traceId: this.traceId })
   }
 
   success(): void {
@@ -112,6 +140,7 @@ export class Trace {
       level: 'info',
       message: `Trace succeeded: ${this.label}`,
     })
+    getSentryLogger()?.info('Trace succeeded', { label: this.label, traceId: this.traceId })
     this.print(true)
   }
 
