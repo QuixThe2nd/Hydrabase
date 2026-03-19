@@ -27,6 +27,8 @@
   },
   "dependencies": {
     "@iplookup/country": "^1.0.20260223",
+    "@sentry/bun": "^10.44.0",
+    "@sentry/cli": "^2",
     "bencode": "^4.0.0",
     "bittorrent-dht": "^11.0.11",
     "country-code-emoji": "^2.3.0",
@@ -45,6 +47,7 @@
   },
   "scripts": {
     "start": "bun src/backend/index.ts",
-    "dev": "bun --watch src/backend/index.ts"
+    "dev": "bun --watch src/backend/index.ts",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org parsa-0g --project bun ./dist && sentry-cli sourcemaps upload --org parsa-0g --project bun ./dist"
   }
 }

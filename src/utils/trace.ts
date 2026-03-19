@@ -1,4 +1,30 @@
 /* eslint-disable no-console */
+
+type HydrabaseGlobal = typeof globalThis & {
+  __hydrabaseCaptureException__?: (exception: unknown) => void
+  __hydrabaseLogEvent__?: (event: {
+    category: string
+    context?: unknown
+    level: 'debug' | 'error' | 'info' | 'warning'
+    message: string
+  }) => void
+}
+
+const captureException = (exception: unknown): void => {
+  const globalWithCapture = globalThis as HydrabaseGlobal
+  globalWithCapture.__hydrabaseCaptureException__?.(exception)
+}
+
+const logEvent = (event: {
+  category: string
+  context?: unknown
+  level: 'debug' | 'error' | 'info' | 'warning'
+  message: string
+}): void => {
+  const globalWithCapture = globalThis as HydrabaseGlobal
+  globalWithCapture.__hydrabaseLogEvent__?.(event)
+}
+
 export class Trace {
   private children: Trace[] = []
   private finished = false
@@ -11,6 +37,12 @@ export class Trace {
     private readonly noPrint = false
   ) {
     this.startTime = new Date()
+    logEvent({
+      category: 'trace',
+      context: { label: this.label, traceId: this.traceId },
+      level: 'info',
+      message: `Trace started: ${this.label}`,
+    })
     setTimeout(() => {
       if (!this.finished) this.fail('Trace took over 5m')
     }, 120_000)
@@ -31,6 +63,13 @@ export class Trace {
 
   caughtError(msg: string): false {
     this.steps.push({ error: true, msg, time: new Date() })
+    logEvent({
+      category: 'trace',
+      context: { label: this.label, traceId: this.traceId },
+      level: 'error',
+      message: msg,
+    })
+    captureException(msg)
     return false
   }
 
@@ -44,16 +83,35 @@ export class Trace {
     this.print(false, reason)
     this.finished = true
     if (context) console.log(context)
+    logEvent({
+      category: 'trace',
+      context: { detail: context, label: this.label, traceId: this.traceId },
+      level: 'error',
+      message: reason,
+    })
+    captureException(reason)
     return false
   }
 
   step(msg: string): void {
     this.steps.push({ msg, time: new Date() })
+    logEvent({
+      category: 'trace-step',
+      context: { label: this.label, traceId: this.traceId },
+      level: 'debug',
+      message: msg,
+    })
   }
 
   success(): void {
     if (this.finished) console.error('Timed out trace completed')
     else this.finished = true
+    logEvent({
+      category: 'trace',
+      context: { label: this.label, traceId: this.traceId },
+      level: 'info',
+      message: `Trace succeeded: ${this.label}`,
+    })
     this.print(true)
   }
 

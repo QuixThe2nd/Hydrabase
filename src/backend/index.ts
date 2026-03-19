@@ -1,3 +1,55 @@
+import { log } from '../utils/log'
+
+const initTelemetry = async (): Promise<void> => {
+  if (process.env['HYDRABASE_TELEMETRY'] !== 'true') {
+    log('[TELEMETRY] Disabled (set HYDRABASE_TELEMETRY=1 to enable)')
+    return
+  }
+
+  const Sentry = await import('@sentry/bun')
+  Sentry.init({
+    dsn: 'https://e048333b5d85bdc50499b9de2c440f81@o4511068837314560.ingest.de.sentry.io/4511068838625360',
+    enableLogs: true,
+    sendDefaultPii: true,
+    tracesSampleRate: 1.0,
+  })
+  log('[TELEMETRY] Enabled (Sentry)')
+
+  ;(globalThis as typeof globalThis & {
+    __hydrabaseCaptureException__?: (exception: unknown) => void
+  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception)
+
+  ;(globalThis as typeof globalThis & {
+    __hydrabaseLogEvent__?: (event: {
+      category: string
+      context?: unknown
+      level: 'debug' | 'error' | 'info' | 'warning'
+      message: string
+    }) => void
+  }).__hydrabaseLogEvent__ = (event: {
+    category: string
+    context?: unknown
+    level: 'debug' | 'error' | 'info' | 'warning'
+    message: string
+  }) => {
+    Sentry.addBreadcrumb({
+      category: event.category,
+      data:
+        event.context && typeof event.context === 'object'
+          ? (event.context as Record<string, unknown>)
+          : { context: event.context },
+      level: event.level,
+      message: event.message,
+      timestamp: Date.now() / 1000,
+      type: 'default',
+    })
+
+    if (event.level === 'error' || event.level === 'warning') {
+      Sentry.captureMessage(event.message, event.level)
+    }
+  }
+}
+
 import dgram from 'dgram'
 import net from 'net'
 
@@ -5,6 +57,9 @@ import type { Config } from "../types/hydrabase"
 
 import { error, warn } from '../utils/log'
 import { startNode } from './Node'
+
+await initTelemetry()
+
 
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))

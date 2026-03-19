@@ -10,6 +10,7 @@ export const buildWebUI = async () => await Bun.build({
   entrypoints: ['./src/frontend/main.tsx'],
   outdir: './dist',
   target: 'browser',
+  
 })
 
 export const serveStaticFile = (pathname: string): Response | undefined => {

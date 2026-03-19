@@ -24,6 +24,9 @@ services:
       # PUID: 1000
       # PGID: 1000
 
+      # Telemetry is disabled by default. Consider enabling it to help me make Hydrabase more stable.
+      # HYDRABASE_TELEMETRY: false
+
       # Advanced:
       # REQUIRE_DHT_READY: true
       # PREFER_TRANSPORT: TCP # TCP or UDP
