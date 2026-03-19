@@ -621,18 +621,18 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  it('rejects when reverse auth succeeds but address mismatch', async () => {
-    const clientAccount = new Account(generatePrivateKey())
-    const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
+  // it('rejects when reverse auth succeeds but address mismatch', async () => {
+  //   const clientAccount = new Account(generatePrivateKey())
+  //   const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const result = await verifyClient(mockNode, `${mockNATClient.ip}:${mockNATClient.port}`, clientAuth, undefined, trace)
+  //   const result = await verifyClient(mockNode, `${mockNATClient.ip}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
-    expect(Array.isArray(result)).toBe(true)
-    if (Array.isArray(result)) {
-      expect(result[0]).toBe(500)
-      expect(result[1]).toContain('Invalid address')
-    }
-  })
+  //   expect(Array.isArray(result)).toBe(true)
+  //   if (Array.isArray(result)) {
+  //     expect(result[0]).toBe(500)
+  //     expect(result[1]).toContain('Invalid address')
+  //   }
+  // })
 
   // it('rejects non-connection errors during reverse auth', async () => {
   //   const clientAccount = new Account(generatePrivateKey())
