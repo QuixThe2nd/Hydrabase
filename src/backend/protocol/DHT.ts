@@ -1,4 +1,4 @@
-import z from "zod"
+import z from 'zod'
 
 export const decoder = new TextDecoder()
 export const BinaryString = z.instanceof(Uint8Array).transform(m => decoder.decode(m))

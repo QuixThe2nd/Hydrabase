@@ -1,41 +1,41 @@
 /* eslint-disable max-lines-per-function */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { EventEntry, FilterState, NodeStats, PeerStats, PeerWithCountry, WsState } from "../types/hydrabase"
-import type { SearchHistoryEntry } from "../types/hydrabase-schemas"
+import type { EventEntry, FilterState, NodeStats, PeerStats, PeerWithCountry, WsState } from '../types/hydrabase'
+import type { SearchHistoryEntry } from '../types/hydrabase-schemas'
 
-import { error, warn } from "../utils/log"
-import { ActivityFeed } from "./components/ActivityFeed"
-import { ApiKeyGate } from "./components/ApiKeyGate";
-import { PeerDetail } from "./components/PeerDetail"
-import { Sidebar, type Tab } from "./components/Sidebar"
-import { StatusBar } from "./components/StatusBar"
-import { DhtTab } from "./tabs/dht"
-import { OverviewTab } from "./tabs/Overview"
-import { PeersTab } from "./tabs/Peers"
-import { SearchTab } from "./tabs/Search"
-import { VotesTab } from "./tabs/votes"
-import { BG, GLOBAL_STYLES, TEXT } from "./theme"
-import { getCountry } from "./utils";
+import { error, warn } from '../utils/log'
+import { ActivityFeed } from './components/ActivityFeed'
+import { ApiKeyGate } from './components/ApiKeyGate'
+import { PeerDetail } from './components/PeerDetail'
+import { Sidebar, type Tab } from './components/Sidebar'
+import { StatusBar } from './components/StatusBar'
+import { DhtTab } from './tabs/dht'
+import { OverviewTab } from './tabs/Overview'
+import { PeersTab } from './tabs/Peers'
+import { SearchTab } from './tabs/Search'
+import { VotesTab } from './tabs/votes'
+import { BG, GLOBAL_STYLES, TEXT } from './theme'
+import { getCountry } from './utils'
 
 export interface BwPoint { dl: number; ul: number }
 
 const BW_HISTORY_LEN = 300
 const nonce = Math.random()
 
-const filterPeers = (peers: PeerWithCountry[], filter: FilterState) => [...peers].filter((p) => filter === "all" || (p.connection === undefined && filter === 'disconnected') || (p.connection !== undefined && filter === 'connected'))
+const filterPeers = (peers: PeerWithCountry[], filter: FilterState) => [...peers].filter((p) => filter === 'all' || (p.connection === undefined && filter === 'disconnected') || (p.connection !== undefined && filter === 'connected'))
 
 const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
-  const [wsState, setWsState] = useState<WsState>("connecting")
+  const [wsState, setWsState] = useState<WsState>('connecting')
   const [peers, setPeers] = useState<PeerWithCountry[]>([])
   const [dhtNodes, setDhtNodes] = useState<{ country: string; host: string }[]>([])
   const [eventLog, setEventLog] = useState<EventEntry[]>([])
   const [uptime, setUptime] = useState<number>(0)
   const [bwHistory, setBwHistory] = useState<BwPoint[]>(Array(BW_HISTORY_LEN).fill({ DL: 0, UL: 0 }))
   const prevTotalsRef = useRef<{ DL: number; UL: number; }>({ DL: 0, UL: 0 })
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchType, setSearchType] = useState<"album.tracks" | "albums" | "artist.albums" | "artist.tracks" | "artists" | "tracks">("artists")
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchType, setSearchType] = useState<'album.tracks' | 'albums' | 'artist.albums' | 'artist.tracks' | 'artists' | 'tracks'>('artists')
   const [searchResults, setSearchResults] = useState<null | unknown[]>(null)
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<null | string>(null)
@@ -44,9 +44,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pendingSearches = useRef(new Map<number, (r: unknown[]) => void>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
-  const [tab, setTab] = useState<Tab>("overview")
+  const [tab, setTab] = useState<Tab>('overview')
   const [sel, setSel] = useState<null | PeerWithCountry>(null)
-  const [filter, setFilter] = useState<FilterState>("all")
+  const [filter, setFilter] = useState<FilterState>('all')
   const [stats, setStats] = useState<NodeStats | null>(null)
   const [dhtNodeCounts, setDhtNodeCounts] = useState<number[]>([])
   const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([])
@@ -63,7 +63,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     setStats(stats)
     setDhtNodeCounts(prev => ([...prev, stats.dhtNodes.length]))
     setPeers(stats.peers.known.map(peer => ({ ...peer, activity: [], country: 'AU' })))
-    Promise.all(stats.dhtNodes.map(async (host) => ({ country: await getCountry((host.split(":") as [string, string])[0]), host })))
+    Promise.all(stats.dhtNodes.map(async (host) => ({ country: await getCountry((host.split(':') as [string, string])[0]), host })))
       .then((nodes) => setDhtNodes(nodes))
 
     const totalDL = (stats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
@@ -73,21 +73,21 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     prevTotalsRef.current = { DL: totalDL, UL: totalUL }
     setBwHistory(prev => [...prev.slice(1 - BW_HISTORY_LEN), { dl: dlDelta, ul: ulDelta }])
 
-    addLog("INFO", 'Received stats')
+    addLog('INFO', 'Received stats')
   }, [addLog])
 
   useEffect(() => {
     let destroyed = false
     const connect = () => {
       if (destroyed) return
-      addLog("INFO", `Connecting to ${socket}…`)
-      setWsState("connecting")
+      addLog('INFO', `Connecting to ${socket}…`)
+      setWsState('connecting')
       const ws = new WebSocket(socket, [`x-api-key-${apiKey}`])
       wsRef.current = ws
       ws.onopen = () => {
         if (destroyed) { ws.close(); return }
-        setWsState("open")
-        addLog("INFO", "WebSocket connected")
+        setWsState('open')
+        addLog('INFO', 'WebSocket connected')
         ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
       }
       ws.onmessage = (e: MessageEvent) => {
@@ -102,17 +102,17 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             setSearchHistory(data.search_history)
           } else if (data.stats && data.stats.self.address) applyStats(data.stats)
           else if (data.peer_stats) onPeerStatsRef.current(data)
-          else addLog("DEBUG", `WS msg: ${e.data.slice(0, 80)}`)
+          else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
           error('ERROR:', '[WEBUI] onMessage', {err})
-          addLog("WARN", `Unparseable message: ${e.data.slice(0, 60)}`)
+          addLog('WARN', `Unparseable message: ${e.data.slice(0, 60)}`)
         }
       }
-      ws.onerror  = () => { if (!destroyed) { setWsState("error");  addLog("ERROR", "WebSocket error") } }
+      ws.onerror  = () => { if (!destroyed) { setWsState('error');  addLog('ERROR', 'WebSocket error') } }
       ws.onclose  = (ev: CloseEvent) => {
         if (!destroyed) {
-          setWsState("closed")
-          addLog("WARN", `WebSocket closed (${ev.code}). Reconnecting in 5s…`)
+          setWsState('closed')
+          addLog('WARN', `WebSocket closed (${ev.code}). Reconnecting in 5s…`)
           setTimeout(connect, 5000)
         }
       }
@@ -130,7 +130,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     const q = searchQuery.trim()
     if (!q) return
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) { setSearchError("WebSocket not connected"); return }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { setSearchError('WebSocket not connected'); return }
     setSearchLoading(true); setSearchError(null); setSearchResults(null); setSearchElapsed(null)
     const nonce = nonceRef.current++
     const t0 = performance.now()
@@ -138,7 +138,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       if (pendingSearches.current.has(nonce)) {
         pendingSearches.current.delete(nonce)
         setSearchLoading(false)
-        setSearchError("Search timed out after 30s")
+        setSearchError('Search timed out after 30s')
       }
     }, 30_000)
     const result = await new Promise<unknown[]>(resolve => {
@@ -195,15 +195,15 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   //   onPeerStatsRef.current = onPeerStats
   // }
 
-  return <div style={{ background: BG, color: TEXT, display: "flex", fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: "100vh" }}>
+  return <div style={{ background: BG, color: TEXT, display: 'flex', fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: '100vh' }}>
     <style>{GLOBAL_STYLES}</style>
     <Sidebar peers={peers} setTab={setTab} stats={stats} tab={tab} uptime={uptime} />
-    <div style={{ animation: "fadein .3s ease", flex: 1, minWidth: 0, padding: "14px 16px 70px" }}>
-      {tab === "overview" && <OverviewTab bwHistory={bwHistory} peers={peers} sel={sel} setSel={setSel} stats={stats} />}
-      {tab === "peers" && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={setSel} sorted={filterPeers(peers, filter)} />}
-      {tab === "dht" && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
-      {tab === "votes" && <VotesTab peers={peers} stats={stats} />}
-      {tab === "search" && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
+    <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
+      {tab === 'overview' && <OverviewTab bwHistory={bwHistory} peers={peers} sel={sel} setSel={setSel} stats={stats} />}
+      {tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={setSel} sorted={filterPeers(peers, filter)} />}
+      {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
+      {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
+      {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
     </div>
     <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
     <ActivityFeed eventLog={eventLog} />
@@ -212,8 +212,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 }
 
 export default function App() {
-  const [socket, setSocket] = useState<null | string>(() => localStorage.getItem("socket"))
-  const [key, setKey] = useState<null | string>(() => localStorage.getItem("api_key"))
+  const [socket, setSocket] = useState<null | string>(() => localStorage.getItem('socket'))
+  const [key, setKey] = useState<null | string>(() => localStorage.getItem('api_key'))
 
   if (!socket || !key) return <ApiKeyGate onSubmit={(s, k) => {
     setSocket(s)

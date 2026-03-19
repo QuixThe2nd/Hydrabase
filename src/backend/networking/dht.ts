@@ -1,15 +1,15 @@
 import DHT, { type DHTNode } from 'bittorrent-dht'
-import { SHA1 } from 'bun';
+import { SHA1 } from 'bun'
 import krpc from 'k-rpc'
 import krpcSocket from 'k-rpc-socket'
 import net from 'net'
 
-import type { Config } from '../../types/hydrabase';
-import type PeerManager from '../PeerManager';
+import type { Config } from '../../types/hydrabase'
+import type PeerManager from '../PeerManager'
 
-import { error, logContext, stats, warn } from '../../utils/log';
-import { Trace } from '../../utils/trace';
-import { authenticatedPeers, UDP_Server } from './udp/server';
+import { error, logContext, stats, warn } from '../../utils/log'
+import { Trace } from '../../utils/trace'
+import { authenticatedPeers, UDP_Server } from './udp/server'
 
 export class DHT_Node {
   public readonly resolved = {
@@ -23,7 +23,7 @@ export class DHT_Node {
   private cacheSize = 0
   private readonly dht: DHT
   private readonly knownPeers: Set<`${string}:${number}`> // TODO: prune old peers, mem leak
-  private readonly startupTrace = Trace.start(`[DHT] Startup`)
+  private readonly startupTrace = Trace.start('[DHT] Startup')
   constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], udpServer: UDP_Server, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
     this.knownPeers = new Set<`${string}:${number}`>([`${node.hostname}:${node.port}`,`${node.ip}:${node.port}`])
     const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(udpServer), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })

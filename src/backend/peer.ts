@@ -1,15 +1,15 @@
-import type { NodeStats, PeerStats, Socket } from '../types/hydrabase';
-import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas';
-import type { Repositories } from "./db";
-import type PeerManager from "./PeerManager";
+import type { NodeStats, PeerStats, Socket } from '../types/hydrabase'
+import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas'
+import type { Repositories } from './db'
+import type PeerManager from './PeerManager'
 
-import { stats, warn } from '../utils/log';
-import { Trace } from '../utils/trace';
-import { UDP_Client } from './networking/udp/client';
-import WebSocketClient from './networking/ws/client';
-import { HIP2_Messaging, type Ping } from "./protocol/HIP2_Messaging";
-import { type Announce, HIP3_AnnouncePeers } from "./protocol/HIP3_AnnouncePeers";
-import { RequestManager } from './RequestManager';
+import { stats, warn } from '../utils/log'
+import { Trace } from '../utils/trace'
+import { UDP_Client } from './networking/udp/client'
+import WebSocketClient from './networking/ws/client'
+import { HIP2_Messaging, type Ping } from './protocol/HIP2_Messaging'
+import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
+import { RequestManager } from './RequestManager'
 
 export class Peer {
   public nonce = 0
@@ -168,7 +168,7 @@ export class Peer {
       else if (type === 'albums' || type === 'artist.albums') this.repos.album.upsertFromPeer(result as Album, this.socket.identity.address)
       else if (type === 'artists') this.repos.artist.upsertFromPeer(result as Artist, this.socket.identity.address)
     }
-    return response;
+    return response
   }
 
   send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats }) & { nonce: number }, trace: Trace) {

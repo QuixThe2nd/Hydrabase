@@ -1,10 +1,10 @@
-import type { Config } from "../../../types/hydrabase";
-import type { Trace } from "../../../utils/trace";
-import type { Account } from "../../Crypto/Account";
-import type { UDP_Server } from "../../networking/udp/server";
-import type { Auth, Identity } from "../HIP1_Identity"
+import type { Config } from '../../../types/hydrabase'
+import type { Trace } from '../../../utils/trace'
+import type { Account } from '../../Crypto/Account'
+import type { UDP_Server } from '../../networking/udp/server'
+import type { Auth, Identity } from '../HIP1_Identity'
 
-import { authenticatePeer } from "../../PeerManager";
+import { authenticatePeer } from '../../PeerManager'
 
 
 const authenticateHostname = async (claimedHostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', udpServer: UDP_Server, account: Account, trace: Trace, node: Config['node'], identity: Identity, ip: { address: string }): Promise<[number, string] | Identity> => {
@@ -27,7 +27,7 @@ export const upgradeHostname = async (hostname: string, auth: Auth, trace: Trace
       if (Array.isArray(identity)) return resolve(identity)
       if (identity.address !== auth.address) {
         trace.fail(`[HIP4] Invalid Address - Expected ${auth.address} - Got ${identity.address}`)
-        return resolve([500, `Invalid address`])
+        return resolve([500, 'Invalid address'])
       }
       return resolve(true)
     })()

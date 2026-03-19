@@ -32,7 +32,7 @@ export class UDP_Client implements Socket {
           authenticatedPeers.set(ipHostname, identity)
           trace.step(`[CLIENT] Also stored peer auth under resolved IP ${ipHostname}`)
         }
-      }).catch((error: Error) => warn('DEVWARN:', `[CLIENT] Dns lookup threw error`, {error}))
+      }).catch((error: Error) => warn('DEVWARN:', '[CLIENT] Dns lookup threw error', {error}))
     }
   }
   static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string, trace: Trace): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId, trace)

@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 declare module 'k-rpc' {
-  import { EventEmitter } from 'events';
+  import { EventEmitter } from 'events'
 
   /* -------------------------------------------------- *
    * Shared / Core Types
@@ -29,7 +29,7 @@ declare module 'k-rpc' {
 
     readonly nodes: unknown;
 
-    on(event: 'query', listener: (query: KRPCQuery, node: { address: string, family: "IPv4" | "IPv6"; port: number, size: number }) => void): this;
+    on(event: 'query', listener: (query: KRPCQuery, node: { address: string, family: 'IPv4' | 'IPv6'; port: number, size: number }) => void): this;
 
     on(event: 'ping', listener: (oldNodes: KRPCNode[], swapNew: (node: KRPCNode) => void) => void): this;
 

@@ -1,10 +1,10 @@
-import type { Album, Artist, MetadataPlugin, Request, Response } from '../../types/hydrabase-schemas';
-import type { Repositories } from '../db';
-import type PeerManager from '../PeerManager';
+import type { Album, Artist, MetadataPlugin, Request, Response } from '../../types/hydrabase-schemas'
+import type { Repositories } from '../db'
+import type PeerManager from '../PeerManager'
 
-import { warn } from '../../utils/log';
-import { Trace } from '../../utils/trace';
-import { SafeMetadataPlugin } from './SafeMetadataPlugin';
+import { warn } from '../../utils/log'
+import { Trace } from '../../utils/trace'
+import { SafeMetadataPlugin } from './SafeMetadataPlugin'
 
 const computeConfidence = (artistConfidences: number[], peerConfidences: number[], k = 1.0): null | number => {
   if (peerConfidences.length === 0) return null

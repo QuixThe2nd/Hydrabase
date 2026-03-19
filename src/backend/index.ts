@@ -1,5 +1,5 @@
 // @ts-expect-error: This is supported by bun
-import VERSION from "../../VERSION" with { type: "text" };
+import VERSION from '../../VERSION' with { type: 'text' }
 import { log } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
 import { BRANCH } from './branch'
@@ -54,7 +54,7 @@ const initTelemetry = async (): Promise<void> => {
 import dgram from 'dgram'
 import net from 'net'
 
-import type { Config } from "../types/hydrabase"
+import type { Config } from '../types/hydrabase'
 
 import { error, warn } from '../utils/log'
 import { startNode } from './Node'

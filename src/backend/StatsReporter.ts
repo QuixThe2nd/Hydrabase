@@ -96,7 +96,7 @@ export class StatsReporter {
         client.sendStats(this.collectStats(), trace)
         trace.success()
       } catch (err) {
-        trace.fail(`[STATS] Failed to collect/send stats`, err)
+        trace.fail('[STATS] Failed to collect/send stats', err)
       }
     }
   }

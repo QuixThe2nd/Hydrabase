@@ -1,6 +1,6 @@
-import type { MetadataPlugin } from "../../types/hydrabase-schemas";
+import type { MetadataPlugin } from '../../types/hydrabase-schemas'
 
-import { error } from "../../utils/log";
+import { error } from '../../utils/log'
 
 export class SafeMetadataPlugin implements MetadataPlugin {
   get id() {

@@ -1,15 +1,15 @@
 import { Database } from 'bun:sqlite'
 import { BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite'
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import fs from 'fs';
+import { migrate } from 'drizzle-orm/bun-sqlite/migrator'
+import fs from 'fs'
 
-import { AlbumRepository } from './repositories/AlbumRepository';
-import { ArtistRepository } from './repositories/ArtistRepository';
-import { PeerRepository } from './repositories/PeerRepository';
-import { SearchHistoryRepository } from './repositories/SearchHistoryRepository';
-import { StatsRepository } from './repositories/StatsRepository';
-import { TrackRepository } from './repositories/TrackRepository';
-import { schema } from './schema';
+import { AlbumRepository } from './repositories/AlbumRepository'
+import { ArtistRepository } from './repositories/ArtistRepository'
+import { PeerRepository } from './repositories/PeerRepository'
+import { SearchHistoryRepository } from './repositories/SearchHistoryRepository'
+import { StatsRepository } from './repositories/StatsRepository'
+import { TrackRepository } from './repositories/TrackRepository'
+import { schema } from './schema'
 
 export type DB = BunSQLiteDatabase<typeof schema>
 export interface Repositories {
@@ -25,7 +25,7 @@ export const startDatabase = async (pluginConfidenceFormula: string): Promise<Re
 const sqlite = new Database('data/db.sqlite')
   if (!(await Bun.file('data').exists())) fs.mkdirSync('data', { recursive: true })
   const db = drizzle(sqlite, { schema })
-  migrate(db, { migrationsFolder: "./drizzle" });
+  migrate(db, { migrationsFolder: './drizzle' })
   return {
     album: new AlbumRepository(db),
     artist: new ArtistRepository(db),

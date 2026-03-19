@@ -1,20 +1,20 @@
 import bencode from 'bencode'
 import dgram from 'dgram'
-import { resolve4 } from "dns/promises"
+import { resolve4 } from 'dns/promises'
 import net from 'net'
-import z from "zod"
+import z from 'zod'
 
-import type { Config } from "../../../types/hydrabase"
-import type { Account } from "../../Crypto/Account"
-import type PeerManager from "../../PeerManager"
+import type { Config } from '../../../types/hydrabase'
+import type { Account } from '../../Crypto/Account'
+import type PeerManager from '../../PeerManager'
 
 import { debug, log, warn } from '../../../utils/log'
-import { Trace } from "../../../utils/trace"
-import { DHT_Node } from "../../networking/dht"
-import { UDP_Client } from "../../networking/udp/client"
-import { authenticatedPeers, type RPCMessage, UDP_Server } from "../../networking/udp/server"
-import { BaseMessage, BinaryHex, BinaryString } from "../DHT"
-import { type Auth, type Identity, proveClient, proveServer, verifyServer } from "../HIP1_Identity"
+import { Trace } from '../../../utils/trace'
+import { DHT_Node } from '../../networking/dht'
+import { UDP_Client } from '../../networking/udp/client'
+import { authenticatedPeers, type RPCMessage, UDP_Server } from '../../networking/udp/server'
+import { BaseMessage, BinaryHex, BinaryString } from '../DHT'
+import { type Auth, type Identity, proveClient, proveServer, verifyServer } from '../HIP1_Identity'
 
 export const AuthSchema = z.object({
   address: BinaryString,
@@ -123,7 +123,7 @@ export const doH1Handshake = (server: UDP_Server, hostname: `${string}:${number}
         authenticatedPeers.set(ipHostname, identity)
         trace.step(`[CLIENT] Also stored auth under resolved IP ${ipHostname}`)
       }
-    }).catch((error: Error) => warn('DEVWARN:', `[CLIENT] Dns lookup threw error`, {error}))
+    }).catch((error: Error) => warn('DEVWARN:', '[CLIENT] Dns lookup threw error', {error}))
     return true
   })
   const [host, port] = hostname.split(':') as [string, `${number}`]

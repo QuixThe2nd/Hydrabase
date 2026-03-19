@@ -1,8 +1,8 @@
 /// <reference types="node" />
 
 declare module 'bittorrent-dht' {
-  import { EventEmitter } from 'events';
-  import { KRPC } from 'k-rpc';
+  import { EventEmitter } from 'events'
+  import { KRPC } from 'k-rpc'
 
   /* -------------------------------------------------- *
    * Shared Node / Peer Types

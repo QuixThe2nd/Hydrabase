@@ -1,24 +1,24 @@
 import dgram from 'dgram'
 import { Parser } from 'expr-eval'
 
-import type { Config, Socket } from '../types/hydrabase';
-import type { Request, Response, SearchResult } from '../types/hydrabase-schemas';
-import type { Account } from './Crypto/Account';
+import type { Config, Socket } from '../types/hydrabase'
+import type { Request, Response, SearchResult } from '../types/hydrabase-schemas'
+import type { Account } from './Crypto/Account'
 import type { Repositories } from './db'
 import type MetadataManager from './Metadata'
-import type { Identity } from './protocol/HIP1_Identity';
+import type { Identity } from './protocol/HIP1_Identity'
 
-import { formatUptime, logContext, truncateAddress, warn } from '../utils/log';
-import { Trace } from '../utils/trace';
-import { DHT_Node } from './networking/dht';
-import { authenticateServerHTTP } from './networking/http';
-import { UDP_Client } from './networking/udp/client';
-import { authenticatedPeers, UDP_Server } from './networking/udp/server';
-import WebSocketClient from "./networking/ws/client";
-import { WebSocketServerConnection } from './networking/ws/server';
-import { Peer } from "./peer";
-import { PeerMap } from './PeerMap';
-import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery';
+import { formatUptime, logContext, truncateAddress, warn } from '../utils/log'
+import { Trace } from '../utils/trace'
+import { DHT_Node } from './networking/dht'
+import { authenticateServerHTTP } from './networking/http'
+import { UDP_Client } from './networking/udp/client'
+import { authenticatedPeers, UDP_Server } from './networking/udp/server'
+import WebSocketClient from './networking/ws/client'
+import { WebSocketServerConnection } from './networking/ws/server'
+import { Peer } from './peer'
+import { PeerMap } from './PeerMap'
+import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery'
 
 const cacheFile = Bun.file('./data/ws-servers.json')
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length

@@ -1,12 +1,12 @@
-import z from 'zod';
+import z from 'zod'
 
-import type { Trace } from '../../../utils/trace';
-import type { RequestManager } from '../../RequestManager';
+import type { Trace } from '../../../utils/trace'
+import type { RequestManager } from '../../RequestManager'
 
-import { type Request, RequestSchema, type Response, ResponseSchema } from '../../../types/hydrabase-schemas';
-import { debug } from '../../../utils/log';
-import { type Peer } from '../../peer';
-import { AnnounceSchema } from '../HIP3_AnnouncePeers';
+import { type Request, RequestSchema, type Response, ResponseSchema } from '../../../types/hydrabase-schemas'
+import { debug } from '../../../utils/log'
+import { type Peer } from '../../peer'
+import { AnnounceSchema } from '../HIP3_AnnouncePeers'
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
 

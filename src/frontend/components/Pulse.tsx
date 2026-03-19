@@ -1,27 +1,27 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef } from 'react'
 
-import type { BwPoint } from "../App";
+import type { BwPoint } from '../App'
 
-import { ACCENT, BG2, BORD, GREEN, MUTED, ORANGE, TEXT } from "../theme";
+import { ACCENT, BG2, BORD, GREEN, MUTED, ORANGE, TEXT } from '../theme'
 
-const Pulse = ({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElement | null> }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 8, overflow: "hidden" }}>
-  <div style={{ alignItems: "center", borderBottom: `1px solid ${BORD}`, display: "flex", gap: 8, padding: "9px 14px" }}>
-    <div style={{ animation: "pulse-dot 1.4s ease infinite", background: GREEN, borderRadius: "50%", height: 6, width: 6 }} />
-    <span style={{ color: TEXT, fontSize: 11, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase" }}>Network Pulse</span>
-    <span style={{ color: MUTED, fontSize: 10, marginLeft: "auto" }}>live · 60s window</span>
-    <div style={{ alignItems: "center", display: "flex", gap: 10 }}>
-      <span style={{ alignItems: "center", color: ACCENT, display: "flex", fontSize: 10, gap: 4 }}>
-        <span style={{ background: ACCENT, borderRadius: 2, display: "inline-block", height: 2, width: 12 }} />
+const Pulse = ({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElement | null> }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 8, overflow: 'hidden' }}>
+  <div style={{ alignItems: 'center', borderBottom: `1px solid ${BORD}`, display: 'flex', gap: 8, padding: '9px 14px' }}>
+    <div style={{ animation: 'pulse-dot 1.4s ease infinite', background: GREEN, borderRadius: '50%', height: 6, width: 6 }} />
+    <span style={{ color: TEXT, fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' }}>Network Pulse</span>
+    <span style={{ color: MUTED, fontSize: 10, marginLeft: 'auto' }}>live · 60s window</span>
+    <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+      <span style={{ alignItems: 'center', color: ACCENT, display: 'flex', fontSize: 10, gap: 4 }}>
+        <span style={{ background: ACCENT, borderRadius: 2, display: 'inline-block', height: 2, width: 12 }} />
         DL
       </span>
-      <span style={{ alignItems: "center", color: ORANGE, display: "flex", fontSize: 10, gap: 4 }}>
-        <span style={{ background: ORANGE, borderRadius: 2, display: "inline-block", height: 2, width: 12 }} />
+      <span style={{ alignItems: 'center', color: ORANGE, display: 'flex', fontSize: 10, gap: 4 }}>
+        <span style={{ background: ORANGE, borderRadius: 2, display: 'inline-block', height: 2, width: 12 }} />
         UL
       </span>
     </div>
   </div>
-  <div style={{ height: 120, position: "relative" }}>
-    <canvas ref={canvasRef} style={{ display: "block", height: "100%", width: "100%" }} />
+  <div style={{ height: 120, position: 'relative' }}>
+    <canvas ref={canvasRef} style={{ display: 'block', height: '100%', width: '100%' }} />
   </div>
 </div>
 
@@ -47,7 +47,7 @@ const drawSeries = (data: number[], color: string, glowColor: string, maxVal: nu
   // Line
   ctx.strokeStyle = color
   ctx.lineWidth = 1.5
-  ctx.lineJoin = "round"
+  ctx.lineJoin = 'round'
   ctx.shadowBlur = 7
   ctx.shadowColor = glowColor
   ctx.beginPath()
@@ -69,7 +69,7 @@ const populateCanvas = (ctx: CanvasRenderingContext2D, W: number, H: number, bwH
   ctx.clearRect(0, 0, W, H)
 
   // Subtle grid
-  ctx.strokeStyle = "rgba(26,37,53,.55)"
+  ctx.strokeStyle = 'rgba(26,37,53,.55)'
   ctx.lineWidth   = 1
   for (let x = 0; x < W; x += W / 12) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
@@ -84,8 +84,8 @@ const populateCanvas = (ctx: CanvasRenderingContext2D, W: number, H: number, bwH
   const dlData = bwHistory.map(p => p.dl)
   const maxVal = Math.max(...ulData, ...dlData, 1)
 
-  drawSeries(dlData, ORANGE,  "rgba(255,140,66,.6)", maxVal, W, H, ctx)
-  drawSeries(ulData, ACCENT,  "rgba(0,200,255,.6)", maxVal, W, H, ctx)
+  drawSeries(dlData, ORANGE,  'rgba(255,140,66,.6)', maxVal, W, H, ctx)
+  drawSeries(ulData, ACCENT,  'rgba(0,200,255,.6)', maxVal, W, H, ctx)
 }
 
 export const NetworkPulseCanvas = ({ bwHistory }: { bwHistory: BwPoint[] }) => {
@@ -93,7 +93,7 @@ export const NetworkPulseCanvas = ({ bwHistory }: { bwHistory: BwPoint[] }) => {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     const W = canvas.offsetWidth
@@ -103,7 +103,7 @@ export const NetworkPulseCanvas = ({ bwHistory }: { bwHistory: BwPoint[] }) => {
     canvas.height = H
 
     populateCanvas(ctx, W, H, bwHistory)
-  }, [bwHistory]);
+  }, [bwHistory])
 
   return <Pulse canvasRef={canvasRef} />
 }

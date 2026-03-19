@@ -76,7 +76,7 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
     return handleHydraQuery(server, query as Query, peerHostname, peerManager, node)
   }
   if (query.y === 'r') return false
-  log(`[SERVER] Unhandled query`, {query})
+  log('[SERVER] Unhandled query', {query})
   return false
 }
 

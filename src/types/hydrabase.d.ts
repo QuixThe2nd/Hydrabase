@@ -55,7 +55,7 @@ export interface EventEntry {
   t: string
 }
 
-export type FilterState = "all" | "connected" | "disconnected"
+export type FilterState = 'all' | 'connected' | 'disconnected'
 
 export interface NodeStats {
   dhtNodes: string[]
@@ -107,4 +107,4 @@ export interface Votes {
   tracks: number
 }
 
-export type WsState = "closed" | "connecting" | "error" | "open"
+export type WsState = 'closed' | 'connecting' | 'error' | 'open'

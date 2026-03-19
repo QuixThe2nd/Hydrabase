@@ -1,13 +1,13 @@
-import type { SocketAddress } from "bun";
+import type { SocketAddress } from 'bun'
 
-import type { Config, Socket } from "../../../types/hydrabase";
-import type { Account } from "../../Crypto/Account";
-import type PeerManager from "../../PeerManager";
-import type { UDP_Server } from "../udp/server";
+import type { Config, Socket } from '../../../types/hydrabase'
+import type { Account } from '../../Crypto/Account'
+import type PeerManager from '../../PeerManager'
+import type { UDP_Server } from '../udp/server'
 
-import { logContext, warn } from "../../../utils/log";
-import { Trace } from "../../../utils/trace";
-import { type Identity, verifyClient } from "../../protocol/HIP1_Identity";
+import { logContext, warn } from '../../../utils/log'
+import { Trace } from '../../../utils/trace'
+import { type Identity, verifyClient } from '../../protocol/HIP1_Identity'
 
 export type WebSocketData = Identity & {
   conn?: WebSocketServerConnection
@@ -46,7 +46,7 @@ export class WebSocketServerConnection implements Socket {
     this.closeHandlers.push(() => handler())
   }
   public onMessage(handler: (message: string) => void) {
-    this.messageHandlers.push(handler);
+    this.messageHandlers.push(handler)
   }  public readonly send = (message: string) => {
     if (this.isOpened) {this.socket.send(message)}
   }
@@ -115,5 +115,5 @@ export const handleConnection = async (
   trace.step(`[WS] [SERVER] Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
   if (server.upgrade(req, { data: { address, hostname, isOpened: false, trace, userAgent, username } })) return undefined
   trace.fail('Upgrade failed')
-  return { address, hostname, res: [500, "Upgrade failed"] }
+  return { address, hostname, res: [500, 'Upgrade failed'] }
 }

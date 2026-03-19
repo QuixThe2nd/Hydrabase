@@ -1,11 +1,11 @@
 import natUpnp from 'nat-upnp'
 
-import type { Config } from '../../types/hydrabase';
+import type { Config } from '../../types/hydrabase'
 
-import { debug } from '../../utils/log';
-import { Trace } from '../../utils/trace';
+import { debug } from '../../utils/log'
+import { Trace } from '../../utils/trace'
 
-const upnp = natUpnp.createClient();
+const upnp = natUpnp.createClient()
 const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP', trace?: Trace) => new Promise((res, rej) => {
   upnp.portMapping({ description, private: port, protocol, public: port, ttl }, err => {
     if (err) rej(err)

@@ -1,5 +1,5 @@
 // @ts-expect-error: This is supported by bun
-import VERSION from "../../VERSION" with { type: "text" };
+import VERSION from '../../VERSION' with { type: 'text' }
 
 export const buildWebUI = async () => await Bun.build({
   conditions: ['browser', 'module', 'import'],
