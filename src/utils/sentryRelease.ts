@@ -29,3 +29,72 @@ export const makeSentryRelease = ({ app, branch, version }: SentryReleaseParts):
   const v = sanitizeSegment(version)
   return `${a}@${v}+${b}`
 }
+
+// Lightweight self-test harness for sanitizeSegment/makeSentryRelease.
+// This is intended to support static analysis requirements for critical
+// release-string logic without affecting production behavior.
+const runSentryReleaseSelfTest = (): void => {
+  const assertEqual = (actual: string, expected: string, message: string): void => {
+    if (actual !== expected) {
+      throw new Error(
+        `sentryRelease self-test failed: ${message}. Expected "${expected}", got "${actual}".`,
+      )
+    }
+  }
+
+  // Whitespace normalization
+  assertEqual(
+    sanitizeSegment('  my  app\tname\n'),
+    'my-app-name',
+    'whitespace should be collapsed to single dashes and trimmed',
+  )
+
+  // Slash normalization (e.g. branch names like feature/foo or feature\bar)
+  assertEqual(
+    sanitizeSegment('feature/foo\\bar'),
+    'feature-foo-bar',
+    'slashes should be normalized to dashes',
+  )
+
+  // Exotic characters normalization
+  assertEqual(
+    sanitizeSegment('reléásé!@#name'),
+    'rel-ase-name',
+    'exotic characters should be replaced with dashes and cleaned',
+  )
+
+  // Empty / whitespace-only segments become "unknown"
+  assertEqual(
+    sanitizeSegment('   '),
+    'unknown',
+    'empty or whitespace-only segments should map to "unknown"',
+  )
+
+  // Length capping at 64 characters
+  const longSegment = 'a'.repeat(100)
+  const capped = sanitizeSegment(longSegment)
+  assertEqual(
+    String(capped.length),
+    '64',
+    'segments longer than 64 characters should be capped to length 64',
+  )
+
+  // makeSentryRelease combines sanitized segments in a stable format
+  assertEqual(
+    makeSentryRelease({
+      app: ' my app ',
+      branch: ' feature/foo ',
+      version: ' 1.2.3 ',
+    }),
+    'my-app@1.2.3+feature-foo',
+    'makeSentryRelease should combine sanitized segments as app@version+branch',
+  )
+}
+
+// Run self-tests automatically in test environments only.
+if (typeof process !== 'undefined') {
+  const env = (process as any).env || {}
+  if (env.NODE_ENV === 'test' || env.SENTRY_RELEASE_SELFTEST === '1') {
+    runSentryReleaseSelfTest()
+  }
+}
