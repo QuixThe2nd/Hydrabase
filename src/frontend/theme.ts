@@ -1,21 +1,21 @@
-import type { CSSProperties } from "react"
+import type { CSSProperties } from 'react'
 
-export const BG = "#060a0f"
-export const BG2 = "#0b1018"
-export const BG3 = "#111820"
-export const SURF = "#0b1018"
-export const BORD = "#1a2535"
-export const BORD2 = "#243040"
-export const TEXT = "#c8d8e8"
-export const MUTED = "#4a6070"
-export const DIM = "#2a3a4a"
-export const ACCENT = "#00c8ff"
-export const ACCENT2 = "#0088cc"
-export const GREEN = "#00e87a"
-export const ORANGE = "#ff8c42"
-export const PURPLE = "#a78bff"
-export const RED = "#ff4a5e"
-export const YELLOW = "#ffd166"
+export const BG = '#060a0f'
+export const BG2 = '#0b1018'
+export const BG3 = '#111820'
+export const SURF = '#0b1018'
+export const BORD = '#1a2535'
+export const BORD2 = '#243040'
+export const TEXT = '#c8d8e8'
+export const MUTED = '#4a6070'
+export const DIM = '#2a3a4a'
+export const ACCENT = '#00c8ff'
+export const ACCENT2 = '#0088cc'
+export const GREEN = '#00e87a'
+export const ORANGE = '#ff8c42'
+export const PURPLE = '#a78bff'
+export const RED = '#ff4a5e'
+export const YELLOW = '#ffd166'
 
 export const STATUS_COLORS = {
   connected: GREEN,
@@ -26,7 +26,7 @@ export const panel = (overrides: CSSProperties = {}): CSSProperties => ({
   background: SURF,
   border: `1px solid ${BORD}`,
   borderRadius: 8,
-  overflow: "hidden",
+  overflow: 'hidden',
   ...overrides,
 })
 

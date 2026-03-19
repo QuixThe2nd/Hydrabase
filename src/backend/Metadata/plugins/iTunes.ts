@@ -1,6 +1,6 @@
-import { z } from "zod"
+import { z } from 'zod'
 
-import type { Album, Artist, MetadataPlugin, Track } from "../../../types/hydrabase-schemas"
+import type { Album, Artist, MetadataPlugin, Track } from '../../../types/hydrabase-schemas'
 
 const iTunesTrackSearchSchema = z.object({
   artistName: z.string(),
@@ -80,10 +80,10 @@ const iTunesAlbumLookupResponseSchema = z.object({
 })
 
 export default class ITunes implements MetadataPlugin {
-  public readonly id = 'iTunes';
-  private baseUrl = "https://itunes.apple.com/";
+  public readonly id = 'iTunes'
+  private baseUrl = 'https://itunes.apple.com/'
 
-  constructor(private country = "US", private limit = 200) {
+  constructor(private country = 'US', private limit = 200) {
     if (limit > 200) {throw new Error('Maximum limit is 200')}
   }
 
@@ -94,13 +94,13 @@ export default class ITunes implements MetadataPlugin {
       id,
       limit: this.limit.toString(),
       media: 'music',
-    });
+    })
 
-    const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`);
-    const data = await response.json() as { results: { wrapperType: string }[] };
+    const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`)
+    const data = await response.json() as { results: { wrapperType: string }[] }
     data.results = data.results.filter(result => result.wrapperType === 'track')
-    const parsed = iTunesTrackLookupResponseSchema.safeParse(data);
-    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
+    const parsed = iTunesTrackLookupResponseSchema.safeParse(data)
+    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`)}
 
     return parsed.data.results.map(result => ({
       album: result.collectionName ?? '',
@@ -124,13 +124,13 @@ export default class ITunes implements MetadataPlugin {
       id,
       limit: this.limit.toString(),
       media: 'music',
-    });
+    })
 
-    const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`);
-    const data = await response.json() as { results: { wrapperType: string }[] };
+    const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`)
+    const data = await response.json() as { results: { wrapperType: string }[] }
     data.results = data.results.filter(result => result.wrapperType === 'album')
-    const parsed = iTunesAlbumLookupResponseSchema.safeParse(data);
-    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
+    const parsed = iTunesAlbumLookupResponseSchema.safeParse(data)
+    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`)}
 
     return parsed.data.results.map(result => {
       const trackCount = result.trackCount ?? 0
@@ -147,8 +147,8 @@ export default class ITunes implements MetadataPlugin {
         plugin_id: this.id,
         release_date: result.releaseDate ?? '',
         total_tracks: trackCount,
-      };
-    });
+      }
+    })
   }
 
   async artistTracks(id: string): Promise<Omit<Track, 'address' | 'soul_id'>[]> {
@@ -158,13 +158,13 @@ export default class ITunes implements MetadataPlugin {
       id,
       limit: this.limit.toString(),
       media: 'music',
-    });
+    })
 
-    const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`);
-    const data = await response.json() as { results: { wrapperType: string }[] };
+    const response = await fetch(`${this.baseUrl}lookup?${params.toString()}`)
+    const data = await response.json() as { results: { wrapperType: string }[] }
     data.results = data.results.filter(result => result.wrapperType === 'track')
-    const parsed = iTunesTrackLookupResponseSchema.safeParse(data);
-    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
+    const parsed = iTunesTrackLookupResponseSchema.safeParse(data)
+    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`)}
 
     return parsed.data.results.map(result => ({
       album: result.collectionName ?? '',
@@ -187,16 +187,16 @@ export default class ITunes implements MetadataPlugin {
       entity: 'album',
       limit: this.limit.toString(),
       media: 'music',
-      term: term.replace(/\s+/gu, "+"),
-    });
+      term: term.replace(/\s+/gu, '+'),
+    })
 
-    const response = await fetch(`${this.baseUrl}search?${params.toString()}`);
-    const data = await response.json();
-    const parsed = iTunesAlbumSearchResponseSchema.safeParse(data);
-    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
+    const response = await fetch(`${this.baseUrl}search?${params.toString()}`)
+    const data = await response.json()
+    const parsed = iTunesAlbumSearchResponseSchema.safeParse(data)
+    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`)}
 
     return parsed.data.results.map(result => {
-      const trackCount = result.trackCount ?? 0;
+      const trackCount = result.trackCount ?? 0
       const albumType = trackCount <= 3 ? 'single' : trackCount <= 6 ? 'ep' : 'album'
       return {
         address: '0x0',
@@ -210,8 +210,8 @@ export default class ITunes implements MetadataPlugin {
         plugin_id: this.id,
         release_date: result.releaseDate ?? '',
         total_tracks: trackCount,
-      };
-    });
+      }
+    })
   }
 
   async searchArtists(term: string): Promise<Omit<Artist, 'address' | 'soul_id'>[]> {
@@ -220,13 +220,13 @@ export default class ITunes implements MetadataPlugin {
       entity: 'musicArtist',
       limit: this.limit.toString(),
       media: 'music',
-      term: term.replace(/\s+/gu, "+"),
-    });
+      term: term.replace(/\s+/gu, '+'),
+    })
 
-    const response = await fetch(`${this.baseUrl}search?${params.toString()}`);
-    const data = await response.json();
-    const parsed = iTunesArtistSearchResponseSchema.safeParse(data);
-    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
+    const response = await fetch(`${this.baseUrl}search?${params.toString()}`)
+    const data = await response.json()
+    const parsed = iTunesArtistSearchResponseSchema.safeParse(data)
+    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`)}
 
     return parsed.data.results.map(result => ({
       confidence: 1,
@@ -238,7 +238,7 @@ export default class ITunes implements MetadataPlugin {
       name: result.artistName,
       plugin_id: this.id,
       popularity: 0,
-    }));
+    }))
   }
 
   async searchTracks(term: string): Promise<Omit<Track, 'address' | 'soul_id'>[]> {
@@ -247,13 +247,13 @@ export default class ITunes implements MetadataPlugin {
       entity: 'musicTrack',
       limit: this.limit.toString(),
       media: 'music',
-      term: term.replace(/\s+/gu, "+"),
-    });
+      term: term.replace(/\s+/gu, '+'),
+    })
 
-    const response = await fetch(`${this.baseUrl}search?${params.toString()}`);
-    const data = await response.json();
-    const parsed = iTunesTrackSearchResponseSchema.safeParse(data);
-    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`);}
+    const response = await fetch(`${this.baseUrl}search?${params.toString()}`)
+    const data = await response.json()
+    const parsed = iTunesTrackSearchResponseSchema.safeParse(data)
+    if (!parsed.success) {throw new Error(`Invalid iTunes API response: ${parsed.error}`)}
 
     return parsed.data.results.map(result => ({
       album: result.collectionName ?? '',
@@ -267,6 +267,6 @@ export default class ITunes implements MetadataPlugin {
       plugin_id: this.id,
       popularity: 0,
       preview_url: result.previewUrl ?? '',
-    }));
+    }))
   }
 }

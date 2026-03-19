@@ -1,6 +1,6 @@
-import type { Peer } from "./peer"
+import type { Peer } from './peer'
 
-import { formatUptime, stats, truncateAddress } from "../utils/log"
+import { formatUptime, stats, truncateAddress } from '../utils/log'
 
 export class PeerMap extends Map<`0x${string}`, Peer> {
   get addresses(): `0x${string}`[] {

@@ -1,21 +1,21 @@
 import crypto from 'crypto'
-import { keccak256 } from "js-sha3"
+import { keccak256 } from 'js-sha3'
 import secp256k1 from 'secp256k1'
 
 import type { Trace } from '../../utils/trace'
 
 import { log } from '../../utils/log'
-import { Signature } from "./Signature"
+import { Signature } from './Signature'
 
 export const generatePrivateKey = (): Buffer => {
-  const key = crypto.randomBytes(32);
-  return secp256k1.privateKeyVerify(key) ? key : generatePrivateKey();
+  const key = crypto.randomBytes(32)
+  return secp256k1.privateKeyVerify(key) ? key : generatePrivateKey()
 }
 
 export const getPrivateKey = async (): Promise<Uint8Array> => {
-  const keyFile = Bun.file(`data/.key.env`)
+  const keyFile = Bun.file('data/.key.env')
   if (await keyFile.exists()) return new Uint8Array(await keyFile.arrayBuffer())
-  log(`[CRYPTO] Generating new private key`)
+  log('[CRYPTO] Generating new private key')
   const privateKey = generatePrivateKey()
   await keyFile.write(privateKey)
   return privateKey

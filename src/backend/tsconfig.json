@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"lib": ["ESNext"],
 		"types": ["bun"],
+		"rootDir": "..",
 		"composite": true,
 		"noEmit": true
 	},

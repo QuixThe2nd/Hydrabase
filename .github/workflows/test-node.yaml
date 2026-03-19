@@ -19,6 +19,7 @@ jobs:
       USERNAME: "Github-Dev-Node"
       BRANCH: "dev"
       REQUIRE_DHT_READY: "false"
+      HYDRABASE_TELEMETRY: "true"
 
     steps:
       - name: Checkout repo

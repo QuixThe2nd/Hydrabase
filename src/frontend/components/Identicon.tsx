@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef } from 'react'
 
 interface Props {
   address: `0x${string}`
@@ -28,7 +28,7 @@ export const Identicon = ({ address, size = 24, style }: Props) => {
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
     const hue = parseInt(address.slice(2,6),16) % 360
     const sat = 60 + parseInt(address.slice(6,8),16) % 30
@@ -36,5 +36,5 @@ export const Identicon = ({ address, size = 24, style }: Props) => {
 
   }, [address, size])
 
-  return <canvas height={size} ref={ref} style={{ borderRadius: 4, flexShrink: 0, imageRendering: "pixelated", ...style }} width={size} />
+  return <canvas height={size} ref={ref} style={{ borderRadius: 4, flexShrink: 0, imageRendering: 'pixelated', ...style }} width={size} />
 }

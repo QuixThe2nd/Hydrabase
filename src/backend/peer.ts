@@ -1,15 +1,15 @@
-import type { NodeStats, PeerStats, Socket } from '../types/hydrabase';
-import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas';
-import type { Repositories } from "./db";
-import type PeerManager from "./PeerManager";
+import type { NodeStats, PeerStats, Socket } from '../types/hydrabase'
+import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas'
+import type { Repositories } from './db'
+import type PeerManager from './PeerManager'
 
-import { stats, warn } from '../utils/log';
-import { Trace } from '../utils/trace';
-import { UDP_Client } from './networking/udp/client';
-import WebSocketClient from './networking/ws/client';
-import { HIP2_Messaging, type Ping } from "./protocol/HIP2_Messaging";
-import { type Announce, HIP3_AnnouncePeers } from "./protocol/HIP3_AnnouncePeers";
-import { RequestManager } from './RequestManager';
+import { stats, warn } from '../utils/log'
+import { Trace } from '../utils/trace'
+import { UDP_Client } from './networking/udp/client'
+import WebSocketClient from './networking/ws/client'
+import { HIP2_Messaging, type Ping } from './protocol/HIP2_Messaging'
+import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
+import { RequestManager } from './RequestManager'
 
 export class Peer {
   public nonce = 0
@@ -136,6 +136,7 @@ export class Peer {
       this.lastPing = { nonce, time }
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
       this.send({ nonce, ping: { time } }, trace)
+      trace.success()
     }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()
@@ -145,7 +146,10 @@ export class Peer {
       const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
-      if (!result) return
+      if (!result) {
+        trace.fail('Failed to parse message')
+        return
+      }
       const { data, nonce, type } = result
       if (type === 'ping') this.handlers[type](data as Ping, nonce, trace)
       else if (type === 'pong') this.handlers[type](data as Ping, nonce)
@@ -154,6 +158,7 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
+      trace.success()
     })
   }
 
@@ -166,7 +171,7 @@ export class Peer {
       else if (type === 'albums' || type === 'artist.albums') this.repos.album.upsertFromPeer(result as Album, this.socket.identity.address)
       else if (type === 'artists') this.repos.artist.upsertFromPeer(result as Artist, this.socket.identity.address)
     }
-    return response;
+    return response
   }
 
   send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats }) & { nonce: number }, trace: Trace) {

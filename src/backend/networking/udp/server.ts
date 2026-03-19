@@ -73,11 +73,10 @@ const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerMana
   if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, peerManager, query, peerHostname, peer, node, config, apiKey)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
-    log(`Received query - ${query.q}`)
     return handleHydraQuery(server, query as Query, peerHostname, peerManager, node)
   }
   if (query.y === 'r') return false
-  log(`[SERVER] Unhandled query`, {query})
+  log('[SERVER] Unhandled query', {query})
   return false
 }
 
@@ -154,7 +153,7 @@ export class UDP_Server {
     }
     
     group.chunks.set(chunkIndex, chunkData)
-    debug(`[SERVER] Received chunk ${chunkIndex + 1}/${totalChunks} for chunkId=${chunkId}`)
+    // debug(`[SERVER] Received chunk ${chunkIndex + 1}/${totalChunks} for chunkId=${chunkId}`)
     
     if (group.chunks.size === totalChunks) {
       clearTimeout(group.timer)

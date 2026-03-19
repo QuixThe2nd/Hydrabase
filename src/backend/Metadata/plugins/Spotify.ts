@@ -1,6 +1,6 @@
-import { z } from "zod"
+import { z } from 'zod'
 
-import type { Album, Artist, MetadataPlugin, Track } from "../../../types/hydrabase-schemas"
+import type { Album, Artist, MetadataPlugin, Track } from '../../../types/hydrabase-schemas'
 
 const spotifyTrackSchema = z.object({
   album: z.object({
@@ -66,18 +66,18 @@ const spotifyTokenResponseSchema = z.object({
 })
 
 export default class Spotify implements MetadataPlugin {
-  public readonly id = "Spotify"
+  public readonly id = 'Spotify'
   private accessToken: null | string = null
-  private baseUrl = "https://api.spotify.com/v1/"
+  private baseUrl = 'https://api.spotify.com/v1/'
   private tokenExpiry = 0
-  private tokenUrl = "https://accounts.spotify.com/api/token"
+  private tokenUrl = 'https://accounts.spotify.com/api/token'
 
   constructor(
     private keys: { clientId: string, clientSecret: string },
-    private market = "US",
+    private market = 'US',
     private limit = 50
   ) {
-    if (limit > 50) {throw new Error("Maximum limit is 50")}
+    if (limit > 50) {throw new Error('Maximum limit is 50')}
   }
 
   async albumTracks(id: string): Promise<Omit<Track, 'address' | 'soul_id'>[]> {
@@ -103,11 +103,11 @@ export default class Spotify implements MetadataPlugin {
       duration_ms: track.duration_ms,
       external_urls: track.external_urls,
       id: track.id,
-      image_url: track.album.images[0]?.url ?? "",
+      image_url: track.album.images[0]?.url ?? '',
       name: track.name,
       plugin_id: this.id,
       popularity: track.popularity,
-      preview_url: track.preview_url ?? "",
+      preview_url: track.preview_url ?? '',
     }))
   }
 
@@ -133,7 +133,7 @@ export default class Spotify implements MetadataPlugin {
       confidence: 1,
       external_urls: album.external_urls,
       id: album.id,
-      image_url: album.images[0]?.url ?? "",
+      image_url: album.images[0]?.url ?? '',
       name: album.name,
       plugin_id: this.id,
       release_date: album.release_date,
@@ -164,11 +164,11 @@ export default class Spotify implements MetadataPlugin {
       duration_ms: track.duration_ms,
       external_urls: track.external_urls,
       id: track.id,
-      image_url: track.album.images[0]?.url ?? "",
+      image_url: track.album.images[0]?.url ?? '',
       name: track.name,
       plugin_id: this.id,
       popularity: track.popularity,
-      preview_url: track.preview_url ?? "",
+      preview_url: track.preview_url ?? '',
     }))
   }
 
@@ -179,7 +179,7 @@ export default class Spotify implements MetadataPlugin {
       limit: this.limit.toString(),
       market: this.market,
       q: term,
-      type: "album",
+      type: 'album',
     })
     const response = await fetch(`${this.baseUrl}search?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
     const data = await response.json()
@@ -192,7 +192,7 @@ export default class Spotify implements MetadataPlugin {
       confidence: 1,
       external_urls: album.external_urls,
       id: album.id,
-      image_url: album.images[0]?.url ?? "",
+      image_url: album.images[0]?.url ?? '',
       name: album.name,
       plugin_id: this.id,
       release_date: album.release_date,
@@ -207,7 +207,7 @@ export default class Spotify implements MetadataPlugin {
       limit: this.limit.toString(),
       market: this.market,
       q: term,
-      type: "artist",
+      type: 'artist',
     })
 
     const response = await fetch(`${this.baseUrl}search?${params.toString()}`, {
@@ -238,7 +238,7 @@ export default class Spotify implements MetadataPlugin {
       limit: this.limit.toString(),
       market: this.market,
       q: term,
-      type: "track",
+      type: 'track',
     })
 
     const response = await fetch(`${this.baseUrl}search?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` }, })
@@ -254,23 +254,23 @@ export default class Spotify implements MetadataPlugin {
       duration_ms: track.duration_ms,
       external_urls: track.external_urls,
       id: track.id,
-      image_url: track.album.images[0]?.url ?? "",
+      image_url: track.album.images[0]?.url ?? '',
       name: track.name,
       plugin_id: this.id,
       popularity: track.popularity,
-      preview_url: track.preview_url ?? "",
+      preview_url: track.preview_url ?? '',
     }))
   }
 
   private async authenticate(): Promise<string> {
     if (this.accessToken && Date.now() < this.tokenExpiry) return this.accessToken
     const response = await fetch(this.tokenUrl, {
-      body: new URLSearchParams({ grant_type: "client_credentials" }),
+      body: new URLSearchParams({ grant_type: 'client_credentials' }),
       headers: {
         Authorization: `Basic ${btoa(`${this.keys.clientId}:${this.keys.clientSecret}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      method: "POST",
+      method: 'POST',
     })
     const data = await response.json()
     const parsed = spotifyTokenResponseSchema.safeParse(data)

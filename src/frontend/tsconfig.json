@@ -3,9 +3,10 @@
 	"compilerOptions": {
 		"lib": ["ESNext", "dom"],
 		"types": [],
+		"rootDir": "..",
 		"composite": true,
 		"noEmit": true
 	},
 	"include": ["../**/*"],
-	"exclude": ["../backend/*"]
+	"exclude": ["../backend/*", "../**/*.test.ts", "../**/*.spec.ts"]
 }

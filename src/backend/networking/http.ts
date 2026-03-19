@@ -1,13 +1,13 @@
-import type { Config } from "../../types/hydrabase";
-import type { Account } from "../Crypto/Account";
-import type PeerManager from '../PeerManager';
+import type { Config } from '../../types/hydrabase'
+import type { Account } from '../Crypto/Account'
+import type PeerManager from '../PeerManager'
 
-import { debug, logContext } from '../../utils/log';
-import { Trace } from '../../utils/trace';
-import { AuthSchema, type Identity, proveServer, verifyServer } from "../protocol/HIP1_Identity";
-import { serveStaticFile } from "../webui";
-import { authenticatedPeers, UDP_Server } from "./udp/server";
-import { handleConnection, websocketHandlers } from "./ws/server";
+import { debug, logContext } from '../../utils/log'
+import { Trace } from '../../utils/trace'
+import { AuthSchema, type Identity, proveServer, verifyServer } from '../protocol/HIP1_Identity'
+import { serveStaticFile } from '../webui'
+import { authenticatedPeers, UDP_Server } from './udp/server'
+import { handleConnection, websocketHandlers } from './ws/server'
 
 export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
   const cache = authenticatedPeers.get(hostname)
@@ -58,8 +58,8 @@ export const startServer = (
   const server = Bun.serve({
     fetch: async (req, server) => {
       const url = new URL(req.url)
-      if (req.headers.get("upgrade") !== "websocket") return serveStaticFile(url.pathname)
-      const trace = Trace.start(`Inbound WS connection`)
+      if (req.headers.get('upgrade') !== 'websocket') return serveStaticFile(url.pathname)
+      const trace = Trace.start('Inbound WS connection')
       const ip = server.requestIP(req)
       if (!ip) {
         trace.fail('Failed to get client IP')
@@ -74,7 +74,7 @@ export const startServer = (
     hostname: node.listenAddress,
     port: node.port,
     routes: { '/auth': () => {
-      const trace = Trace.start(`Peer requested server auth`)
+      const trace = Trace.start('Peer requested server auth')
       return new Response(JSON.stringify(proveServer(account, node, trace))) 
     } },
     websocket: websocketHandlers(peerManager)

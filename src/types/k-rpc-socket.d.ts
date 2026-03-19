@@ -1,9 +1,9 @@
 /// <reference types="node" />
 
 declare module 'k-rpc-socket' {
-  import type { Socket as UDPSocket } from 'dgram';
+  import type { Socket as UDPSocket } from 'dgram'
 
-  import { EventEmitter } from 'events';
+  import { EventEmitter } from 'events'
 
   export interface KRPCResponse {
     [key: string]: unknown;
@@ -46,8 +46,8 @@ declare module 'k-rpc-socket' {
     /** Number of concurrent queries currently pending. */
     inflight: number;
 
-    on(event: "query", listener: (query: Query, peer: Peer) => void): this;
-    on(event: "error" | "warning", listener: (error: Error) => void): this;
+    on(event: 'query', listener: (query: Query, peer: Peer) => void): this;
+    on(event: 'error' | 'warning', listener: (error: Error) => void): this;
 
     on(event: string, listener: (...args: unknown[]) => void): this;
     /**

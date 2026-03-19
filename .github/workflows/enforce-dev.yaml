@@ -1,0 +1,17 @@
+name: Enforce dev → master
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if not from dev
+        run: |
+          if [[ "${{ github.head_ref }}" != "dev" ]]; then
+            echo "Send your PR to the dev branch instead. PRs to master must come from dev"
+            exit 1
+          fi

@@ -1,18 +1,18 @@
-import z from "zod";
+import z from 'zod'
 
-import type { Config } from "../../../types/hydrabase";
-import type { Trace } from "../../../utils/trace";
-import type { Account } from "../../Crypto/Account";
-import type { UDP_Server } from "../../networking/udp/server";
+import type { Config } from '../../../types/hydrabase'
+import type { Trace } from '../../../utils/trace'
+import type { Account } from '../../Crypto/Account'
+import type { UDP_Server } from '../../networking/udp/server'
 
 // @ts-expect-error: This is supported by bun
-import VERSION from "../../../../VERSION" with { type: "text" };
-import { BRANCH } from "../../branch";
-import { Signature } from "../../Crypto/Signature";
-import { upgradeHostname } from "../HIP4_HostnameUpgrades";
+import VERSION from '../../../../VERSION' with { type: 'text' }
+import { BRANCH } from '../../branch'
+import { Signature } from '../../Crypto/Signature'
+import { upgradeHostname } from '../HIP4_HostnameUpgrades'
 
 export const IdentitySchema = z.object({
-  address: z.string().regex(/^0x/iu, { message: "Address must start with 0x" }).transform(val => val as `0x${string}`),
+  address: z.string().regex(/^0x/iu, { message: 'Address must start with 0x' }).transform(val => val as `0x${string}`),
   hostname: z.string().includes(':').transform(h => h as `${string}:${number}`),
   userAgent: z.string(),
   username: z.string()
@@ -26,7 +26,7 @@ export type Auth = z.infer<typeof AuthSchema>
 export type Identity = z.infer<typeof IdentitySchema>
 
 export const proveServer = (account: Account, node: Config['node'], trace: Trace): Auth => {
-  trace.step(`[HIP1] Proving server`)
+  trace.step('[HIP1] Proving server')
   return {
     address: account.address,
     hostname: `${node.hostname}:${node.port}`,
@@ -67,7 +67,7 @@ export const verifyClient = async (
   ip?: { address: string }
 ): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
-    trace.step(`[HIP1] Verifying API`)
+    trace.step('[HIP1] Verifying API')
     return auth.apiKey === apiKey ? { address: '0x0', hostname: 'API:4545', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` } : [500, 'Invalid API Key']
   }
   trace.step(`[HIP1] Verifying client address ${auth.address}`)
