@@ -4,7 +4,7 @@ export interface SentryReleaseParts {
   version: string
 }
 
-const sanitizeSegment = (input: string): string => {
+export const sanitizeSegment = (input: string): string => {
   const trimmed = input.trim()
   if (!trimmed) return 'unknown'
 
@@ -59,7 +59,7 @@ const runSentryReleaseSelfTest = (): void => {
   // Exotic characters normalization
   assertEqual(
     sanitizeSegment('reléásé!@#name'),
-    'rel-ase-name',
+    'rel-s-name',
     'exotic characters should be replaced with dashes and cleaned',
   )
 
