@@ -47,7 +47,6 @@ const initTelemetry = async (): Promise<void> => {
       timestamp: Date.now() / 1000,
       type: 'default',
     })
-    if (event.level === 'error') Sentry.captureMessage(event.message, event.level)
   }
 }
 
