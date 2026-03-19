@@ -241,20 +241,20 @@ export default class PeerManager {
   private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<false | Socket> {
     trace.step('Creating socket')
     const shouldAuthenticate = this.shouldAuthenticate(authenticatedPeers.get(hostname)?.hostname ?? hostname)
-    if (typeof shouldAuthenticate === 'string') return trace.fail(shouldAuthenticate)
+    if (typeof shouldAuthenticate === 'string') return trace.softFail(shouldAuthenticate)
     const identity = await authenticatePeer(hostname, preferTransport, trace, this.udpServer, this.account, this.node)
-    if (Array.isArray(identity)) return trace.fail(identity[1])
+    if (Array.isArray(identity)) return trace.softFail(identity[1])
 
     const shouldConnect = this.shouldConnect(authenticatedPeers.get(hostname)?.hostname ?? hostname, identity)
-    if (typeof shouldConnect === 'string') return trace.fail(shouldConnect)
+    if (typeof shouldConnect === 'string') return trace.softFail(shouldConnect)
 
     const firstSocket = await this.toSocket(hostname, preferTransport, trace, identity)
     if (typeof firstSocket === 'object') return firstSocket
-    if (typeof firstSocket === 'string') return trace.fail(firstSocket)
+    if (typeof firstSocket === 'string') return trace.softFail(firstSocket)
     trace.caughtError('Peer verification failed')
 
     const socket = await this.toSocket(hostname, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace, identity)
-    if (typeof socket === 'string') return trace.fail(socket)
+    if (typeof socket === 'string') return trace.softFail(socket)
     trace.success()
     return socket
   }
