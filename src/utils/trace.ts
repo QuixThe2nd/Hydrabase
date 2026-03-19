@@ -76,6 +76,24 @@ export class Trace {
     return false
   }
 
+  softFail(reason: string, context?: unknown): false {
+    this.print(false, reason)
+    this.finished = true
+    if (context) console.log(context)
+    logEvent({
+      category: 'trace',
+      context: { detail: context, label: this.label, traceId: this.traceId },
+      level: 'warning',
+      message: reason,
+    })
+    getSentryLogger()?.error(reason, {
+      context: context && typeof context === 'object' ? (context as Record<string, unknown>) : { context },
+      label: this.label,
+      traceId: this.traceId,
+    })
+    return false
+  }
+
   step(msg: string): void {
     this.steps.push({ msg, time: new Date() })
     logEvent({
