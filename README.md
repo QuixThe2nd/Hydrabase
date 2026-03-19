@@ -15,6 +15,18 @@ Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you 
 ### Config
 All config is listed in the docker compose file. Hydrabase works out of the box with 0 config. Though consider setting a username and enabling Spotify.
 
+### Telemetry (Sentry)
+Hydrabase has optional Sentry telemetry. Enable it by setting `HYDRABASE_TELEMETRY=true`.
+
+What gets tracked:
+- Backend errors and traces.
+- Per-connection Sentry session tags for websocket flows.
+- User attribution using authenticated peer address (`user.id`) for signed peer connections.
+
+Privacy defaults:
+- Minimal identity context by default (no IP or user-agent attached as Sentry user metadata).
+- API-key-only connections are tagged by auth method but do not set a per-user Sentry identity.
+
 ### Docker
 The compose file is available [here](https://raw.githubusercontent.com/QuixThe2nd/Hydrabase/refs/heads/main/compose.yaml).
 

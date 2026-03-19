@@ -1,9 +1,29 @@
+import { nodeProfilingIntegration } from '@sentry/profiling-node'
+
+import type { HydrabaseTelemetryContext } from '../utils/log'
+
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../VERSION' with { type: 'text' }
 import { log } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
 import { BRANCH } from './branch'
 
+const applyTelemetryScope = (scope: {
+  setExtras: (extras: Record<string, unknown>) => void
+  setTag: (key: string, value: string) => void
+  setUser: (user: null | { id: string; username?: string }) => void
+}, telemetry?: HydrabaseTelemetryContext) => {
+  if (!telemetry) return
+  if (telemetry.user) scope.setUser(telemetry.user)
+  if (telemetry.tags) {
+    for (const [key, value] of Object.entries(telemetry.tags)) {
+      scope.setTag(key, value)
+    }
+  }
+  if (telemetry.extras) scope.setExtras(telemetry.extras)
+}
+
+// eslint-disable-next-line max-lines-per-function
 const initTelemetry = async (): Promise<void> => {
   if (process.env['HYDRABASE_TELEMETRY'] !== 'true') {
     log('[TELEMETRY] Disabled (set HYDRABASE_TELEMETRY=true to enable)')
@@ -11,10 +31,28 @@ const initTelemetry = async (): Promise<void> => {
   }
   const Sentry = await import('@sentry/bun')
   const release = makeSentryRelease({ app: 'hydrabase', branch: BRANCH, version: VERSION })
+  const environment = process.env['NODE_ENV'] ?? 'development'
+  const defaultTags = {
+    app: 'hydrabase',
+    branch: BRANCH,
+    runtime: 'bun',
+  }
+
   Sentry.init({
+    beforeSend(event) {
+      event.tags = {
+        ...defaultTags,
+        ...(event.tags ?? {}),
+      }
+      return event
+    },
     dsn: 'https://e048333b5d85bdc50499b9de2c440f81@o4511068837314560.ingest.de.sentry.io/4511068838625360',
     enableLogs: true,
-    integrations: [Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] })],
+    environment,
+    integrations: [
+      Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
+      nodeProfilingIntegration()
+    ],
     release,
     sendDefaultPii: true,
     tracesSampleRate: 1.0,
@@ -24,8 +62,17 @@ const initTelemetry = async (): Promise<void> => {
     __hydrabaseSentryLogger__?: unknown
   }).__hydrabaseSentryLogger__ = Sentry.logger
   ;(globalThis as typeof globalThis & {
-    __hydrabaseCaptureException__?: (exception: unknown) => void
-  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception)
+    __hydrabaseCaptureException__?: (exception: unknown, telemetry?: HydrabaseTelemetryContext) => void
+  }).__hydrabaseCaptureException__ = (exception, telemetry) => {
+    if (!telemetry) {
+      Sentry.captureException(exception)
+      return
+    }
+    Sentry.withScope((scope) => {
+      applyTelemetryScope(scope, telemetry)
+      Sentry.captureException(exception)
+    })
+  }
   ;(globalThis as typeof globalThis & {
     __hydrabaseLogEvent__?: (event: {
       category: string

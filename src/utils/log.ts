@@ -2,7 +2,7 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks'
 
 export type HydrabaseGlobal = typeof globalThis & {
-  __hydrabaseCaptureException__?: (exception: unknown) => void
+  __hydrabaseCaptureException__?: (exception: unknown, telemetry?: HydrabaseTelemetryContext) => void
   __hydrabaseLogEvent__?: (event: {
     category: string
     context?: unknown
@@ -17,15 +17,35 @@ export type HydrabaseGlobal = typeof globalThis & {
   }
 }
 
+export interface HydrabaseTelemetryContext {
+  extras?: Record<string, unknown>
+  tags?: Record<string, string>
+  user?: {
+    id: string
+    username?: string
+  }
+}
+
 export const getSentryLogger = (): HydrabaseGlobal['__hydrabaseSentryLogger__'] => {
   const globalWithCapture = globalThis as HydrabaseGlobal
   return globalWithCapture.__hydrabaseSentryLogger__
 }
 
-export const captureException = (exception: unknown): void => {
-  const globalWithCapture = globalThis as HydrabaseGlobal
-  globalWithCapture.__hydrabaseCaptureException__?.(exception)
+const mergeTelemetryContext = (
+  base?: HydrabaseTelemetryContext,
+  next?: HydrabaseTelemetryContext,
+): HydrabaseTelemetryContext | undefined => {
+  if (!base && !next) return undefined
+  const merged: HydrabaseTelemetryContext = {
+    extras: { ...(base?.extras ?? {}), ...(next?.extras ?? {}) },
+    tags: { ...(base?.tags ?? {}), ...(next?.tags ?? {}) },
+  }
+  const user = next?.user ?? base?.user
+  return user ? { ...merged, user } : merged
 }
+
+const hasTelemetryValues = (telemetry?: HydrabaseTelemetryContext): telemetry is HydrabaseTelemetryContext =>
+  Boolean(telemetry && (telemetry.user || (telemetry.tags && Object.keys(telemetry.tags).length > 0) || (telemetry.extras && Object.keys(telemetry.extras).length > 0)))
 
 export const logEvent = (event: {
   category: string
@@ -39,7 +59,12 @@ export const logEvent = (event: {
 
 type Context = `- ${string}` | Event | Record<string, unknown>
 
-let asyncLocalStorage: ALS<{ contexts: string[] }> | undefined
+interface HydrabaseContextStore {
+  contexts: string[]
+  telemetry?: HydrabaseTelemetryContext
+}
+
+let asyncLocalStorage: ALS<HydrabaseContextStore> | undefined
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { AsyncLocalStorage } = require('node:async_hooks') as typeof import('node:async_hooks')
@@ -52,7 +77,26 @@ export const logContext = <T>(context: string, callback: () => T): T => {
   if (!asyncLocalStorage) return callback()
   const store = asyncLocalStorage.getStore()
   const contexts = store ? [...store.contexts, context] : [context]
-  return asyncLocalStorage.run({ contexts }, callback)
+  const nextStore: HydrabaseContextStore = store?.telemetry ? { contexts, telemetry: store.telemetry } : { contexts }
+  return asyncLocalStorage.run(nextStore, callback)
+}
+
+export const withTelemetryContext = <T>(telemetry: HydrabaseTelemetryContext, callback: () => T): T => {
+  if (!asyncLocalStorage) return callback()
+  const store = asyncLocalStorage.getStore()
+  const contexts = store?.contexts ?? []
+  const mergedTelemetry = mergeTelemetryContext(store?.telemetry, telemetry)
+  const nextStore: HydrabaseContextStore = mergedTelemetry ? { contexts, telemetry: mergedTelemetry } : { contexts }
+  return asyncLocalStorage.run(nextStore, callback)
+}
+
+export const getTelemetryContext = (): HydrabaseTelemetryContext | undefined =>
+  asyncLocalStorage?.getStore()?.telemetry
+
+export const captureException = (exception: unknown, telemetry?: HydrabaseTelemetryContext): void => {
+  const globalWithCapture = globalThis as HydrabaseGlobal
+  const mergedTelemetry = mergeTelemetryContext(getTelemetryContext(), telemetry)
+  globalWithCapture.__hydrabaseCaptureException__?.(exception, hasTelemetryValues(mergedTelemetry) ? mergedTelemetry : undefined)
 }
 
 const time = () => (new Date()).toISOString()
