@@ -25,8 +25,8 @@ const initTelemetry = async (): Promise<void> => {
   }).__hydrabaseSentryLogger__ = Sentry.logger
   ;(globalThis as typeof globalThis & {
     __hydrabaseCaptureException__?: (exception: unknown) => void
-  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception);
-  (globalThis as typeof globalThis & {
+  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception)
+  ;(globalThis as typeof globalThis & {
     __hydrabaseLogEvent__?: (event: {
       category: string
       context?: unknown
