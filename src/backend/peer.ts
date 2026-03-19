@@ -136,6 +136,7 @@ export class Peer {
       this.lastPing = { nonce, time }
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
       this.send({ nonce, ping: { time } }, trace)
+      trace.success()
     }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()
