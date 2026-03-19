@@ -136,6 +136,7 @@ export class Peer {
       this.lastPing = { nonce, time }
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
       this.send({ nonce, ping: { time } }, trace)
+      trace.success()
     }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()
@@ -154,6 +155,7 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
+      trace.success()
     })
   }
 
