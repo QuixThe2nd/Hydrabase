@@ -146,7 +146,10 @@ export class Peer {
       const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
-      if (!result) return
+      if (!result) {
+        trace.success()
+        return
+      }
       const { data, nonce, type } = result
       if (type === 'ping') this.handlers[type](data as Ping, nonce, trace)
       else if (type === 'pong') this.handlers[type](data as Ping, nonce)
