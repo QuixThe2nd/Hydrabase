@@ -65,7 +65,7 @@ export class Trace {
     })
     getSentryLogger()?.info('Trace started', { label: this.label, traceId: this.traceId })
     setTimeout(() => {
-      if (!this.finished) this.fail('Trace took over 5m')
+      if (!this.finished) this.fail('Trace took over 2m')
     }, 120_000)
   }
 

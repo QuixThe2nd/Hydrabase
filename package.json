@@ -20,7 +20,8 @@
     "globals": "^17.3.0",
     "jiti": "^2.6.1",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "@sentry/cli": "^2"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -28,7 +29,6 @@
   "dependencies": {
     "@iplookup/country": "^1.0.20260223",
     "@sentry/bun": "^10.44.0",
-    "@sentry/cli": "^2",
     "bencode": "^4.0.0",
     "bittorrent-dht": "^11.0.11",
     "country-code-emoji": "^2.3.0",
