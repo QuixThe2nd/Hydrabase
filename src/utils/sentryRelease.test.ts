@@ -2,7 +2,15 @@ import { describe, expect, it } from 'bun:test'
 
 import { makeSentryRelease, sanitizeSegment } from './sentryRelease'
 
-describe('sanitizeSegment', () => {
+const expectSegmentLengths = (release: string): void => {
+  const [appAndVersion = '', branch = ''] = release.split('+')
+  const [app = '', version = ''] = appAndVersion.split('@')
+  expect(app).toHaveLength(64)
+  expect(version).toHaveLength(64)
+  expect(branch).toHaveLength(64)
+}
+
+describe('sanitizeSegment normalization', () => {
   it('trims and collapses whitespace to dashes', () => {
     expect(sanitizeSegment('  my  app\tname\n')).toBe('my-app-name')
   })
@@ -31,7 +39,9 @@ describe('sanitizeSegment', () => {
   it('returns "unknown" for whitespace-only input', () => {
     expect(sanitizeSegment('   ')).toBe('unknown')
   })
+})
 
+describe('sanitizeSegment formatting', () => {
   it('caps output at 64 characters', () => {
     expect(sanitizeSegment('a'.repeat(100))).toHaveLength(64)
   })
@@ -94,10 +104,6 @@ describe('makeSentryRelease', () => {
   it('caps each segment individually to 64 characters', () => {
     const long = 'a'.repeat(100)
     const result = makeSentryRelease({ app: long, branch: long, version: long })
-    const [appAndVersion, branch] = result.split('+')
-    const [app, version] = appAndVersion.split('@')
-    expect(app).toHaveLength(64)
-    expect(version).toHaveLength(64)
-    expect(branch).toHaveLength(64)
+    expectSegmentLengths(result)
   })
 })
