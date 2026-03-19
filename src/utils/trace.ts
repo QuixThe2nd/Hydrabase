@@ -39,8 +39,15 @@ export const logEvent = (event: {
 const exceptionFromContext = (message: string, context?: unknown): unknown => {
   if (context instanceof Error) return context
   if (context && typeof context === 'object') {
-    const maybeErr = (context as Record<string, unknown>)['err']
-    if (maybeErr instanceof Error) return maybeErr
+    const record = context as Record<string, unknown>
+    const keysToCheck = ['err', 'error', 'e'] as const
+    for (const key of keysToCheck) {
+      const value = record[key]
+      if (value instanceof Error) return value
+    }
+    for (const value of Object.values(record)) {
+      if (value instanceof Error) return value
+    }
   }
   return new Error(message)
 }
