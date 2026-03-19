@@ -39,12 +39,12 @@ ok "ESLint passed"
 
 # ── TypeScript — backend ──────────────────────────────────────────────────────
 step "TypeScript (backend)"
-npx tsc --project src/backend/tsconfig.json --noEmit || fail "Backend type-check failed."
+bun x tsc --project src/backend/tsconfig.json --noEmit || fail "Backend type-check failed."
 ok "Backend type-check passed"
 
 # ── TypeScript — frontend ─────────────────────────────────────────────────────
 step "TypeScript (frontend)"
-npx tsc --project src/frontend/tsconfig.json --noEmit || fail "Frontend type-check failed."
+bun x tsc --project src/frontend/tsconfig.json --noEmit || fail "Frontend type-check failed."
 ok "Frontend type-check passed"
 
 # ── Unit tests ────────────────────────────────────────────────────────────────

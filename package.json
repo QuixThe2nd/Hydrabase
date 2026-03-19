@@ -49,6 +49,6 @@
     "start": "bun src/backend/index.ts",
     "dev": "bun --watch src/backend/index.ts",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org parsa-0g --project bun ./dist && sentry-cli sourcemaps upload --org parsa-0g --project bun ./dist",
-    "prepare": "git config core.hooksPath scripts/hooks"
+    "prepare": "git config core.hooksPath scripts/hooks || true"
   }
 }
