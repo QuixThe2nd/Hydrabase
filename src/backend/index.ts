@@ -1,5 +1,3 @@
-import { nodeProfilingIntegration } from '@sentry/profiling-node'
-
 import type { HydrabaseTelemetryContext } from '../utils/log'
 
 // @ts-expect-error: This is supported by bun
@@ -38,6 +36,15 @@ const initTelemetry = async (): Promise<void> => {
     runtime: 'bun',
   }
 
+  // Load profiling integration only when available (not supported in Bun)
+  let profilingIntegration
+  try {
+    const profilingModule = await import('@sentry/profiling-node')
+    profilingIntegration = profilingModule.nodeProfilingIntegration()
+  } catch {
+    // Profiling not available in this runtime
+  }
+
   Sentry.init({
     beforeSend(event) {
       event.tags = {
@@ -51,7 +58,7 @@ const initTelemetry = async (): Promise<void> => {
     environment,
     integrations: [
       Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
-      nodeProfilingIntegration()
+      ...(profilingIntegration ? [profilingIntegration] : [])
     ],
     release,
     sendDefaultPii: true,
