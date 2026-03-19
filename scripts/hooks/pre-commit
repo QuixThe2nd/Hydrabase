@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Pre-commit hook — mirrors the GitHub Actions "Checks" workflow.
+# Only enforced on the `dev` branch (and any branch whose name starts with dev/).
+
+set -euo pipefail
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+if [[ "$BRANCH" != "dev" && "$BRANCH" != dev/* ]]; then
+  exit 0
+fi
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+fail() {
+  echo -e "${RED}✗ $1${NC}"
+  exit 1
+}
+
+step() {
+  echo -e "${YELLOW}▶ $1${NC}"
+}
+
+ok() {
+  echo -e "${GREEN}✓ $1${NC}"
+}
+
+echo ""
+echo "Running pre-commit checks (mirrors GitHub Actions)..."
+echo ""
+
+# ── ESLint ────────────────────────────────────────────────────────────────────
+step "ESLint"
+bun run eslint || fail "ESLint failed. Fix the issues above and try again."
+ok "ESLint passed"
+
+# ── TypeScript — backend ──────────────────────────────────────────────────────
+step "TypeScript (backend)"
+npx tsc --project src/backend/tsconfig.json --noEmit || fail "Backend type-check failed."
+ok "Backend type-check passed"
+
+# ── TypeScript — frontend ─────────────────────────────────────────────────────
+step "TypeScript (frontend)"
+npx tsc --project src/frontend/tsconfig.json --noEmit || fail "Frontend type-check failed."
+ok "Frontend type-check passed"
+
+# ── Unit tests ────────────────────────────────────────────────────────────────
+step "Unit tests"
+bun test --timeout 120000 || fail "Unit tests failed."
+ok "Unit tests passed"
+
+echo ""
+echo -e "${GREEN}All checks passed — proceeding with commit.${NC}"
+echo ""
