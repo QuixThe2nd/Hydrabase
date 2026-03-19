@@ -28,7 +28,7 @@ export class StatsReporter {
 
   private collectStats(): NodeStats {
     return {
-      dhtNodes: this.dht.nodes.map(({host,port}) => `${host}:${port}`),
+      dhtNodes: this.dht.nodes.map(({ host, port }: { host: string; port: number }) => `${host}:${port}`),
       peers: {
         known:   this.knownPeers(),
         plugins: this.repos.stats.getKnownPlugins(),

@@ -73,7 +73,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('9/14 Building Web UI')
   await buildWebUI()
   trace.step('10/14 Starting HTTP server')
-  startServer(account, peers, CONFIG.node, CONFIG.apiKey ?? '')
+  startServer(account, peers, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
   trace.step('11/14 Starting DHT node')
   const dhtNode = new DHT_Node(peers, CONFIG.dht, CONFIG.node, udpServer)
   trace.step('12/14 Starting stats reporter')

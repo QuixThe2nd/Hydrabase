@@ -1,33 +1,28 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "type": "bun",
-      "internalConsoleOptions": "neverOpen",
-      "request": "launch",
-      "name": "Debug File",
-      "program": "src/backend/index.ts",
-      "cwd": "${workspaceFolder}",
-      "stopOnEntry": false,
-      "watchMode": false
-    },
-    {
-      "type": "bun",
-      "internalConsoleOptions": "neverOpen",
-      "request": "launch",
-      "name": "Run File",
-      "program": "src/backend/index.ts",
-      "cwd": "${workspaceFolder}",
-      "noDebug": true,
-      "watchMode": false
-    },
-    {
-      "type": "bun",
-      "internalConsoleOptions": "neverOpen",
-      "request": "attach",
-      "name": "Attach Bun",
-      "url": "ws://localhost:4545/",
-      "stopOnEntry": false
-    }
-  ]
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "bun",
+			"request": "launch",
+			"name": "Debug Bun",
+			"program": "${file}",
+			"args": [],
+			"cwd": "${workspaceFolder}",
+			"env": {},
+			"strictEnv": false,
+			"watchMode": false,
+			"stopOnEntry": true,
+			"noDebug": false,
+			"runtime": "bun",
+			"runtimeArgs": []
+		},
+		{
+			"type": "bun",
+			"request": "attach",
+			"name": "Attach to Bun",
+			"url": "ws://localhost:6499/",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "/app"
+		}
+	]
 }

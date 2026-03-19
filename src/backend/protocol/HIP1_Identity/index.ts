@@ -3,6 +3,7 @@ import z from "zod";
 import type { Config } from "../../../types/hydrabase";
 import type { Trace } from "../../../utils/trace";
 import type { Account } from "../../Crypto/Account";
+import type { UDP_Server } from "../../networking/udp/server";
 
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../../../VERSION" with { type: "text" };
@@ -53,7 +54,18 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result
 }
 
-export const verifyClient = async (node: Config['node'], hostname: string, auth: Auth | { apiKey: string }, apiKey: string | undefined, authenticateHostname: (hostname: `${string}:${number}`) => [number, string] | Promise<[number, string] | Identity>, trace: Trace): Promise<[number, string] | Identity> => {
+export const verifyClient = async (
+  node: Config['node'],
+  hostname: string,
+  auth: Auth | { apiKey: string },
+  apiKey: string | undefined,
+  trace: Trace,
+  preferTransport: 'TCP' | 'UDP' = node.preferTransport,
+  udpServer?: UDP_Server,
+  account?: Account,
+  identity?: Identity,
+  ip?: { address: string }
+): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
     trace.step(`[HIP1] Verifying API`)
     return auth.apiKey === apiKey ? { address: '0x0', hostname: 'API:4545', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` } : [500, 'Invalid API Key']
@@ -69,7 +81,9 @@ export const verifyClient = async (node: Config['node'], hostname: string, auth:
     if (altValid) trace.step(`[HIP1] Accepted signature against alternate hostname ${altHostname}`)
     else return [403, 'Failed to authenticate address']
   }
-  const isHostnameValid = await upgradeHostname(hostname, auth, authenticateHostname, trace)
-  if (Array.isArray(isHostnameValid)) return isHostnameValid
+  if (udpServer && account && identity && ip) {
+    const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, udpServer, account, node, identity, ip)
+    if (Array.isArray(isHostnameValid)) return isHostnameValid
+  }
   return auth
 }
