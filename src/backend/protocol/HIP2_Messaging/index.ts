@@ -61,10 +61,10 @@ export class HIP2_Messaging {
     const { nonce, ...result } = JSON.parse(message)
 
     const type = HIP2_Messaging.identifyType(result)
-    if (!type) return trace.fail(`[HIP2] Unexpected message ${Object.keys(result)} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
+    if (!type) return trace.caughtError(`[HIP2] Unexpected message ${Object.keys(result)} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
 
     const {data,error} = MessageSchemas[type].safeParse(result[type])
-    if (!data) return trace.fail(`[HIP2] Unexpected ${type} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`, error ? {error:error.issues, message} : {message})
+    if (!data) return trace.caughtError(`[HIP2] Unexpected ${type} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}${error ? `: ${JSON.stringify(error.issues).slice(0, 300)}` : ''}`)
     
     if (type === 'ping' || type === 'pong') debug(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
     else trace.step(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)

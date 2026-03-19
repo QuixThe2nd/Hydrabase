@@ -147,6 +147,7 @@ export class Peer {
       this._dl += message.length
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
       if (!result) {
+        trace.fail('Failed to parse message')
         return
       }
       const { data, nonce, type } = result
