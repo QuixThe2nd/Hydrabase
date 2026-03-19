@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks'
 
-type HydrabaseGlobal = typeof globalThis & {
+export type HydrabaseGlobal = typeof globalThis & {
   __hydrabaseCaptureException__?: (exception: unknown) => void
   __hydrabaseLogEvent__?: (event: {
     category: string
@@ -17,17 +17,17 @@ type HydrabaseGlobal = typeof globalThis & {
   }
 }
 
-const getSentryLogger = (): HydrabaseGlobal['__hydrabaseSentryLogger__'] => {
+export const getSentryLogger = (): HydrabaseGlobal['__hydrabaseSentryLogger__'] => {
   const globalWithCapture = globalThis as HydrabaseGlobal
   return globalWithCapture.__hydrabaseSentryLogger__
 }
 
-const captureException = (exception: unknown): void => {
+export const captureException = (exception: unknown): void => {
   const globalWithCapture = globalThis as HydrabaseGlobal
   globalWithCapture.__hydrabaseCaptureException__?.(exception)
 }
 
-const logEvent = (event: {
+export const logEvent = (event: {
   category: string
   context?: unknown
   level: 'debug' | 'error' | 'info' | 'warning'
