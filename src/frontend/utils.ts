@@ -13,7 +13,7 @@ export const shortAddr = (a?: null | string): string => a ? `${a.slice(0, 10)}â€
 
 export const parseWsHost = (wsUrl: string): { hostname: string; port: number } => {
   const url = new URL(wsUrl)
-  return { hostname: url.host, port: Number(url.port) }
+  return { hostname: url.hostname, port: Number(url.port) }
 }
 
 export const fmtUptime = (ms: number): string => `${String(Math.floor(ms / 3_600_000)).padStart(2, '0')}:${String(Math.floor(ms / 60_000) % 60).padStart(2, '0')}:${String(Math.floor(ms / 1_000) % 60).padStart(2, '0')}`

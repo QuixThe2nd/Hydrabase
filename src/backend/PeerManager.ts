@@ -115,7 +115,7 @@ export default class PeerManager {
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
       const disconnectTrace = Trace.start(`[PEERS] Peer disconnect: ${peer.username} (${truncateAddress(peer.address)})`)
-      disconnectTrace.fail(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
+      disconnectTrace.end(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
       this.peers.delete(peer.address)
       this.knownPeers.delete(peer.hostname)
       this.scheduleReconnect(peer.hostname)
