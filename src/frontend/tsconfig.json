@@ -6,5 +6,5 @@
 		"composite": true
 	},
 	"include": ["../**/*"],
-	"exclude": ["../backend/*"]
+	"exclude": ["../backend/**", "../**/*.d.ts"]
 }

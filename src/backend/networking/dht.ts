@@ -33,7 +33,7 @@ export class DHT_Node {
       this.dht.addNode({ host, port: Number(port) })
     })
     this.loadCache()
-    this.dht.on('error', err => logContext('DHT', () => error('ERROR:', 'An error occurred', {err})))
+    this.dht.on('error', (err: unknown) => logContext('DHT', () => error('ERROR:', 'An error occurred', { err })))
     this.dht.on('ready', () => logContext('DHT', () => {
       this.resolved.ready = true
       const {notResolved,resolved} = this.countResolved()
@@ -56,14 +56,14 @@ export class DHT_Node {
         this.cacheSize = nodes
       }
     }))
-    this.dht.on('peer', peer => logContext('DHT', () => {
+    this.dht.on('peer', (peer: { host: string; port: number }) => logContext('DHT', () => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (this.knownPeers.has(hostname)) return
       this.knownPeers.add(hostname)
       const trace = Trace.start(`[DHT] Discovered peer ${hostname}`)
       peers.add(hostname, trace)
     }))
-    this.dht.on('announce', (peer, _infoHash) => logContext('DHT', () => {
+    this.dht.on('announce', (peer: { host: string; port: number }, _infoHash: Buffer) => logContext('DHT', () => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
       if (_infoHash.toString('hex') !== DHT_Node.getRoomId(config.roomSeed)) return
       if (this.knownPeers.has(hostname)) return
@@ -89,8 +89,8 @@ export class DHT_Node {
   })
   private readonly announce = () => {
     const room = DHT_Node.getRoomId(this.config.roomSeed)
-    this.dht.announce(room, this.node.port, err => { if (err) warn('WARN:', `An error occurred during announce - ${err.message} ${this.nodes.length}`) })
-    this.dht.lookup(room, err => { if (err) error('ERROR:', `An error occurred during lookup ${err.message}`) })
+    this.dht.announce(room, this.node.port, (err: any) => { if (err) warn('WARN:', `An error occurred during announce - ${err.message} ${this.nodes.length}`) })
+    this.dht.lookup(room, (err: any) => { if (err) error('ERROR:', `An error occurred during lookup ${err.message}`) })
   }
   private readonly countResolved = () => {
     const resolved = Object.values(this.resolved).filter(resolved => resolved).length

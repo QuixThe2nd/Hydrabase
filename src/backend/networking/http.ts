@@ -46,7 +46,15 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
   }
 }
 
-export const startServer = (account: Account, peerManager: PeerManager, node: Config['node'], apiKey: string, preferTransport: 'TCP' | 'UDP', udpServer: UDP_Server, identity: Identity) => logContext('HTTP', () => {
+export const startServer = (
+  account: Account,
+  peerManager: PeerManager,
+  node: Config['node'],
+  apiKey: string,
+  preferTransport: 'TCP' | 'UDP' = node.preferTransport,
+  udpServer?: UDP_Server,
+  identity: Identity = { address: account.address, hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
+) => logContext('HTTP', () => {
   const server = Bun.serve({
     fetch: async (req, server) => {
       const url = new URL(req.url)

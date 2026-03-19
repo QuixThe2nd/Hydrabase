@@ -140,7 +140,7 @@ describe('Signature', () => {
 describe('HIP1', () => {
   it('produces client proof that is is verified by server', async () => {
     const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`, trace)
-    expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', (): [number, string] => [500, 'Bad path'], trace)).not.toBeArray()
+    expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)).not.toBeArray()
   })
 
   it('produces server proof that is is verified by client', () => {
@@ -296,7 +296,7 @@ describe('Signature edge cases', () => {
 describe('HIP1 handshake edge cases', () => {
   it('rejects client proof with wrong target hostname', async () => {
     const auth = proveClient(peerManager1.account, config1, '10.0.0.1:9999', trace)
-    const result = await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'], trace)
+    const result = await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)
     expect(result).toBeArray()
     const [code] = result as [number, string]
     expect(code).toBe(403)
@@ -305,18 +305,18 @@ describe('HIP1 handshake edge cases', () => {
   it('rejects tampered signature', () => {
     const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`, trace)
     auth.signature = 'invalid-signature-data'
-    expect(() => verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', () => [500, 'Bad path'], trace)).toThrow()
+    expect(() => verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)).toThrow()
   })
 
   it('verifies API key auth', async () => {
-    const result = await verifyClient(config1, '', { apiKey: 'test-key' }, 'test-key', () => [500, 'unused'], trace)
+    const result = await verifyClient(config1, '', { apiKey: 'test-key' }, 'test-key', trace)
     expect(result).not.toBeArray()
     const identity = result as { address: `0x${string}`, hostname: string }
     expect(identity.address).toBe('0x0')
   })
 
   it('rejects wrong API key', async () => {
-    const result = await verifyClient(config1, '', { apiKey: 'wrong-key' }, 'correct-key', () => [500, 'unused'], trace)
+    const result = await verifyClient(config1, '', { apiKey: 'wrong-key' }, 'correct-key', trace)
     expect(result).toBeArray()
     const [code] = result as [number, string]
     expect(code).toBe(500)
@@ -553,10 +553,7 @@ describe('NAT-friendly authentication', () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const mockFailedAuthenticator = () =>
-      Promise.resolve([500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string])
-
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -569,10 +566,7 @@ describe('NAT-friendly authentication', () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const mockFailedAuthenticator = () =>
-      Promise.resolve([500, 'Failed to authenticate server via UDP'] as [number, string])
-
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -584,10 +578,7 @@ describe('NAT-friendly authentication', () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const mockFailedAuthenticator = () =>
-      Promise.resolve([500, 'Failed to fetch server authentication'] as [number, string])
-
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(false)
   })
@@ -596,10 +587,7 @@ describe('NAT-friendly authentication', () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const mockFailedAuthenticator = () =>
-      Promise.resolve([500, 'Failed to parse server authentication'] as [number, string])
-
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(false)
   })
@@ -612,10 +600,7 @@ describe('NAT-friendly authentication', () => {
     const wrongSignature = proveClient(wrongAccount, mockNATClient, 'wrong.server:9999', trace)
     clientAuth.signature = wrongSignature.signature
 
-    const mockFailedAuthenticator = () =>
-      Promise.resolve([500, 'Failed to authenticate server via HTTP: Unable to connect'] as [number, string])
-
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockFailedAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(true)
     if (Array.isArray(result)) {
@@ -628,15 +613,7 @@ describe('NAT-friendly authentication', () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const mockSuccessfulAuthenticator = () =>
-      Promise.resolve({
-        address: clientAccount.address,
-        hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
-        userAgent: 'Hydrabase/test',
-        username: mockNATClient.username
-      })
-
-    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, mockSuccessfulAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.hostname}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(false)
     if (!Array.isArray(result)) {
@@ -646,18 +623,9 @@ describe('NAT-friendly authentication', () => {
 
   it('rejects when reverse auth succeeds but address mismatch', async () => {
     const clientAccount = new Account(generatePrivateKey())
-    const differentAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
-    const mockMismatchAuthenticator = () =>
-      Promise.resolve({
-        address: differentAccount.address,
-        hostname: `${mockNATClient.hostname}:${mockNATClient.port}` as `${string}:${number}`,
-        userAgent: 'Hydrabase/test',
-        username: mockNATClient.username
-      })
-
-    const result = await verifyClient(mockNode, `${mockNATClient.ip}:${mockNATClient.port}`, clientAuth, undefined, mockMismatchAuthenticator, trace)
+    const result = await verifyClient(mockNode, `${mockNATClient.ip}:${mockNATClient.port}`, clientAuth, undefined, trace)
 
     expect(Array.isArray(result)).toBe(true)
     if (Array.isArray(result)) {
