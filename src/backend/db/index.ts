@@ -22,8 +22,9 @@ export interface Repositories {
 }
 
 export const startDatabase = async (pluginConfidenceFormula: string): Promise<Repositories> => {
-const sqlite = new Database('data/db.sqlite')
   if (!(await Bun.file('data').exists())) fs.mkdirSync('data', { recursive: true })
+  const sqlite = new Database('data/db.sqlite')
+  sqlite.run('PRAGMA busy_timeout = 5000')
   const db = drizzle(sqlite, { schema })
   migrate(db, { migrationsFolder: './drizzle' })
   return {
