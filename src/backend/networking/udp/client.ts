@@ -102,7 +102,7 @@ export class UDP_Client implements Socket {
           Number(this.identity.hostname.split(':')[1]), 
           this.identity.hostname.split(':')[0]
         )
-        debug(`[CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.identity.hostname} (${chunkData.length} bytes)`)
+        // debug(`[CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.identity.hostname} (${chunkData.length} bytes)`)
       }
       
       if (i === 0) {
