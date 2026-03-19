@@ -36,15 +36,6 @@ const initTelemetry = async (): Promise<void> => {
     runtime: 'bun',
   }
 
-  // Load profiling integration only when available (not supported in Bun)
-  let profilingIntegration
-  try {
-    const profilingModule = await import('@sentry/profiling-node')
-    profilingIntegration = profilingModule.nodeProfilingIntegration()
-  } catch {
-    // Profiling not available in this runtime
-  }
-
   Sentry.init({
     beforeSend(event) {
       event.tags = {
@@ -56,10 +47,7 @@ const initTelemetry = async (): Promise<void> => {
     dsn: 'https://e048333b5d85bdc50499b9de2c440f81@o4511068837314560.ingest.de.sentry.io/4511068838625360',
     enableLogs: true,
     environment,
-    integrations: [
-      Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] }),
-      ...(profilingIntegration ? [profilingIntegration] : [])
-    ],
+    integrations: [Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] })],
     release,
     sendDefaultPii: true,
     tracesSampleRate: 1.0,
