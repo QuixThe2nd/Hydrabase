@@ -126,7 +126,6 @@ export default class PeerManager {
     this.announcePeerToAll(peer, trace)
     this.announceAllToPeer(peer, trace)
     this.knownPeers.add(peer.hostname)
-    trace.success()
 
     return true
   }
