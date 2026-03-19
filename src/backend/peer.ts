@@ -154,6 +154,7 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
+      trace.success()
     })
   }
 
