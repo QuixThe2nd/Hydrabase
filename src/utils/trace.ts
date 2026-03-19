@@ -1,49 +1,5 @@
 /* eslint-disable no-console */
-
-export type HydrabaseGlobal = typeof globalThis & {
-  __hydrabaseCaptureException__?: (exception: unknown) => void
-  __hydrabaseLogEvent__?: (event: {
-    category: string
-    context?: unknown
-    level: 'debug' | 'error' | 'info' | 'warning'
-    message: string
-  }) => void
-  __hydrabaseSentryLogger__?: {
-    debug: (message: string, data?: Record<string, unknown>) => void
-    error: (message: string, data?: Record<string, unknown>) => void
-    info: (message: string, data?: Record<string, unknown>) => void
-    warn: (message: string, data?: Record<string, unknown>) => void
-  }
-}
-
-export const getSentryLogger = (): HydrabaseGlobal['__hydrabaseSentryLogger__'] => {
-  const globalWithCapture = globalThis as HydrabaseGlobal
-  return globalWithCapture.__hydrabaseSentryLogger__
-}
-
-export const captureException = (exception: unknown): void => {
-  const globalWithCapture = globalThis as HydrabaseGlobal
-  globalWithCapture.__hydrabaseCaptureException__?.(exception)
-}
-
-export const logEvent = (event: {
-  category: string
-  context?: unknown
-  level: 'debug' | 'error' | 'info' | 'warning'
-  message: string
-}): void => {
-  const globalWithCapture = globalThis as HydrabaseGlobal
-  globalWithCapture.__hydrabaseLogEvent__?.(event)
-}
-
-const exceptionFromContext = (message: string, context?: unknown): unknown => {
-  if (context instanceof Error) return context
-  if (context && typeof context === 'object') {
-    const maybeErr = (context as Record<string, unknown>)['err']
-    if (maybeErr instanceof Error) return maybeErr
-  }
-  return new Error(message)
-}
+import { captureException, exceptionFromContext, getSentryLogger, logEvent } from './log'
 
 export class Trace {
   private children: Trace[] = []

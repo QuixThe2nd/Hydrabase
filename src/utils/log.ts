@@ -76,7 +76,7 @@ const contextToData = (context?: Context): Record<string, unknown> | undefined =
   return { context }
 }
 
-const exceptionFromContext = (message: string, context?: Context): unknown => {
+export const exceptionFromContext = (message: string, context?: unknown): unknown => {
   if (context instanceof Error) return context
   if (context && typeof context === 'object') {
     const record = context as Record<string, unknown>
