@@ -32,7 +32,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [dhtNodes, setDhtNodes] = useState<{ country: string; host: string }[]>([])
   const [eventLog, setEventLog] = useState<EventEntry[]>([])
   const [uptime, setUptime] = useState<number>(0)
-  const [bwHistory, setBwHistory] = useState<BwPoint[]>(Array(BW_HISTORY_LEN).fill({ DL: 0, UL: 0 }))
+  const [bwHistory, setBwHistory] = useState<BwPoint[]>(Array(BW_HISTORY_LEN).fill({ dl: 0, ul: 0 }))
   const prevTotalsRef = useRef<{ DL: number; UL: number; }>({ DL: 0, UL: 0 })
   const [searchQuery, setSearchQuery] = useState('')
   const [searchType, setSearchType] = useState<'album.tracks' | 'albums' | 'artist.albums' | 'artist.tracks' | 'artists' | 'tracks'>('artists')
