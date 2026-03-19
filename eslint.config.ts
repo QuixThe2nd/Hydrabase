@@ -84,6 +84,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**", "*.min.js", "*.gen.ts"],
+    ignores: ["dist/**", "dist-webui-check/**", "node_modules/**", "*.min.js", "*.gen.ts"],
   },
 )

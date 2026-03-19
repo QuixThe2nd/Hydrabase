@@ -1,7 +1,7 @@
-export type SentryReleaseParts = {
+export interface SentryReleaseParts {
   app: string
-  version: string
   branch: string
+  version: string
 }
 
 const sanitizeSegment = (input: string): string => {
@@ -23,9 +23,9 @@ const sanitizeSegment = (input: string): string => {
   return normalized.length > 64 ? normalized.slice(0, 64) : normalized
 }
 
-export const makeSentryRelease = ({ app, version, branch }: SentryReleaseParts): string => {
+export const makeSentryRelease = ({ app, branch, version }: SentryReleaseParts): string => {
   const a = sanitizeSegment(app)
-  const v = sanitizeSegment(version)
   const b = sanitizeSegment(branch)
+  const v = sanitizeSegment(version)
   return `${a}@${v}+${b}`
 }

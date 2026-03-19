@@ -1,8 +1,8 @@
-import { log } from '../utils/log'
 // @ts-expect-error: This is supported by bun
 import VERSION from "../../VERSION" with { type: "text" };
-import { BRANCH } from './branch'
+import { log } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
+import { BRANCH } from './branch'
 
 const initTelemetry = async (): Promise<void> => {
   if (process.env['HYDRABASE_TELEMETRY'] !== 'true') {

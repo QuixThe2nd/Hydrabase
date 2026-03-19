@@ -2,18 +2,18 @@
 
 type HydrabaseGlobal = typeof globalThis & {
   __hydrabaseCaptureException__?: (exception: unknown) => void
-  __hydrabaseSentryLogger__?: {
-    debug: (message: string, data?: Record<string, unknown>) => void
-    error: (message: string, data?: Record<string, unknown>) => void
-    info: (message: string, data?: Record<string, unknown>) => void
-    warn: (message: string, data?: Record<string, unknown>) => void
-  }
   __hydrabaseLogEvent__?: (event: {
     category: string
     context?: unknown
     level: 'debug' | 'error' | 'info' | 'warning'
     message: string
   }) => void
+  __hydrabaseSentryLogger__?: {
+    debug: (message: string, data?: Record<string, unknown>) => void
+    error: (message: string, data?: Record<string, unknown>) => void
+    info: (message: string, data?: Record<string, unknown>) => void
+    warn: (message: string, data?: Record<string, unknown>) => void
+  }
 }
 
 const getSentryLogger = (): HydrabaseGlobal['__hydrabaseSentryLogger__'] => {
