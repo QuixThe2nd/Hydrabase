@@ -84,10 +84,6 @@ export const verifyClient = async (
   if (udpServer && account && identity && ip) {
     const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, udpServer, account, node, identity, ip)
     if (Array.isArray(isHostnameValid)) return isHostnameValid
-  } else {
-    // #region agent log
-    fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'19939a'},body:JSON.stringify({sessionId:'19939a',runId:'pre-fix',hypothesisId:'A',location:'src/backend/protocol/HIP1_Identity/index.ts:~80',message:'verifyClient missing context; skipping HIP4 upgradeHostname',data:{hasUdpServer:!!udpServer,hasAccount:!!account,hasIdentity:!!identity,hasIp:!!ip,preferTransport},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
   return auth
 }

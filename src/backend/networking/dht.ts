@@ -89,8 +89,8 @@ export class DHT_Node {
   })
   private readonly announce = () => {
     const room = DHT_Node.getRoomId(this.config.roomSeed)
-    this.dht.announce(room, this.node.port, (err: any) => { if (err) warn('WARN:', `An error occurred during announce - ${err.message} ${this.nodes.length}`) })
-    this.dht.lookup(room, (err: any) => { if (err) error('ERROR:', `An error occurred during lookup ${err.message}`) })
+    this.dht.announce(room, this.node.port, err => { if (err) warn('WARN:', `An error occurred during announce - ${err.message} ${this.nodes.length}`) })
+    this.dht.lookup(room, err => { if (err) error('ERROR:', `An error occurred during lookup ${err.message}`) })
   }
   private readonly countResolved = () => {
     const resolved = Object.values(this.resolved).filter(resolved => resolved).length

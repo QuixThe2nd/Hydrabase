@@ -8,10 +8,12 @@
 		"jsx": "react-jsx",
 		"allowJs": true,
 
-	// Bundler mode
-	"moduleResolution": "bundler",
-	"verbatimModuleSyntax": true,
-	"composite": true,
+		// Bundler mode
+		"moduleResolution": "bundler",
+		"verbatimModuleSyntax": true,
+		"allowImportingTsExtensions": true,
+		"composite": true,
+		"noEmit": true,
 
 		// Best practices
 		"strict": true,
@@ -32,6 +34,5 @@
 		"allowUnreachableCode": false,
 		"allowUnusedLabels": false
 	},
-	"files": [],
 	"references": [{"path": "./src/frontend"}, {"path": "./src/backend"}]
 }
