@@ -75,7 +75,11 @@ export class UDP_Client implements Socket {
     const txnId = tid.toString('hex')
     
     if (message.length <= MAX_CHUNK_PAYLOAD) {
-      this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
+      try {
+        this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
+      } catch (err) {
+        warn('DEVWARN:', `[CLIENT] Failed to send message to ${this.identity.hostname} - socket may be closed`, { err })
+      }
       return
     }
     
@@ -92,16 +96,20 @@ export class UDP_Client implements Socket {
       const chunkData = message.slice(start, end)
       
       const sendChunk = () => {
-        this.peers.socket.send(
-          bencode.encode({ 
-            a: { c, d: chunkData, i, id: this.id, n: totalChunks }, 
-            q: `${this.config.prefix}msg`, 
-            t: txnId, 
-            y: 'q' 
-          } satisfies Query), 
-          Number(this.identity.hostname.split(':')[1]), 
-          this.identity.hostname.split(':')[0]
-        )
+        try {
+          this.peers.socket.send(
+            bencode.encode({ 
+              a: { c, d: chunkData, i, id: this.id, n: totalChunks }, 
+              q: `${this.config.prefix}msg`, 
+              t: txnId, 
+              y: 'q' 
+            } satisfies Query), 
+            Number(this.identity.hostname.split(':')[1]), 
+            this.identity.hostname.split(':')[0]
+          )
+        } catch (err) {
+          warn('DEVWARN:', `[CLIENT] Failed to send chunk ${i + 1}/${totalChunks} to ${this.identity.hostname} - socket may be closed`, { err })
+        }
         // debug(`[CLIENT] Sent chunk ${i + 1}/${totalChunks} to ${this.identity.hostname} (${chunkData.length} bytes)`)
       }
       
