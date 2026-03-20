@@ -69,7 +69,8 @@ export class Peer {
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
   private lastPing = {
     nonce: -1,
-    time: 0
+    time: 0,
+    trace: undefined as Trace | undefined
   }
   private readonly requestManager: RequestManager
   private totalLatency = 0
@@ -94,6 +95,9 @@ export class Peer {
       this.totalLatency += latency
       this.totalPongs++
       stats(`[PEER] Current latency ${latency}ms (${Math.ceil(this.latency*10)/10}ms AVG) ${this.username} ${this.address} ${this.hostname}`)
+      if (this.lastPing.trace) {
+        this.lastPing.trace.success()
+      }
     },
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number, trace: Trace) => {
       const results = await this.searchNode(request.type, request.query, this.address === '0x0')
@@ -133,10 +137,9 @@ export class Peer {
     const id = setInterval(() => {
       const nonce = this.nonce++
       const time = Number(new Date())
-      this.lastPing = { nonce, time }
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
+      this.lastPing = { nonce, time, trace }
       this.send({ nonce, ping: { time } }, trace)
-      trace.success()
     }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()

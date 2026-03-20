@@ -69,6 +69,7 @@ export default tseslint.config(
       'react/jsx-no-useless-fragment': 'error',
       'react/prop-types': 'off',
       'react/react-in-jsx-scope': 'off',
+      'require-await': 'error',
       'semi': ['error', 'never'],
       'sonarjs/class-name': 'off',
       'sonarjs/function-return-type': 'off',

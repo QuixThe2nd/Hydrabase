@@ -191,6 +191,7 @@ export default class PeerManager {
   }
 
   private scheduleReconnect(hostname: `${string}:${number}`) {
+    if (hostname === 'API:4545') return
     const existing = this.reconnectTimers.get(hostname)
     if (existing) clearTimeout(existing)
 

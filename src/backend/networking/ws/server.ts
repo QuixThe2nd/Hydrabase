@@ -116,7 +116,7 @@ export const handleConnection = async (
   }
   const peer = await Promise.race([
     verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, trace, preferTransport, udpServer, account, identity, ip),
-    new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s for ${ip?.address}`]) }, VERIFY_TIMEOUT_MS) })
+    new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {
     trace.fail(peer[1])
