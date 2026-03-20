@@ -24,12 +24,11 @@ const applyTelemetryScope = (scope: {
 }
 
 // eslint-disable-next-line max-lines-per-function
-const initTelemetry = async (): Promise<void> => {
+const initTelemetry = (): void => {
   if (process.env['HYDRABASE_TELEMETRY'] !== 'true') {
     log('[TELEMETRY] Disabled (set HYDRABASE_TELEMETRY=true to enable)')
     return
   }
-  const Sentry = await import('@sentry/bun')
   const release = makeSentryRelease({ app: 'hydrabase', branch: BRANCH, version: VERSION })
   const environment = process.env['NODE_ENV'] ?? 'development'
   const defaultTags = {
@@ -54,6 +53,7 @@ const initTelemetry = async (): Promise<void> => {
     sendDefaultPii: true,
     tracesSampleRate: 1.0,
   })
+
   log(`[TELEMETRY] Enabled (Sentry) release=${release}`)
   ;(globalThis as typeof globalThis & {
     __hydrabaseSentryLogger__?: unknown
@@ -104,30 +104,8 @@ import { startNode } from './Node'
 
 await initTelemetry()
 
-
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))
-
-if (process.env['SENTRY_DSN']) {
-  const version = await Bun.file('VERSION').text().then(t => t.trim())
-  const release = `hydrabase@${version}`
-  Sentry.init({
-    dsn: process.env['SENTRY_DSN'],
-    release,
-    sendDefaultPii: true,
-    tracesSampleRate: 1.0,
-  })
-  log(`[TELEMETRY] Enabled (Sentry) release=${release}`)
-  ;(globalThis as typeof globalThis & {
-    __hydrabaseSentryLogger__?: unknown
-  }).__hydrabaseSentryLogger__ = Sentry.logger;
-  (globalThis as typeof globalThis & {
-    __hydrabaseCaptureException__?: (exception: unknown) => void
-  }).__hydrabaseCaptureException__ = (exception) => Sentry.captureException(exception);
-  (globalThis as typeof globalThis & {
-    __hydrabaseLogEvent__?: (event: { category: string; context?: unknown }) => void
-  }).__hydrabaseLogEvent__ = (event) => Sentry.addBreadcrumb({ category: event.category, ...(event.context && typeof event.context === 'object' ? { data: event.context as Record<string, unknown> } : {}) })
-}
 
 const socketHandler = (socket: dgram.Socket | net.Server, res: (value: boolean | PromiseLike<boolean>) => void, rej: (reason: Error) => void) => {
   socket.addListener('listening', () => {
