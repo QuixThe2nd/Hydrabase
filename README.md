@@ -16,7 +16,7 @@ Confidence in a value increases as more peers independently confirm it. Peers th
 
 For the web3 people, the goal of Hydrabase is to create a shared knowledge base that doesn't need finality. Without needing finality, we can rely purely on a proof of vote. This creates a whole new paradigm, unlike proof of work or proof of stake, where your confidence in a value is probabilistic, not based on a confirmation count. The most obvious benefit of this is no-fees.
 
-For the p2p people, Hydrabase is a p2p network that aims to source and organise music metadata across all peers in the network. Similar to how SoulSeek or BitTorrent (and it's DHT) make content available to third peers to fetch, Hydrabase makes music metadata available for peers to lookup. What makes Hydrabase powerful is that anyone can create a plugin and make new types of metadata available to the entire network. A real world example of this is Spotify has recently restricted their API to only premium users, through Hydrabase, peers can lookup Spotify metadata without querying Spotify's API directly thanks to peers with Spotify premium.
+For the p2p people, Hydrabase is a p2p network that aims to source and organise music metadata across all peers in the network. Similar to how SoulSeek or BitTorrent (and it's DHT) make content available for peers to fetch, Hydrabase makes music metadata available for peers to lookup. What makes Hydrabase powerful is that anyone can create a plugin and make new types of metadata available to the entire network. A real world example of this is Spotify has recently restricted their API to only premium users, through Hydrabase, peers can lookup Spotify metadata without querying Spotify's API directly thanks to peers with Spotify premium.
 
 ## Install
 
@@ -27,20 +27,6 @@ Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you 
 ### Config
 
 All config is listed in the docker compose file. Hydrabase works out of the box with 0 config. Though consider setting a username and enabling Spotify.
-
-### Telemetry (Sentry)
-Hydrabase has optional Sentry telemetry. Enable it by setting `HYDRABASE_TELEMETRY=true`.
-
-What gets tracked:
-
-- Backend errors and traces.
-- Per-connection Sentry session tags for websocket flows.
-- User attribution using authenticated peer address (`user.id`) for signed peer connections.
-
-Privacy defaults:
-
-- Minimal identity context by default (no IP or user-agent attached as Sentry user metadata).
-- API-key-only connections are tagged by auth method but do not set a per-user Sentry identity.
 
 ### Docker
 
