@@ -102,9 +102,7 @@ export class Peer {
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number, trace: Trace) => {
       const results = await this.searchNode(request.type, request.query, this.address === '0x0')
       this.HIP2_Conn_Message.send.response(results, nonce, trace)
-      if (this.address === '0x0') {
-        this.repos.searchHistory.add(request.query, request.type, results.length)
-      }
+      if (this.address === '0x0') this.repos.searchHistory.add(request.query, request.type, results.length)
     },
     response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.identity.address}`)},
     search_history: (data: 'clear' | 'get' | { remove: number }, nonce: number, trace: Trace) => {
