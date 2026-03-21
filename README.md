@@ -1,4 +1,4 @@
-<h1 align="center">Hydrabase - WIP</h1>
+<h1 align="center">Hydrabase - Beta</h1>
 <p align="center">Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source for music metadata.
 </p>
 <p align="center">
@@ -8,15 +8,21 @@
 <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
 <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
 
+## Why Hydrabase?
+
+The core problem that Hydrabase aims to solve is making music metadata available to the masses. Currently, music metadata is gatekept and paywalled by certain greedy music companies. Hydrabase solves this by allowing users to distribute information they have access to that others might not. Hydrabase's entire purpose is to estimate the accuracy of metadata you wouldn't normally have access to.
+
 ## What is Hydrabase?
 
-Hydrabase is a network of computers that continuously vote on things, letting applications read shared state with probabilistic certainty instead of chain-style finality. Real data enters the system through real software ([SoulSync](https://github.com/Nezreka/SoulSync)) used by real people. Confidence accumulates through peer voting. The network's authority comes from its install base, with confidence in peers increasing as they're observed first-hand behaving honestly over longer periods of time.
+Hydrabase is a peer to peer (p2p) network of computers that continuously vote on things, letting applications read from shared state with probabilistic certainty instead of chain-style finality.
 
-Confidence in a value increases as more peers independently confirm it. Peers that consistently vote in line with what you observe first-hand earn higher trust, which amplifies their future votes.
+Hydrabase aims to source and organise music metadata across all peers in the network similar to how BitTorrent's DHT indexes torrent metadata. What makes Hydrabase powerful is that anyone can create a plugin and make new types of metadata available to the entire network.
 
-For the web3 people, the goal of Hydrabase is to create a shared knowledge base that doesn't need finality. Without needing finality, we can rely purely on a proof of vote. This creates a whole new paradigm, unlike proof of work or proof of stake, where your confidence in a value is probabilistic, not based on a confirmation count. The most obvious benefit of this is no-fees.
+## How does it work?
 
-For the p2p people, Hydrabase is a p2p network that aims to source and organise music metadata across all peers in the network. Similar to how SoulSeek or BitTorrent (and it's DHT) make content available for peers to fetch, Hydrabase makes music metadata available for peers to lookup. What makes Hydrabase powerful is that anyone can create a plugin and make new types of metadata available to the entire network. A real world example of this is Spotify has recently restricted their API to only premium users, through Hydrabase, peers can lookup Spotify metadata without querying Spotify's API directly thanks to peers with Spotify premium.
+Peers that consistently vote in line with what you observe first-hand earn higher trust. Trust amplifies their future votes, where confidence in a value increases as more peers independently confirm it. Real data enters the system through real software ([SoulSync](https://github.com/Nezreka/SoulSync)) used by real people.
+
+Hydrabase creates a shared knowledge base that doesn't need finality. Without finality, we don't need to rely on proof of work or proof of stake limitations. Proof of vote, creates a whole new paradigm where consensus isn't required and instead your confidence in a value is probabilistic. The most obvious benefit of this is no-fees.
 
 ## Install
 
