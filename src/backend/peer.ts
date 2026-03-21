@@ -67,10 +67,7 @@ export class Peer {
   private _ul = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
-  private lastPing = {
-    nonce: -1,
-    time: 0
-  }
+  private pendingPings = new Map<number, { time: number; trace: Trace }>()
   private readonly requestManager: RequestManager
   private totalLatency = 0
   private totalPongs = 0
@@ -86,21 +83,22 @@ export class Peer {
       this.send({ nonce, pong: { time: Number(new Date()) } }, trace)
     },
     pong: (_: Ping, nonce: number) => {
-      if (this.lastPing.nonce !== nonce) {
+      const pendingPing = this.pendingPings.get(nonce)
+      if (!pendingPing) {
         warn('DEVWARN:', '[PEER] Unhandled pong')
         return
       }
-      const latency = Number(new Date()) - this.lastPing.time
+      const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
       stats(`[PEER] Current latency ${latency}ms (${Math.ceil(this.latency*10)/10}ms AVG) ${this.username} ${this.address} ${this.hostname}`)
+      pendingPing.trace.success()
+      this.pendingPings.delete(nonce)
     },
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number, trace: Trace) => {
       const results = await this.searchNode(request.type, request.query, this.address === '0x0')
       this.HIP2_Conn_Message.send.response(results, nonce, trace)
-      if (this.address === '0x0') {
-        this.repos.searchHistory.add(request.query, request.type, results.length)
-      }
+      if (this.address === '0x0') this.repos.searchHistory.add(request.query, request.type, results.length)
     },
     response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.identity.address}`)},
     search_history: (data: 'clear' | 'get' | { remove: number }, nonce: number, trace: Trace) => {
@@ -133,14 +131,17 @@ export class Peer {
     const id = setInterval(() => {
       const nonce = this.nonce++
       const time = Number(new Date())
-      this.lastPing = { nonce, time }
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
+      this.pendingPings.set(nonce, { time, trace })
       this.send({ nonce, ping: { time } }, trace)
-      trace.success()
     }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()
       if (id) clearInterval(id)
+      for (const ping of this.pendingPings.values()) {
+        ping.trace.softFail('Peer disconnected before pong')
+      }
+      this.pendingPings.clear()
     })
     this.socket.onMessage(async message => {
       const trace = Trace.start(`Received message from ${socket.identity.hostname}`)

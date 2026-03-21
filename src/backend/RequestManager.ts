@@ -1,6 +1,6 @@
 import type { PendingRequest, Request, Response } from '../types/hydrabase-schemas'
 
-import { warn } from '../utils/log'
+import { logEvent } from '../utils/log'
 
 export class RequestManager {
   public get averageLatencyMs(): number {
@@ -17,7 +17,13 @@ export class RequestManager {
   public close(reason = 'Connection closed'): void {
     for (const [nonce, pending] of this.pending) {
       clearTimeout(pending.timeout)
-      pending.resolve(warn('WARN:', `[REQUEST] Request ${nonce} failed: ${reason}`))
+      logEvent({
+        category: 'trace',
+        context: { nonce, reason },
+        level: 'warning',
+        message: `[REQUEST] Request ${nonce} failed: ${reason}`,
+      })
+      pending.resolve(false)
     }
     this.pending.clear()
   }
@@ -28,7 +34,13 @@ export class RequestManager {
     const promise = new Promise<false | Response<T>>(resolve => {
       const timeout = setTimeout(() => {
         this.pending.delete(nonce)
-        resolve(warn('WARN:', `[REQUEST] Request ${nonce} timed out`))
+        logEvent({
+          category: 'trace',
+          context: { nonce },
+          level: 'warning',
+          message: `[REQUEST] Request ${nonce} timed out`,
+        })
+        resolve(false)
       }, this.timeoutMs)
 
       this.pending.set(nonce, {
