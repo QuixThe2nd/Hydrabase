@@ -45,7 +45,7 @@ const initTelemetry = (): void => {
       }
       return event
     },
-    dsn: process.env['HYDRABASE_SENTRY_DSN'] ?? 'https://e048333b5d85bdc50499b9de2c440f81@o4511068837314560.ingest.de.sentry.io/4511068838625360',
+    dsn: 'https://e048333b5d85bdc50499b9de2c440f81@o4511068837314560.ingest.de.sentry.io/4511068838625360',
     enableLogs: true,
     environment,
     integrations: [Sentry.consoleLoggingIntegration({ levels: ['log', 'warn', 'error'] })],
