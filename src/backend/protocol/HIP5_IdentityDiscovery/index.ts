@@ -173,11 +173,23 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
 })
 
 export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+  /** Rate-limit inbound h0 discovery per source: one response per 5 s */
+  const h0LastSeen = new Map<string, number>()
+  const H0_COOLDOWN_MS = 5_000
+
   if (query.y === 'h0') {
+    const now = Date.now()
+    const last = h0LastSeen.get(peerHostname)
+    if (last !== undefined && now - last < H0_COOLDOWN_MS) {
+      debug(`[HANDSHAKE] Dropping duplicate h0 from ${peerHostname} (${now - last}ms since last response)`)
+      return true
+    }
+    h0LastSeen.set(peerHostname, now)
     const trace = Trace.start(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
     const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node, trace), t: query.t, y: 'h0r' }
     if ('tid' in query && query.tid) payload.tid = query.tid
     socket.send(bencode.encode(payload), peer.port, peer.host)
+    trace.success()
     return true
   } else if (query.y === 'h1') {
     const tid = 'tid' in query && query.tid ? query.tid : undefined
