@@ -151,7 +151,7 @@ Hydrabase nodes can query their peers to lookup metadata for them. This will tri
 
 ### Identities
 
-Each Hydrabase node has its own public key used to identify itself. This is used for both reputation and to de-duplicate connections and to avoid connecting to self.
+Each Hydrabase node has its own public key used to identify itself. This is used both for reputation and to de-duplicate connections and avoid connecting to itself.
 
 ### Peer Reputation
 
