@@ -151,11 +151,11 @@ Hydrabase nodes can query their peers to lookup metadata for them. This will tri
 
 ### Identities
 
-Each Hydrabase node has it's own public key used to identify itself. This is used for both reputation and to de-duplicate connections and to avoid connecting to self.
+Each Hydrabase node has its own public key used to identify itself. This is used both for reputation and to de-duplicate connections and avoid connecting to itself.
 
 ### Peer Reputation
 
-Historic peer responses are kept track of, like a ledger of votes. The confidence we have in a peer is calculated as a score between 0-1, 0 meaning "ive only ever seen them lie" and 1 meaning "ive only ever seen them tell the truth." This score is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
+Historic peer responses are kept track of, like a ledger of votes. The confidence we have in a peer is calculated as a score between 0-1, 0 meaning "I've only ever seen them lie" and 1 meaning "I've only ever seen them tell the truth." This score is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
 
 ### Result Confidence
 
@@ -171,14 +171,14 @@ Metadata discovered via API lookups and other peers is stored in a database. Whe
 
 ### Transport Layer
 
-Hydrabase connections are made via either a WebSocket connection (TCP, both sides require port forwarding), or via the DHT network (UDP, only one side needs to port forward). While TCP is more stable, and default, Hydrabase will automatically fallback to UDP if the TCP connection fails. You can optionally configure your node to prefer UDP, which will cause your node to try UDP first when initiating connections. 
+Hydrabase connections are made via either a WebSocket connection (TCP, both sides require port forwarding), or via the DHT network (UDP, only one side needs to port forward). While TCP is more stable and the default, Hydrabase will automatically fallback to UDP if the TCP connection fails. You can optionally configure your node to prefer UDP, which will cause your node to try UDP first when initiating connections. 
 
 ### Future Plans
 
 While everything listed above is working, Hydrabase is incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps.
 
-The major flaws currently that I need to address include:
-- Time is not taken into account when calculation reputation
+The major flaws I currently need to address include:
+- Time is not taken into account when calculating reputation
 - Soul ID implementation is incomplete
 - Human feedback not yet possible
 
