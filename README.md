@@ -135,11 +135,11 @@ As Hydrabase is under active development, this section will be incomplete. Here 
 
 #### DHT
 
-Hydrabase nodes connect to BitTorrent's DHT network and query it for an infohash for a torrent that doesn't exist, then announce that they're seeding it. This infohash can be anything, as long as all peers use the same one. This allows for peers to find each other without a centralised tracker or signalling server.
+Hydrabase nodes connect to BitTorrent's DHT network and query it for an infohash of a torrent that doesn't exist, then announce that they're seeding it. This infohash can be anything, as long as all peers use the same one. This allows for peers to find each other without a centralised tracker or signalling server.
 
 #### Gossip Network
 
-Each time 2 Hydrabase nodes create a connection, they announce each other to all known peers. This acts as a more reliable peer discovery network, using DHT as a bootstrap network.
+Each time 2 Hydrabase nodes create a connection, they announce each other to all known peers and also announce all known peers to the new peer. This acts as a more reliable peer discovery network, using DHT as a bootstrap network. After your first connection, you'll rapidly connect to all other peers.
 
 ### Local Metadata Lookups
 
@@ -151,11 +151,11 @@ Hydrabase nodes can query their peers to lookup metadata for them. This will tri
 
 ### Identities
 
-Each Hydrabase has it's own public key used to identify itself. This is used to de-duplicate peers and to avoid connecting to self. The identities are also used to permanently keep track of peer reputation.
+Each Hydrabase node has its own public key used to identify itself. This is used both for reputation and to de-duplicate connections and avoid connecting to itself.
 
 ### Peer Reputation
 
-Historic peer responses are kept track of, like a ledger of votes. The confidence we have in this peer is calculated as a score between 0-1, 0 meaning "ive only ever seen them lie" and 1 meaning "ive only ever seen them tell the truth." This score is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
+Historic peer responses are kept track of, like a ledger of votes. The confidence we have in a peer is calculated as a score between 0-1, 0 meaning "I've only ever seen them lie" and 1 meaning "I've only ever seen them tell the truth." This score is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
 
 ### Result Confidence
 
@@ -169,9 +169,18 @@ The formulas used to derive these numbers are configurable. A threshold can then
 
 Metadata discovered via API lookups and other peers is stored in a database. When queried, Hydrabase will query your local cache, any configured plugins, and peers. When a peer receives a request, they will only search their local cache and plugins, they won't relay to other peers.
 
+### Transport Layer
+
+Hydrabase connections are made via either a WebSocket connection (TCP, both sides require port forwarding), or via the DHT network (UDP, only one side needs to port forward). While TCP is more stable and the default, Hydrabase will automatically fallback to UDP if the TCP connection fails. You can optionally configure your node to prefer UDP, which will cause your node to try UDP first when initiating connections. 
+
 ### Future Plans
 
-While everything listed above is working, Hydrabase is very incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps. But at a high level, most my focus is on improving the confidence scoring mechanism. The end goal is for peers running different plugins to benefit by exchanging api responses from different metadata providers.
+While everything listed above is working, Hydrabase is incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps.
+
+The major flaws I currently need to address include:
+- Time is not taken into account when calculating reputation
+- Soul ID implementation is incomplete
+- Human feedback not yet possible
 
 ## Versioning
 
