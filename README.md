@@ -177,7 +177,7 @@ Hydrabase connections are made via either a WebSocket connection (TCP, both side
 
 While everything listed above is working, Hydrabase is incomplete. I scatter `TODO`s throughout the code, so if you're super curious, I've listed technical next-steps.
 
-The major flaws currently that I need to address include:
+The major flaws I currently need to address include:
 - Time is not taken into account when calculating reputation
 - Soul ID implementation is incomplete
 - Human feedback not yet possible
