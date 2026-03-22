@@ -155,7 +155,7 @@ Each Hydrabase node has its own public key used to identify itself. This is used
 
 ### Peer Reputation
 
-Historic peer responses are kept track of, like a ledger of votes. The confidence we have in a peer is calculated as a score between 0-1, 0 meaning "ive only ever seen them lie" and 1 meaning "ive only ever seen them tell the truth." This score is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
+Historic peer responses are kept track of, like a ledger of votes. The confidence we have in a peer is calculated as a score between 0-1, 0 meaning "I've only ever seen them lie" and 1 meaning "I've only ever seen them tell the truth." This score is used to weigh votes when deciding on the "correct" response. Aka, peers that we have a longer history with are more trustworthy that newer peers.
 
 ### Result Confidence
 
