@@ -171,7 +171,7 @@ Metadata discovered via API lookups and other peers is stored in a database. Whe
 
 ### Transport Layer
 
-Hydrabase connections are made via either a WebSocket connection (TCP, both sides require port forwarding), or via the DHT network (UDP, only one side needs to port forward). While TCP is more stable, and default, Hydrabase will automatically fallback to UDP if the TCP connection fails. You can optionally configure your node to prefer UDP, which will cause your node to try UDP first when initiating connections. 
+Hydrabase connections are made via either a WebSocket connection (TCP, both sides require port forwarding), or via the DHT network (UDP, only one side needs to port forward). While TCP is more stable and the default, Hydrabase will automatically fallback to UDP if the TCP connection fails. You can optionally configure your node to prefer UDP, which will cause your node to try UDP first when initiating connections. 
 
 ### Future Plans
 
