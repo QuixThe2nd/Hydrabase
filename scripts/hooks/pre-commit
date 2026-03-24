@@ -34,7 +34,7 @@ echo ""
 
 # ── ESLint ────────────────────────────────────────────────────────────────────
 step "ESLint"
-bun run eslint || fail "ESLint failed. Fix the issues above and try again."
+bun run eslint --fix || fail "ESLint failed. Fix the issues above and try again."
 ok "ESLint passed"
 
 # ── TypeScript — backend ──────────────────────────────────────────────────────
