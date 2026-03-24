@@ -87,9 +87,22 @@ interface ChunkGroup {
   total: number
 }
 
+interface InboundRateState {
+  blockedUntil: number
+  lastWarnAt: number
+  messageCount: number
+  windowStart: number
+}
+
 export class UDP_Server {
   private readonly chunkBuffer = new Map<string, ChunkGroup>()
+  private readonly INBOUND_BLOCK_MS = 30_000
+  private readonly INBOUND_RATE_MAX_MESSAGES = 120
+  private readonly INBOUND_RATE_WINDOW_MS = 1_000
+  private readonly INBOUND_WARN_COOLDOWN_MS = 5_000
+  private readonly inboundRateState = new Map<string, InboundRateState>()
   private readonly MAX_CHUNK_GROUPS = 50
+  private readonly MAX_INBOUND_TRACKED_PEERS = 1_000
   private readonly responseAwaiters = new Map<string, ResponseAwaiter>()
 
   private constructor(peerManager: () => PeerManager, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined) {
@@ -98,6 +111,7 @@ export class UDP_Server {
       socket.close()
     })
     socket.on('message', (_msg, peer) => logContext('UDP', async () => {
+      if (this.shouldDropInbound(peer.address, peer.port)) return
       let decoded: unknown
       try {
         decoded = bencode.decode(_msg)
@@ -165,7 +179,7 @@ export class UDP_Server {
       connection.messageHandlers.forEach(handler => handler(reassembled))
     }
   }
-  
+
   private readonly evictOldestChunkGroup = () => {
     let oldestKey: null | string = null
     let oldestTime = Infinity
@@ -181,5 +195,45 @@ export class UDP_Server {
       this.chunkBuffer.delete(oldestKey)
       warn('DEVWARN:', `[SERVER] Evicted oldest chunk group ${oldestKey} (buffer full)`)
     }
+  }
+
+  private readonly shouldDropInbound = (address: string, port: number): boolean => {
+    const now = Date.now()
+    const key = `${address}:${port}`
+    const existing = this.inboundRateState.get(key)
+    if (existing?.blockedUntil && existing.blockedUntil > now) {
+      if (now - existing.lastWarnAt >= this.INBOUND_WARN_COOLDOWN_MS) {
+        warn('DEVWARN:', `[SERVER] Dropping UDP from blocked peer ${key} (${existing.blockedUntil - now}ms remaining)`)
+        existing.lastWarnAt = now
+      }
+      return true
+    }
+
+    const state: InboundRateState = existing ?? { blockedUntil: 0, lastWarnAt: 0, messageCount: 0, windowStart: now }
+    if (now - state.windowStart >= this.INBOUND_RATE_WINDOW_MS) {
+      state.windowStart = now
+      state.messageCount = 0
+      state.blockedUntil = 0
+    }
+
+    state.messageCount += 1
+    if (state.messageCount > this.INBOUND_RATE_MAX_MESSAGES) {
+      state.blockedUntil = now + this.INBOUND_BLOCK_MS
+      if (now - state.lastWarnAt >= this.INBOUND_WARN_COOLDOWN_MS) {
+        warn('DEVWARN:', `[SERVER] Blocking UDP peer ${key} for ${this.INBOUND_BLOCK_MS}ms (rate ${state.messageCount}/${this.INBOUND_RATE_WINDOW_MS}ms)`)
+        state.lastWarnAt = now
+      }
+      this.inboundRateState.set(key, state)
+      return true
+    }
+
+    this.inboundRateState.set(key, state)
+    if (this.inboundRateState.size > this.MAX_INBOUND_TRACKED_PEERS) {
+      for (const [peerKey, peerState] of this.inboundRateState.entries()) {
+        if (peerState.blockedUntil < now && now - peerState.windowStart > this.INBOUND_RATE_WINDOW_MS * 5) this.inboundRateState.delete(peerKey)
+        if (this.inboundRateState.size <= this.MAX_INBOUND_TRACKED_PEERS) break
+      }
+    }
+    return false
   }
 }

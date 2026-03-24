@@ -49,6 +49,11 @@ export type HandshakeDiscoveryResponse = z.infer<typeof H0R_HandshakeDiscoveryRe
 export type HandshakeRequest = z.infer<typeof H1_HandshakeRequestSchema>
 export type HandshakeResponse = z.infer<typeof H2_HandshakeResponseSchema>
 
+const h0LastSeen = new Map<string, number>()
+const h1LastSeen = new Map<string, number>()
+const H0_COOLDOWN_MS = 5_000
+const H1_COOLDOWN_MS = 10_000
+
 export const doH0Probe = (server: UDP_Server, hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => new Promise(resolve => {
   const txnId = Buffer.alloc(4)
   txnId.writeUInt32BE(Math.floor(Math.random() * 0xFFFFFFFF))
@@ -173,15 +178,11 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
 })
 
 export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
-  /** Rate-limit inbound h0 discovery per source: one response per 5 s */
-  const h0LastSeen = new Map<string, number>()
-  const H0_COOLDOWN_MS = 5_000
-
   if (query.y === 'h0') {
     const now = Date.now()
     const last = h0LastSeen.get(peerHostname)
     if (last !== undefined && now - last < H0_COOLDOWN_MS) {
-      debug(`[HANDSHAKE] Dropping duplicate h0 from ${peerHostname} (${now - last}ms since last response)`)
+      warn('DEVWARN:', `[HANDSHAKE] Dropping duplicate h0 from ${peerHostname} (${now - last}ms since last response)`)
       return true
     }
     h0LastSeen.set(peerHostname, now)
@@ -192,6 +193,13 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     trace.success()
     return true
   } else if (query.y === 'h1') {
+    const now = Date.now()
+    const last = h1LastSeen.get(peerHostname)
+    if (last !== undefined && now - last < H1_COOLDOWN_MS) {
+      debug(`[HANDSHAKE] Dropping duplicate h1 from ${peerHostname} (${now - last}ms since last auth attempt)`)
+      return true
+    }
+    h1LastSeen.set(peerHostname, now)
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
     trace.step('Received h1')

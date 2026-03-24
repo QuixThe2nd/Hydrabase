@@ -75,7 +75,9 @@ export const startServer = (
     port: node.port,
     routes: { '/auth': () => {
       const trace = Trace.start('Peer requested server auth')
-      return new Response(JSON.stringify(proveServer(account, node, trace))) 
+      const res = new Response(JSON.stringify(proveServer(account, node, trace))) 
+      trace.success()
+      return res
     } },
     websocket: websocketHandlers(peerManager)
   })
