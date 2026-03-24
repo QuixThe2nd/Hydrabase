@@ -147,8 +147,6 @@ export class Trace {
       if (!isSuccess && failReason) {
         console.log(`${closePrefix}${color}✗ Failed: ${failReason}${reset}`)
       }
-    } else if (!isSuccess && failReason) {
-      console.log(`${grey}    ${color}✗ Failed: ${failReason}${reset}`)
-    }
+    } else if (!isSuccess && failReason) console.log(`${grey}    ${color}✗ Failed: ${failReason}${reset}`)
   }
 }

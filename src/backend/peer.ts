@@ -3,7 +3,7 @@ import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEnt
 import type { Repositories } from './db'
 import type PeerManager from './PeerManager'
 
-import { stats, warn } from '../utils/log'
+import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { UDP_Client } from './networking/udp/client'
 import WebSocketClient from './networking/ws/client'
@@ -91,7 +91,6 @@ export class Peer {
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
-      stats(`[PEER] Current latency ${latency}ms (${Math.ceil(this.latency*10)/10}ms AVG) ${this.username} ${this.address} ${this.hostname}`)
       pendingPing.trace.success()
       this.pendingPings.delete(nonce)
     },
