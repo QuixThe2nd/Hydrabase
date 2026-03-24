@@ -18,6 +18,10 @@ if (!fs.existsSync('./data/')) fs.mkdirSync('./data')
 export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
 
+/** Guards against re-auth handshake storms: one in-flight re-auth per peerHostname, 10 s TTL */
+const pendingReauth = new Map<`${string}:${number}`, number>()
+const REAUTH_TTL_MS = 10_000
+
 type ResponseAwaiter = (msg: RPCMessage, rinfo: { address: string, port: number }) => boolean
 export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
@@ -36,6 +40,13 @@ export type RPCMessage = z.infer<typeof rpcMessageSchema>
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
   const identity = authenticatedPeers.get(peerHostname)
   if (!identity) {
+    const now = Date.now()
+    const lastReauth = pendingReauth.get(peerHostname)
+    if (lastReauth !== undefined && now - lastReauth < REAUTH_TTL_MS) {
+      debug(`[SERVER] Skipping re-auth for ${peerHostname} (pending, ${now - lastReauth}ms ago)`)
+      return false
+    }
+    pendingReauth.set(peerHostname, now)
     const trace = Trace.start(`[SERVER] Received message from unauthenticated peer ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
       if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
@@ -45,6 +56,13 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
   }
   const connection = udpConnections.get(peerHostname) ?? udpConnections.get(identity.hostname as `${string}:${number}`)
   if (!connection) {
+    const now = Date.now()
+    const lastReauth = pendingReauth.get(peerHostname)
+    if (lastReauth !== undefined && now - lastReauth < REAUTH_TTL_MS) {
+      debug(`[SERVER] Skipping re-auth for ${peerHostname} (connection missing, pending, ${now - lastReauth}ms ago)`)
+      return false
+    }
+    pendingReauth.set(peerHostname, now)
     const trace = Trace.start(`[SERVER] Couldn't find connection ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
       if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)

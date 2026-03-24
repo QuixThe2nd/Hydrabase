@@ -177,6 +177,10 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
   const h0LastSeen = new Map<string, number>()
   const H0_COOLDOWN_MS = 5_000
 
+  /** Deduplicate rapid re-entrant h1s from the same peer (handshake storm guard) */
+  const h1LastSeen = new Map<string, number>()
+  const H1_COOLDOWN_MS = 5_000
+
   if (query.y === 'h0') {
     const now = Date.now()
     const last = h0LastSeen.get(peerHostname)
@@ -192,6 +196,13 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     trace.success()
     return true
   } else if (query.y === 'h1') {
+    const now = Date.now()
+    const last = h1LastSeen.get(peerHostname)
+    if (last !== undefined && now - last < H1_COOLDOWN_MS) {
+      debug(`[HANDSHAKE] Dropping duplicate h1 from ${peerHostname} (${now - last}ms since last)`)
+      return true
+    }
+    h1LastSeen.set(peerHostname, now)
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
     trace.step('Received h1')
