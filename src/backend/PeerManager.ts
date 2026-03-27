@@ -8,8 +8,11 @@ import type { Repositories } from './db'
 import type MetadataManager from './metadata'
 import type { Identity } from './protocol/HIP1_Identity'
 
+// @ts-expect-error: This is supported by bun
+import VERSION from '../../VERSION' with { type: 'text' }
 import { formatUptime, logContext, truncateAddress, warn } from '../utils/log'
 import { Trace } from '../utils/trace'
+import { BRANCH } from './branch'
 import { DHT_Node } from './networking/dht'
 import { authenticateServerHTTP } from './networking/http'
 import { UDP_Client } from './networking/udp/client'
@@ -20,9 +23,25 @@ import { WebSocketServerConnection } from './networking/ws/server'
 import { Peer } from './Peer'
 import { PeerMap } from './PeerMap'
 import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery'
+import { compareVersions, parseHydrabaseUserAgent } from './versioning'
 
 const cacheFile = Bun.file('./data/ws-servers.json')
+const CURRENT_VERSION = VERSION.trim()
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
+const warnIfPeerHasNewerBranchVersion = (peer: Peer): void => {
+  const parsed = parseHydrabaseUserAgent(peer.userAgent)
+  if (!parsed) return
+  if (parsed.branch !== BRANCH) return
+
+  const comparison = compareVersions(parsed.version, CURRENT_VERSION)
+  if (comparison === null || comparison <= 0) return
+
+  warn(
+    'WARN:',
+    `[PEERS] Newer version available on branch ${BRANCH}: local ${CURRENT_VERSION}, peer ${parsed.version} (${peer.username} ${peer.hostname})`,
+  )
+}
+
 const parser = new Parser()
 parser.functions.avg = (...args: number[]) => avg(args)
 
@@ -96,6 +115,7 @@ export default class PeerManager implements IPeerProvider {
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
+
   constructor(
     private readonly account: Account, 
     private readonly metadataManager: MetadataManager, 
@@ -105,6 +125,7 @@ export default class PeerManager implements IPeerProvider {
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
   ) {}
+
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
     if (typeof _peer === 'string') {
@@ -121,6 +142,7 @@ export default class PeerManager implements IPeerProvider {
     const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
     if (socket === false) return false
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
+    warnIfPeerHasNewerBranchVersion(peer)
 
     socket.onClose(() => logContext('PEERS', () => {
       const uptime = formatUptime(peer.uptimeMs)
@@ -139,7 +161,6 @@ export default class PeerManager implements IPeerProvider {
 
     return true
   }
-
   public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
     const peer = this.peers.get(address)
     if (!peer) return 0
@@ -237,7 +258,7 @@ export default class PeerManager implements IPeerProvider {
     if (this.peers.has(identity.address)) return `[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`
     return true
   }
-  
+
   private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<false | Socket> {
     trace.step('Creating socket')
     const shouldAuthenticate = this.shouldAuthenticate(authenticatedPeers.get(hostname)?.hostname ?? hostname)
