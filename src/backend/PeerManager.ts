@@ -14,6 +14,7 @@ import { DHT_Node } from './networking/dht'
 import { authenticateServerHTTP } from './networking/http'
 import { UDP_Client } from './networking/udp/client'
 import { authenticatedPeers, UDP_Server } from './networking/udp/server'
+import { isAllowedPeer } from './networking/utils'
 import WebSocketClient from './networking/ws/client'
 import { WebSocketServerConnection } from './networking/ws/server'
 import { Peer } from './Peer'
@@ -115,8 +116,7 @@ export default class PeerManager implements IPeerProvider {
       if (!Number.isInteger(port) || port <= 0 || port > 65535) return trace.fail('Invalid peer port')
 
       // Keep discovery constrained while allowing local development/test ports.
-      const isLocalHostname = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]'
-      if (!isLocalHostname && (port < 4000 || port > 5000)) return trace.silentFail('Invalid port range')
+      if (!isAllowedPeer(hostname, port)) return trace.silentFail('Invalid port range')
     }
     const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
     if (socket === false) return false

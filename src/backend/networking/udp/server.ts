@@ -8,6 +8,7 @@ import type { Account } from '../../crypto/Account'
 
 import { debug, error, log, logContext, warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
+import { isAllowedPeer } from '../utils'
 import { decoder, ErrorMessage, type Query, QueryMessage, ResponseMessageSchema } from '../../protocol/DHT'
 import { type Identity } from '../../protocol/HIP1_Identity'
 import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
@@ -81,7 +82,7 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
 
 const messageHandler = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
-  if (query.y === 'e') return peer.port < 4000 || peer.port > 5000 ? false : warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
+  if (query.y === 'e') return !isAllowedPeer(peer.host, peer.port) ? false : warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
   if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, account, query, peerHostname, peer, node, config, apiKey, addPeer)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
