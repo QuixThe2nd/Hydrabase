@@ -161,12 +161,18 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
       const childTrace = trace.child(`h1 handshake to ${canonicalHostname}`)
       authenticateServerUDP(server, canonicalHostname, account, node, childTrace).then(result => {
         if (!Array.isArray(result)) authenticatedPeers.set(hostname, result)
+        if (Array.isArray(result)) trace.fail(`[HIP5] Hostname upgrade auth failed: ${result[1]}`)
+        else trace.success()
         resolve(result)
       })
       return true
     }
 
-    doH1Handshake(server, hostname, account, node, trace, tid).then(resolve)
+    doH1Handshake(server, hostname, account, node, trace, tid).then(result => {
+      if (Array.isArray(result)) trace.fail(`[HIP5] UDP auth failed: ${result[1]}`)
+      else trace.success()
+      resolve(result)
+    })
     return true
   })
 
@@ -202,7 +208,8 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     h1LastSeen.set(peerHostname, now)
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const existingTrace = tid ? pendingH0Traces.get(tid) : undefined
-    const trace = existingTrace ?? (tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`))
+    const trace = existingTrace
+      ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (correlation tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
     if (tid) pendingH0Traces.delete(tid)
     trace.step('Received h1')
     const result = await UDP_Client.connectToUnauthenticatedPeer(account, socket, query, peerHostname, node, config, apiKey, server, trace, () => true)
