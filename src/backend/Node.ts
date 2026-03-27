@@ -1,28 +1,34 @@
 import type { Config } from '../types/hydrabase'
 import type { Request, Response, SearchResult } from '../types/hydrabase-schemas'
+import type { IPeerProvider } from '../types/interfaces'
 
 import { Trace } from '../utils/trace'
-import { Account, getPrivateKey } from './Crypto/Account'
+import { Account, getPrivateKey } from './crypto/Account'
 import { startDatabase } from './db'
-import MetadataManager from './Metadata'
-import ITunes from './Metadata/plugins/iTunes'
-import Spotify from './Metadata/plugins/Spotify'
+import MetadataManager from './metadata'
+import ITunes from './metadata/plugins/iTunes'
+import Spotify from './metadata/plugins/Spotify'
 import { DHT_Node } from './networking/dht'
 import { startServer } from './networking/http'
 import { UDP_Server } from './networking/udp/server'
 import { requestPort } from './networking/upnp'
 import PeerManager from './PeerManager'
 import { StatsReporter } from './StatsReporter'
-import { buildWebUI } from './webui'
+import { buildWebUI } from './WebUI'
 
 const {SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET} = process.env
 
 export class Node {
-  constructor(private readonly metadataManager: MetadataManager, private readonly getPeers: () => PeerManager, private readonly formulas: Config['formulas']) {}
+  private peers?: IPeerProvider
+  constructor(
+    private readonly metadataManager: MetadataManager,
+
+    private readonly formulas: Config['formulas']
+  ) {}
 
   public readonly search = async <T extends Request['type']>(type: T, query: string, searchPeers = true): Promise<Response<T>> => {
-    const results = await this.metadataManager.handleRequest({ query, type }, this.getPeers())
-    if (!searchPeers) return results
+    const results = await this.metadataManager.handleRequest({ query, type }, this.getPeerConfidence)
+    if (!searchPeers || !this.peers) return results
     const plugins = new Set<string>()
     const hashes = new Set<bigint>(results.map(_result => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -32,7 +38,7 @@ export class Node {
     }))
 
     const trace = Trace.start(`Searching for ${type}: ${query}`)
-    const peerResults = await this.getPeers().requestAll(this.formulas, { query, type }, hashes, plugins, trace)
+    const peerResults = await this.peers.requestAll(this.formulas, { query, type }, hashes, plugins, trace)
     const noPeerResults = peerResults.size === 0
 
     // Inject local results
@@ -46,8 +52,16 @@ export class Node {
     else if (peerResults.size === 0) trace.fail('No results')
     else trace.success()
 
-    return [...peerResults.values()]
+    return [...peerResults.values()] as Response<T>
   }
+
+  public readonly setPeerContext = (peers: IPeerProvider, getPeerConfidence: (address: `0x${string}`) => number) => {
+    this.peers = peers
+    this.getPeerConfidence = getPeerConfidence
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  private getPeerConfidence: (address: `0x${string}`) => number = () => 0
 }
 
 export const startNode = async (CONFIG: Config): Promise<Node> => {
@@ -62,26 +76,25 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   const repos = await startDatabase(CONFIG.formulas.pluginConfidence)
   trace.step('5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos, CONFIG.soulIdCutoff)
-  trace.step('6/14 Starting node')
-  // eslint-disable-next-line prefer-const
-  let peers: PeerManager
-  const node = new Node(metadataManager, () => peers, CONFIG.formulas)
-  trace.step('7/14 Starting UDP server')
-  const udpServer = await UDP_Server.init(() => peers, CONFIG.rpc, CONFIG.node, CONFIG.apiKey)
+  trace.step('6/14 Starting UDP server')
+  const udpServer = await UDP_Server.init(account, CONFIG.rpc, CONFIG.node, CONFIG.apiKey)
+  trace.step('7/14 Starting node')
+  const node = new Node(metadataManager, CONFIG.formulas)
   trace.step('8/14 Starting peer manager')
-  peers = new PeerManager(account, metadataManager, repos, async (type, query, searchPeers) => node ? await node.search(type, query, searchPeers) : [], CONFIG.node, CONFIG.rpc, udpServer, udpServer.socket)
+  const peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
+  node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   trace.step('9/14 Building Web UI')
   await buildWebUI()
   trace.step('10/14 Starting HTTP server')
-  startServer(account, peers, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
+  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
   trace.step('11/14 Starting DHT node')
-  const dhtNode = new DHT_Node(peers, CONFIG.dht, CONFIG.node, udpServer)
+  const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, udpServer)
   trace.step('12/14 Starting stats reporter')
-  new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peers, dhtNode, repos)
+  new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peerManager, dhtNode, repos)
   trace.step('13/14 Waiting for DHT')
   await dhtNode.isReady()
   trace.step('14/14 Loading cached peers')
-  await peers.loadCache(CONFIG.bootstrapPeers.split(','))
+  await peerManager.loadCache(CONFIG.bootstrapPeers.split(','))
   trace.success()
   const artists = await node.search('artists', 'jay z')
   const albums = await node.search('albums', 'made in england')

@@ -1,12 +1,17 @@
 import * as Sentry from '@sentry/bun'
+import dgram from 'dgram'
+import net from 'net'
 
+import type { Config } from '../types/hydrabase'
 import type { HydrabaseTelemetryContext } from '../utils/log'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../VERSION' with { type: 'text' }
 import { log } from '../utils/log'
+import { error, warn } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
 import { BRANCH } from './branch'
+import { startNode } from './Node'
 
 const applyTelemetryScope = (scope: {
   setExtras: (extras: Record<string, unknown>) => void
@@ -93,15 +98,6 @@ const initTelemetry = (): void => {
     })
   }
 }
-
-import dgram from 'dgram'
-import net from 'net'
-
-import type { Config } from '../types/hydrabase'
-
-import { error, warn } from '../utils/log'
-import { startNode } from './Node'
-
 initTelemetry()
 
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))

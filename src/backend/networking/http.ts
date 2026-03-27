@@ -1,11 +1,11 @@
 import type { Config } from '../../types/hydrabase'
-import type { Account } from '../Crypto/Account'
+import type { Account } from '../crypto/Account'
 import type PeerManager from '../PeerManager'
 
 import { debug, logContext } from '../../utils/log'
 import { Trace } from '../../utils/trace'
 import { AuthSchema, type Identity, proveServer, verifyServer } from '../protocol/HIP1_Identity'
-import { serveStaticFile } from '../webui'
+import { serveStaticFile } from '../WebUI'
 import { authenticatedPeers, UDP_Server } from './udp/server'
 import { handleConnection, websocketHandlers } from './ws/server'
 

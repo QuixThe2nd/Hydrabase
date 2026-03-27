@@ -1,6 +1,6 @@
 import type { ApiPeer, Config, Connection, NodeStats } from '../types/hydrabase'
 import type { MetadataPlugin } from '../types/hydrabase-schemas'
-import type { Account } from './Crypto/Account'
+import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
 import type { DHT_Node } from './networking/dht'
 import type PeerManager from './PeerManager'

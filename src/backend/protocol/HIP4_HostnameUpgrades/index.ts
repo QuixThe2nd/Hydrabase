@@ -1,6 +1,6 @@
 import type { Config } from '../../../types/hydrabase'
 import type { Trace } from '../../../utils/trace'
-import type { Account } from '../../Crypto/Account'
+import type { Account } from '../../crypto/Account'
 import type { UDP_Server } from '../../networking/udp/server'
 import type { Auth, Identity } from '../HIP1_Identity'
 

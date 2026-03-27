@@ -1,6 +1,5 @@
 import type { Config, Socket } from '../../../types/hydrabase'
-import type { Account } from '../../Crypto/Account'
-import type PeerManager from '../../PeerManager'
+import type { Account } from '../../crypto/Account'
 
 import { warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
@@ -19,12 +18,12 @@ export default class WebSocketClient implements Socket {
   private socket!: WebSocket
   private trace!: Trace
 
-  private constructor(public readonly identity: Identity, private readonly peers: PeerManager, private readonly node: Config['node'], private readonly onOpen: () => void) {
-    this._connect(peers.account)
+  private constructor(public readonly identity: Identity, private readonly account: Account, private readonly node: Config['node'], private readonly onOpen: () => void) {
+    this._connect(account)
   }
 
-  static init = (identity: Identity, peers: PeerManager, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>(res => {
-    const socket = new WebSocketClient(identity, peers, node, () => res(socket))
+  static init = (identity: Identity, account: Account, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>(res => {
+    const socket = new WebSocketClient(identity, account, node, () => res(socket))
   })
 
   public readonly close = () => {
@@ -103,7 +102,7 @@ export default class WebSocketClient implements Socket {
         headers: { 
           'Connection': 'upgrade',
           'Upgrade': 'websocket',
-          ...proveClient(this.peers.account, this.node, this.identity.hostname, this.trace, true)
+          ...proveClient(this.account, this.node, this.identity.hostname, this.trace, true)
         },
         method: 'GET'
       }).catch(() => null)

@@ -4,7 +4,7 @@ import { resolve4 } from 'dns/promises'
 import net from 'net'
 
 import type { Config, Socket } from '../../../types/hydrabase'
-import type PeerManager from '../../PeerManager'
+import type { Account } from '../../crypto/Account'
 import type { Query } from '../../protocol/DHT'
 
 import { debug, warn } from '../../../utils/log'
@@ -17,7 +17,7 @@ export class UDP_Client implements Socket {
   public readonly messageHandlers: ((message: string) => void)[] = []
   private closeHandlers: (() => void)[] = []
   private readonly node: { host: string, port: number }
-  private constructor(private readonly peers: PeerManager, public readonly identity: Identity, private readonly config: Config['rpc'], private readonly id: string, trace: Trace) {
+  private constructor(private readonly socket: dgram.Socket, public readonly identity: Identity, private readonly config: Config['rpc'], private readonly id: string, trace: Trace) {
     authenticatedPeers.set(`${identity.hostname}`, identity)
     udpConnections.set(identity.hostname, this)
     trace.step(`UDP client connecting to ${identity.hostname}`)
@@ -35,22 +35,22 @@ export class UDP_Client implements Socket {
       }).catch((error: Error) => warn('DEVWARN:', '[CLIENT] Dns lookup threw error', {error}))
     }
   }
-  static readonly connectToAuthenticatedPeer = (peerManager: PeerManager, identity: Identity, config: Config['rpc'], nodeId: string, trace: Trace): UDP_Client => new UDP_Client(peerManager, identity, config, nodeId, trace)
-  static readonly connectToUnauthenticatedPeer = async (peerManager: PeerManager, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, socket: dgram.Socket, server: UDP_Server, trace: Trace): Promise<false | UDP_Client> => {
+  static readonly connectToAuthenticatedPeer = (socket: dgram.Socket, identity: Identity, config: Config['rpc'], nodeId: string, trace: Trace): UDP_Client => new UDP_Client(socket, identity, config, nodeId, trace)
+  static readonly connectToUnauthenticatedPeer = async (account: Account, socket: dgram.Socket, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, server: UDP_Server, trace: Trace, addPeer: (client: UDP_Client, trace: Trace) => boolean): Promise<false | UDP_Client> => {
     trace.step('Sending h2')
-    socket.send(bencode.encode({ h2: proveServer(peerManager.account, node, trace), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
+    socket.send(bencode.encode({ h2: proveServer(account, node, trace), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
     const [peerAddress] = peerHostname.split(':') as [string, `${number}`]
     const ip = { address: peerAddress }
-    const peerIdentity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, trace, 'UDP', server, peerManager.account, auth.h1 as unknown as Identity, ip)
+    const peerIdentity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, trace, 'UDP', server, account, auth.h1 as unknown as Identity, ip)
     if (Array.isArray(peerIdentity)) return trace.fail(`UDP auth query verification failed: ${peerIdentity[1]}`)
     trace.step('Authenticated peer')
     trace.success()
     authenticatedPeers.set(peerHostname, peerIdentity)
     if (peerIdentity.hostname && peerIdentity.hostname !== peerHostname) authenticatedPeers.set(peerIdentity.hostname as `${string}:${number}`, peerIdentity)
     if (!udpConnections.has(peerHostname)) {
-      const client = new UDP_Client(peerManager, { ...peerIdentity, hostname: peerHostname }, config, auth.id, trace)
+      const client = new UDP_Client(socket, { ...peerIdentity, hostname: peerHostname }, config, auth.id, trace)
       if (peerIdentity.hostname && peerIdentity.hostname !== peerHostname) udpConnections.set(peerIdentity.hostname as `${string}:${number}`, client)
-      peerManager.add(client, trace)
+      addPeer(client, trace)
     }
     return udpConnections.get(peerHostname) ?? false
   }
@@ -72,7 +72,7 @@ export class UDP_Client implements Socket {
 
     if (message.length <= MAX_CHUNK_PAYLOAD) {
       try {
-        this.peers.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
+        this.socket.send(bencode.encode({ a: { d: message, id: this.id }, q: `${this.config.prefix}msg`, t: txnId, y: 'q' } satisfies Query), Number(this.identity.hostname.split(':')[1]), this.identity.hostname.split(':')[0])
       } catch (err) {
         warn('DEVWARN:', `[CLIENT] Failed to send message to ${this.identity.hostname} - socket may be closed`, { err })
       }
@@ -96,7 +96,7 @@ export class UDP_Client implements Socket {
   }
   private readonly sendChunk = (c: string, chunkData: string, i: number, totalChunks: number, txnId: string) => {
     try {
-      this.peers.socket.send(
+      this.socket.send(
         bencode.encode({
           a: { c, d: chunkData, i, id: this.id, n: totalChunks },
           q: `${this.config.prefix}msg`,

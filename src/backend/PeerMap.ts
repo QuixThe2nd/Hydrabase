@@ -1,4 +1,4 @@
-import type { Peer } from './peer'
+import type { Peer } from './Peer'
 
 import { formatUptime, stats, truncateAddress } from '../utils/log'
 
