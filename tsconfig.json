@@ -45,6 +45,5 @@
         // from generated source code references.
         // This improves issue grouping in Sentry.
         "sourceRoot": "/"
-    },
-	"references": [{"path": "./src/frontend"}, {"path": "./src/backend"}]
+    }
 }
