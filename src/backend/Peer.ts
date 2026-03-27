@@ -12,6 +12,9 @@ import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers
 import { RequestManager } from './RequestManager'
 
 export class Peer {
+  private static readonly PING_INTERVAL_MS = 60_000
+  private static readonly PING_TIMEOUT_MS = 60_000
+
   public nonce = 0
   get address() {
     return this.socket.identity.address
@@ -67,7 +70,7 @@ export class Peer {
   private _ul = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
-  private pendingPings = new Map<number, { time: number; trace: Trace }>()
+  private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
   private readonly requestManager: RequestManager
   private totalLatency = 0
   private totalPongs = 0
@@ -88,6 +91,7 @@ export class Peer {
         warn('DEVWARN:', '[PEER] Unhandled pong')
         return
       }
+      clearTimeout(pendingPing.timeout)
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
@@ -133,14 +137,21 @@ export class Peer {
       const nonce = this.nonce++
       const time = Number(new Date())
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
-      this.pendingPings.set(nonce, { time, trace })
+      const timeout = setTimeout(() => {
+        if (!this.pendingPings.has(nonce)) return
+        this.pendingPings.delete(nonce)
+        trace.softFail(`[HIP2] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer`)
+        this.socket.close()
+      }, Peer.PING_TIMEOUT_MS)
+      this.pendingPings.set(nonce, { time, timeout, trace })
       this.send({ nonce, ping: { time } }, trace)
       trace.step(`[HIP2] Waiting for pong ${nonce}`)
-    }, 60_000)
+    }, Peer.PING_INTERVAL_MS)
     this.socket.onClose(() => {
       this.requestManager.close()
       if (id) clearInterval(id)
       for (const ping of this.pendingPings.values()) {
+        clearTimeout(ping.timeout)
         ping.trace.softFail('Peer disconnected before pong')
       }
       this.pendingPings.clear()
@@ -177,7 +188,11 @@ export class Peer {
 
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
       if (!result) {
-        if (matchedPongTrace && typeof parsedNonce === 'number') this.pendingPings.delete(parsedNonce)
+        if (matchedPongTrace && typeof parsedNonce === 'number') {
+          const pendingPing = this.pendingPings.get(parsedNonce)
+          if (pendingPing) clearTimeout(pendingPing.timeout)
+          this.pendingPings.delete(parsedNonce)
+        }
         trace.fail('Failed to parse message')
         return
       }
