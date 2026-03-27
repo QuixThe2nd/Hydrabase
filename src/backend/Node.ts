@@ -77,11 +77,13 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos, CONFIG.soulIdCutoff)
   trace.step('6/14 Starting UDP server')
-  const udpServer = await UDP_Server.init(account, CONFIG.rpc, CONFIG.node, CONFIG.apiKey)
+  // eslint-disable-next-line prefer-const
+  let peerManager: PeerManager
+  const udpServer = await UDP_Server.init(account, CONFIG.rpc, CONFIG.node, CONFIG.apiKey, (peer, trace) => peerManager.add(peer, trace, CONFIG.node.preferTransport))
   trace.step('7/14 Starting node')
   const node = new Node(metadataManager, CONFIG.formulas)
   trace.step('8/14 Starting peer manager')
-  const peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
+  peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   trace.step('9/14 Building Web UI')
   await buildWebUI()

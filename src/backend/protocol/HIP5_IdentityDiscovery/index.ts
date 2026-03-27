@@ -182,7 +182,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   trace.step(`[HIP5] Sent h0 discovery request with txnId=${t}`)
 })
 
-export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {
   if (query.y === 'h0') {
     const now = Date.now()
     const last = h0LastSeen.get(peerHostname)
@@ -211,7 +211,7 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
       ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (correlation tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
     if (tid) pendingH0Traces.delete(tid)
     trace.step('Received h1')
-    const result = await UDP_Client.connectToUnauthenticatedPeer(account, socket, query, peerHostname, node, config, apiKey, server, trace, () => true)
+    const result = await UDP_Client.connectToUnauthenticatedPeer(account, socket, query, peerHostname, node, config, apiKey, server, trace, addPeer)
     if (result) {
       trace.step('HIP1 verifyClient → valid')
       return true

@@ -76,7 +76,7 @@ beforeAll(async () => {
   // Start Node 1
   account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, formulas)
-  const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined)
+  const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined, (peer, trace) => peerManager1.add(peer, trace, config1.preferTransport))
   peerManager1 = new PeerManager(account1, metadataManager, repos, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
@@ -84,7 +84,7 @@ beforeAll(async () => {
   // Start Node 2
   account2 = new Account(generatePrivateKey())
   const node2 = new Node(metadataManager, formulas)
-  const udpServer2 = await UDP_Server.init(account2, rpcConfig, config2, undefined)
+  const udpServer2 = await UDP_Server.init(account2, rpcConfig, config2, undefined, (peer, trace) => peerManager2.add(peer, trace, config2.preferTransport))
   peerManager2 = new PeerManager(account2, metadataManager, repos, (type, query, searchPeers) => node2.search(type, query, searchPeers), config2, rpcConfig, udpServer2)
   node2.setPeerContext(peerManager2, address => peerManager2.getConfidence(address))
   server2 = startServer(account2, peerManager2, config2, '')
@@ -92,7 +92,7 @@ beforeAll(async () => {
   // Start Node 3
   account3 = new Account(generatePrivateKey())
   const node3 = new Node(metadataManager, formulas)
-  const udpServer3 = await UDP_Server.init(account3, rpcConfig, config3, undefined)
+  const udpServer3 = await UDP_Server.init(account3, rpcConfig, config3, undefined, (peer, trace) => peerManager3.add(peer, trace, config3.preferTransport))
   peerManager3 = new PeerManager(account3, metadataManager, repos, (type, query, searchPeers) => node3.search(type, query, searchPeers), config3, rpcConfig, udpServer3)
   node3.setPeerContext(peerManager3, address => peerManager3.getConfidence(address))
   server3 = startServer(account3, peerManager3, config3, '')

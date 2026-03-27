@@ -36,7 +36,7 @@ export class UDP_Client implements Socket {
     }
   }
   static readonly connectToAuthenticatedPeer = (socket: dgram.Socket, identity: Identity, config: Config['rpc'], nodeId: string, trace: Trace): UDP_Client => new UDP_Client(socket, identity, config, nodeId, trace)
-  static readonly connectToUnauthenticatedPeer = async (account: Account, socket: dgram.Socket, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, server: UDP_Server, trace: Trace, addPeer: (client: UDP_Client, trace: Trace) => boolean): Promise<false | UDP_Client> => {
+  static readonly connectToUnauthenticatedPeer = async (account: Account, socket: dgram.Socket, auth: HandshakeRequest, peerHostname: `${string}:${number}`, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, server: UDP_Server, trace: Trace, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<false | UDP_Client> => {
     trace.step('Sending h2')
     socket.send(bencode.encode({ h2: proveServer(account, node, trace), t: auth.t, y: 'h2' } satisfies HandshakeResponse), Number(peerHostname.split(':')[1]), peerHostname.split(':')[0])
     const [peerAddress] = peerHostname.split(':') as [string, `${number}`]

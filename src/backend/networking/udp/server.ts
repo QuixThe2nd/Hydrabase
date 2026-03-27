@@ -79,10 +79,10 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
   return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[SERVER] Couldn't find message handler ${peerHostname}`) : true
 }
 
-const messageHandler = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+const messageHandler = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
-  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, account, query, peerHostname, peer, node, config, apiKey)
+  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, account, query, peerHostname, peer, node, config, apiKey, addPeer)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
     return handleHydraQuery(server, query as Query, peerHostname, account, node)
@@ -117,7 +117,7 @@ export class UDP_Server {
   private readonly MAX_INBOUND_TRACKED_PEERS = 1_000
   private readonly responseAwaiters = new Map<string, ResponseAwaiter>()
 
-  private constructor(account: Account, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined) {
+  private constructor(account: Account, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>) {
     socket.on('error', err => {
       error('ERROR:', `[SERVER] An error was thrown ${err.name} - ${err.message}`)
       socket.close()
@@ -145,11 +145,11 @@ export class UDP_Server {
         }
       }
       if (result.data.y === 'h2') debug(`[SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
-      await messageHandler(this, socket, account, result.data, { host: peer.address, port: peer.port }, node, config, apiKey)
+      await messageHandler(this, socket, account, result.data, { host: peer.address, port: peer.port }, node, config, apiKey, addPeer)
     }))
   }
 
-  static init(account: Account, config: Config['rpc'], node: Config['node'], apiKey: string | undefined): Promise<UDP_Server> {
+  static init(account: Account, config: Config['rpc'], node: Config['node'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<UDP_Server> {
     const server = dgram.createSocket('udp4')
     server.bind(node.port)
 
@@ -157,7 +157,7 @@ export class UDP_Server {
       server.on('listening', () => {
         const {address,port} = server.address()
         log(`[UDP] [SERVER] listening at ${address}:${port}`)
-        res(new UDP_Server(account, server, node, config, apiKey))
+        res(new UDP_Server(account, server, node, config, apiKey, addPeer))
       })
     })
   }

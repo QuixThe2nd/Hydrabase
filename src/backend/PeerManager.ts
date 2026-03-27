@@ -116,7 +116,7 @@ export default class PeerManager implements IPeerProvider {
 
       // Keep discovery constrained while allowing local development/test ports.
       const isLocalHostname = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]'
-      if (!isLocalHostname && (port < 4000 || port > 5000)) return trace.fail('Invalid port range')
+      if (!isLocalHostname && (port < 4000 || port > 5000)) return trace.silentFail('Invalid port range')
     }
     const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
     if (socket === false) return false
