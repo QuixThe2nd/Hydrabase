@@ -14,7 +14,7 @@ import { UDP_Server } from './networking/udp/server'
 import { requestPort } from './networking/upnp'
 import PeerManager from './PeerManager'
 import { StatsReporter } from './StatsReporter'
-import { buildWebUI } from './WebUI'
+import { buildWebUI } from './webui'
 
 const {SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET} = process.env
 

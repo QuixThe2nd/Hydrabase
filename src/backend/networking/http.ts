@@ -5,7 +5,7 @@ import type PeerManager from '../PeerManager'
 import { debug, logContext } from '../../utils/log'
 import { Trace } from '../../utils/trace'
 import { AuthSchema, type Identity, proveServer, verifyServer } from '../protocol/HIP1_Identity'
-import { serveStaticFile } from '../WebUI'
+import { serveStaticFile } from '../webui'
 import { authenticatedPeers, UDP_Server } from './udp/server'
 import { handleConnection, websocketHandlers } from './ws/server'
 
