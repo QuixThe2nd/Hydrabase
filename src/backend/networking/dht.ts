@@ -73,11 +73,11 @@ export class DHT_Node {
     }))
   }
   static readonly getNodeId = (node: Config['node']) => SHA1.hash(`${node.hostname}:${node.port}`, 'hex')
-  static readonly getRoomId = (roomSeed: string) => Bun.SHA1.hash(roomSeed + String(Math.round(Date.now()/1000/60/60/6)), 'hex')
+  static readonly getRoomId = (roomSeed: string) => Bun.SHA1.hash(roomSeed + String(Math.round(Date.now()/1000/60/60)), 'hex')
   public readonly add = (node: DHTNode) => this.dht.addNode(node)
   public readonly isReady = () => new Promise<undefined>(res => {
     const id = setInterval(() => {
-      if (this.config.requireReady) this.resolved.ready = true
+      if (!this.config.requireReady) this.resolved.ready = true
       if (this.countResolved().notResolved === 0) {
         clearInterval(id)
         this.announce()

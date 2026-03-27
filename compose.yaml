@@ -25,7 +25,8 @@ services:
       # PGID: 1000
 
       # Telemetry is disabled by default. Consider enabling it to help me make Hydrabase more stable.
-      # HYDRABASE_TELEMETRY: false
+      # By enabling telemetry, I can notice and fix bugs your node faces without you needing to report it.
+      HYDRABASE_TELEMETRY: false
 
       # Advanced:
       # REQUIRE_DHT_READY: true
