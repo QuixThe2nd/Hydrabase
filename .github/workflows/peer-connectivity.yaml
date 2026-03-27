@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 20
 
     env:
-      USERNAME: Github-Dev-Node
+      USERNAME: Github-Conn-Test
       BRANCH: dev
       REQUIRE_DHT_READY: "false"
       HYDRABASE_TELEMETRY: "true"
