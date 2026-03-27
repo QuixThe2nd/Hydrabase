@@ -13,7 +13,8 @@ import { RequestManager } from './RequestManager'
 
 export class Peer {
   private static readonly PING_INTERVAL_MS = 60_000
-  private static readonly PING_TIMEOUT_MS = 60_000
+  // Keep timeout comfortably above interval to tolerate network and event-loop jitter.
+  private static readonly PING_TIMEOUT_MS = 90_000
 
   public nonce = 0
   get address() {
@@ -134,6 +135,12 @@ export class Peer {
     this.HIP4_Conn_Announce = new HIP3_AnnouncePeers(this, peers)
     this.startTime = Number(new Date())
     const id = setInterval(() => {
+      if (this.pendingPings.size > 0) {
+        const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
+        trace.step('[HIP2] Skipping ping while previous ping is still pending')
+        trace.success()
+        return
+      }
       const nonce = this.nonce++
       const time = Number(new Date())
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
