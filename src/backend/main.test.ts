@@ -3,15 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import z from 'zod'
 
 import type { Config } from '../types/hydrabase'
-import type { Peer } from './peer'
+import type { Peer } from './Peer'
 
 import { RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
 import { Trace } from '../utils/trace'
-import { Account, generatePrivateKey } from './Crypto/Account'
-import { Signature } from './Crypto/Signature'
+import { Account, generatePrivateKey } from './crypto/Account'
+import { Signature } from './crypto/Signature'
 import { startDatabase } from './db'
-import MetadataManager from './Metadata'
-import ITunes from './Metadata/plugins/iTunes'
+import MetadataManager from './metadata'
+import ITunes from './metadata/plugins/iTunes'
 import { startServer } from './networking/http'
 import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { handleConnection, type WebSocketData } from './networking/ws/server'
@@ -58,6 +58,9 @@ const formulas = {
   pluginConfidence: '0.5'
 } satisfies Config['formulas']
 
+let account1: Account
+let account2: Account
+let account3: Account
 let peerManager1: PeerManager
 let peerManager2: PeerManager
 let peerManager3: PeerManager
@@ -71,24 +74,27 @@ beforeAll(async () => {
   const metadataManager = new MetadataManager([new ITunes()], repos, 32)
 
   // Start Node 1
-  const account1 = new Account(generatePrivateKey())
-  const node1 = new Node(metadataManager, () => peerManager1, formulas)
-  const udpServer1 = await UDP_Server.init(() => peerManager1, rpcConfig, config1, undefined)
-  peerManager1 = new PeerManager(account1, metadataManager, repos, async (type, query, searchPeers) => node1 ? await node1.search(type, query, searchPeers) : [], config1, rpcConfig, udpServer1, udpServer1.socket)
+  account1 = new Account(generatePrivateKey())
+  const node1 = new Node(metadataManager, formulas)
+  const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined, (peer, trace) => peerManager1.add(peer, trace, config1.preferTransport))
+  peerManager1 = new PeerManager(account1, metadataManager, repos, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
+  node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
 
   // Start Node 2
-  const account2 = new Account(generatePrivateKey())
-  const node2 = new Node(metadataManager, () => peerManager2, formulas)
-  const udpServer2 = await UDP_Server.init(() => peerManager2, rpcConfig, config2, undefined)
-  peerManager2 = new PeerManager(account2, metadataManager, repos, async (type, query, searchPeers) => node2 ? await node2.search(type, query, searchPeers) : [], config2, rpcConfig, udpServer2, udpServer2.socket)
+  account2 = new Account(generatePrivateKey())
+  const node2 = new Node(metadataManager, formulas)
+  const udpServer2 = await UDP_Server.init(account2, rpcConfig, config2, undefined, (peer, trace) => peerManager2.add(peer, trace, config2.preferTransport))
+  peerManager2 = new PeerManager(account2, metadataManager, repos, (type, query, searchPeers) => node2.search(type, query, searchPeers), config2, rpcConfig, udpServer2)
+  node2.setPeerContext(peerManager2, address => peerManager2.getConfidence(address))
   server2 = startServer(account2, peerManager2, config2, '')
 
   // Start Node 3
-  const account3 = new Account(generatePrivateKey())
-  const node3 = new Node(metadataManager, () => peerManager3, formulas)
-  const udpServer3 = await UDP_Server.init(() => peerManager3, rpcConfig, config3, undefined)
-  peerManager3 = new PeerManager(account3, metadataManager, repos, async (type, query, searchPeers) => node3 ? await node3.search(type, query, searchPeers) : [], config3, rpcConfig, udpServer3, udpServer3.socket)
+  account3 = new Account(generatePrivateKey())
+  const node3 = new Node(metadataManager, formulas)
+  const udpServer3 = await UDP_Server.init(account3, rpcConfig, config3, undefined, (peer, trace) => peerManager3.add(peer, trace, config3.preferTransport))
+  peerManager3 = new PeerManager(account3, metadataManager, repos, (type, query, searchPeers) => node3.search(type, query, searchPeers), config3, rpcConfig, udpServer3)
+  node3.setPeerContext(peerManager3, address => peerManager3.getConfidence(address))
   server3 = startServer(account3, peerManager3, config3, '')
 
   await new Promise(res => { setTimeout(res, 5_000) })
@@ -139,12 +145,12 @@ describe('Signature', () => {
 
 describe('HIP1', () => {
   it('produces client proof that is is verified by server', async () => {
-    const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`, trace)
+    const auth = proveClient(account1, config1, `${config2.hostname}:${config2.port}`, trace)
     expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)).not.toBeArray()
   })
 
   it('produces server proof that is is verified by client', () => {
-    expect(verifyServer(proveServer(peerManager1.account, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
+    expect(verifyServer(proveServer(account1, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
   })
 
   it('peer 1 connected to peer 2 over TCP', async () => {
@@ -295,7 +301,7 @@ describe('Signature edge cases', () => {
 
 describe('HIP1 handshake edge cases', () => {
   it('rejects client proof with wrong target hostname', async () => {
-    const auth = proveClient(peerManager1.account, config1, '10.0.0.1:9999', trace)
+    const auth = proveClient(account1, config1, '10.0.0.1:9999', trace)
     const result = await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)
     expect(result).toBeArray()
     const [code] = result as [number, string]
@@ -303,7 +309,7 @@ describe('HIP1 handshake edge cases', () => {
   })
 
   it('rejects tampered signature', () => {
-    const auth = proveClient(peerManager1.account, config1, `${config2.hostname}:${config2.port}`, trace)
+    const auth = proveClient(account1, config1, `${config2.hostname}:${config2.port}`, trace)
     auth.signature = 'invalid-signature-data'
     expect(() => verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)).toThrow()
   })
@@ -323,14 +329,14 @@ describe('HIP1 handshake edge cases', () => {
   })
 
   it('verifyServer rejects mismatched hostname', () => {
-    const proof = proveServer(peerManager1.account, config1, trace)
+    const proof = proveServer(account1, config1, trace)
     const result = verifyServer(proof, 'wrong.host:9999', trace)
     expect(result).toBeArray()
     expect((result as [number, string])[1]).toContain('Expected')
   })
 
   it('verifyServer crashes on tampered signature (no input validation)', () => {
-    const proof = proveServer(peerManager1.account, config1, trace)
+    const proof = proveServer(account1, config1, trace)
     proof.signature = 'tampered'
     expect(() => verifyServer(proof, `${config1.hostname}:${config1.port}`, trace)).toThrow()
   })

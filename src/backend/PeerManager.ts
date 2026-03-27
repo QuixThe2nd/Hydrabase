@@ -1,11 +1,11 @@
-import dgram from 'dgram'
 import { Parser } from 'expr-eval'
 
 import type { Config, Socket } from '../types/hydrabase'
 import type { Request, Response, SearchResult } from '../types/hydrabase-schemas'
-import type { Account } from './Crypto/Account'
+import type { IPeerProvider } from '../types/interfaces'
+import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
-import type MetadataManager from './Metadata'
+import type MetadataManager from './metadata'
 import type { Identity } from './protocol/HIP1_Identity'
 
 import { formatUptime, logContext, truncateAddress, warn } from '../utils/log'
@@ -16,7 +16,7 @@ import { UDP_Client } from './networking/udp/client'
 import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import WebSocketClient from './networking/ws/client'
 import { WebSocketServerConnection } from './networking/ws/server'
-import { Peer } from './peer'
+import { Peer } from './Peer'
 import { PeerMap } from './PeerMap'
 import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery'
 
@@ -76,38 +76,36 @@ const searchPeer = async <T extends Request['type']>(formulas: Config['formulas'
 const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer => peer ? true : warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
-export default class PeerManager {
+export default class PeerManager implements IPeerProvider {
   private static readonly RECONNECT_BASE_DELAY_MS = 5_000
   private static readonly RECONNECT_MAX_ATTEMPTS = 10
   private static readonly RECONNECT_MAX_DELAY_MS = 300_000
   public readonly peers = new PeerMap()
+
   get apiPeer() {
     return this.peers.get('0x0')
   }
-
   get connectedPeers() {
     return [...this.peers.values()]
   }
-
   get peerAddresses() {
     return this.peers.addresses
   }
+
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
   constructor(
-    public readonly account: Account, 
+    private readonly account: Account, 
     private readonly metadataManager: MetadataManager, 
     private readonly repos: Repositories,
     private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>,
-    public readonly node: Config['node'],
+    public readonly nodeConfig: Config['node'],
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
-    public readonly socket: dgram.Socket,
   ) {}
-
   // TODO: some mechanism to proactively propagate unsolicited votes
-  public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
+  public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
     if (typeof _peer === 'string') {
       const separatorIndex = _peer.lastIndexOf(':')
       if (separatorIndex === -1) return trace.fail('Invalid peer format')
@@ -118,7 +116,7 @@ export default class PeerManager {
 
       // Keep discovery constrained while allowing local development/test ports.
       const isLocalHostname = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]'
-      if (!isLocalHostname && (port < 4000 || port > 5000)) return trace.fail('Invalid port range')
+      if (!isLocalHostname && (port < 4000 || port > 5000)) return trace.silentFail('Invalid port range')
     }
     const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
     if (socket === false) return false
@@ -225,7 +223,7 @@ export default class PeerManager {
   }
 
   private shouldAuthenticate(hostname: `${string}:${number}`): string | true {
-    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return `[PEERS] Not connecting to self ${hostname}`
+    if (hostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}` || hostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) return `[PEERS] Not connecting to self ${hostname}`
     if (this.knownPeers.has(hostname)) return `[PEERS] Already connected to peer ${hostname}`
     return true
   }
@@ -233,8 +231,8 @@ export default class PeerManager {
   private shouldConnect(hostname: `${string}:${number}`, identity: Identity): string | true {
     if (this.has(identity.address)) return `[PEERS] Already connected/connecting to peer ${identity.username} ${identity.address} ${identity.hostname}`
     if (identity.address === this.account.address) return `[PEERS] Not connecting to self ${identity.address}`
-    if (identity.hostname === `${this.node.hostname}:${this.node.port}`) return `[PEERS] Not connecting to self ${hostname}`
-    if (identity.hostname === `${this.node.ip}:${this.node.port}`) return `[PEERS] Not connecting to self ${hostname}`
+    if (identity.hostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}`) return `[PEERS] Not connecting to self ${hostname}`
+    if (identity.hostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) return `[PEERS] Not connecting to self ${hostname}`
     if (identity.hostname !== hostname && this.knownPeers.has(identity.hostname)) return `[PEERS] Not connecting to self ${hostname}`
     if (this.peers.has(identity.address)) return `[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`
     return true
@@ -244,7 +242,7 @@ export default class PeerManager {
     trace.step('Creating socket')
     const shouldAuthenticate = this.shouldAuthenticate(authenticatedPeers.get(hostname)?.hostname ?? hostname)
     if (typeof shouldAuthenticate === 'string') return trace.softFail(shouldAuthenticate)
-    const identity = await authenticatePeer(hostname, preferTransport, trace, this.udpServer, this.account, this.node)
+    const identity = await authenticatePeer(hostname, preferTransport, trace, this.udpServer, this.account, this.nodeConfig)
     if (Array.isArray(identity)) return trace.softFail(identity[1])
 
     const shouldConnect = this.shouldConnect(authenticatedPeers.get(hostname)?.hostname ?? hostname, identity)
@@ -266,7 +264,7 @@ export default class PeerManager {
   
   private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): Promise<false | Socket | string> {
     trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
-    if (hostname === `${this.node.hostname}:${this.node.port}` || hostname === `${this.node.ip}:${this.node.port}`) return 'Attempted to connect to self'
-    return preferTransport === 'TCP' ? await WebSocketClient.init(identity, this, this.node) : UDP_Client.connectToAuthenticatedPeer(this, identity, this.rpcConfig, DHT_Node.getNodeId(this.node), trace) || false
+    if (hostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}` || hostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) return 'Attempted to connect to self'
+    return preferTransport === 'TCP' ? await WebSocketClient.init(identity, this.account, this.nodeConfig) : UDP_Client.connectToAuthenticatedPeer(this.udpServer.socket, identity, this.rpcConfig, DHT_Node.getNodeId(this.nodeConfig), trace) || false
   }
 }

@@ -19,7 +19,7 @@ export const QueryMessage = BaseMessage.extend({
   y: z.literal('q'),
 })
 export const ResponseMessageSchema = BaseMessage.extend({
-  r: z.object({}),
+  r: z.object({}).loose(),
   y: z.literal('r'),
 })
 export const ErrorMessage = BaseMessage.extend({

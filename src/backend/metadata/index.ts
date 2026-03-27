@@ -1,6 +1,5 @@
 import type { Album, Artist, MetadataPlugin, Request, Response } from '../../types/hydrabase-schemas'
 import type { Repositories } from '../db'
-import type PeerManager from '../PeerManager'
 
 import { warn } from '../../utils/log'
 import { Trace } from '../../utils/trace'
@@ -21,13 +20,13 @@ const computeConfidence = (artistConfidences: number[], peerConfidences: number[
   return ((numerator / denominator) / 2) + 0.5
 }
 
-const matchId = (items: (Album | Artist)[], peers: PeerManager): undefined | { confidence: number; id: string } => {
+const matchId = (items: (Album | Artist)[], getPeerConfidence: (address: `0x${string}`) => number): undefined | { confidence: number; id: string } => {
   const votes = new Map<string, { itemConfidences: number[]; peerConfidences: number[], }>()
   for (const item of items) {
     const pastVotes = votes.get(item.id) ?? { itemConfidences: [], peerConfidences: [] }
     votes.set(item.id, {
       itemConfidences: [...pastVotes.itemConfidences, item.confidence],
-      peerConfidences: [...pastVotes.peerConfidences, peers.getConfidence(item.address)]
+      peerConfidences: [...pastVotes.peerConfidences, getPeerConfidence(item.address)]
     })
   }
 // TODO: if over 50 peers, boot the 10% worst performing peers (use a bunch of variables to select; confidence scores, plugin variety, latency, etc)
@@ -57,7 +56,7 @@ export default class MetadataManager {
     return [...primary, ...secondary.filter(r => !seen.has(`${r.soul_id}:${r.address}`))]
   }
 
-  async albumTracks(albumSoulId: string, peers: PeerManager): Promise<Response<'album.tracks'>> {
+  async albumTracks(albumSoulId: string, getPeerConfidence: (address: `0x${string}`) => number): Promise<Response<'album.tracks'>> {
     const albums = this.db.album.lookupBySoulId(albumSoulId)
     const albumIds = new Map<string, string>()
     const pluginResults = await Promise.all(this.plugins.map(async p => {
@@ -68,7 +67,7 @@ export default class MetadataManager {
         return (await p.albumTracks(id)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, this.soulIdCutoff))}` }))
       }
 
-      const bestId = matchId(pluginAlbums, peers)
+      const bestId = matchId(pluginAlbums, getPeerConfidence)
       if (bestId) {
         albumIds.set(p.id, bestId.id)
         return (await p.albumTracks(bestId.id)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, this.soulIdCutoff))}` }))
@@ -81,7 +80,7 @@ export default class MetadataManager {
     return MetadataManager.merge(results, cached)
   }
 
-  async artistAlbums(artistSoulId: string, peers: PeerManager): Promise<Response<'artist.albums'>> {
+  async artistAlbums(artistSoulId: string, getPeerConfidence: (address: `0x${string}`) => number): Promise<Response<'artist.albums'>> {
     const artists = this.db.artist.lookupBySoulId(artistSoulId)
     const artistIds = new Map<string, string>()
     const pluginResults = (await Promise.all(this.plugins.map(async p => {
@@ -92,7 +91,7 @@ export default class MetadataManager {
         return (await p.artistAlbums(id)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, this.soulIdCutoff))}` }))
       }
 
-      const bestId = matchId(pluginArtists, peers)
+      const bestId = matchId(pluginArtists, getPeerConfidence)
       if (bestId) {
         artistIds.set(p.id, bestId.id)
         return (await p.artistAlbums(bestId.id)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, this.soulIdCutoff))}` }))
@@ -105,7 +104,7 @@ export default class MetadataManager {
     return MetadataManager.merge(results, cached)
   }
 
-  async artistTracks(artistSoulId: string, peers: PeerManager): Promise<Response<'artist.tracks'>> {
+  async artistTracks(artistSoulId: string, getPeerConfidence: (address: `0x${string}`) => number): Promise<Response<'artist.tracks'>> {
     const artists = this.db.artist.lookupBySoulId(artistSoulId)
     const artistIds = new Map<string, string>()
     const pluginResults = (await Promise.all(this.plugins.map(async p => {
@@ -116,7 +115,7 @@ export default class MetadataManager {
         return (await p.artistTracks(id)).map(result => ({ ...result, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, this.soulIdCutoff))}` }))
       }
 
-      const bestId = matchId(pluginArtists, peers)
+      const bestId = matchId(pluginArtists, getPeerConfidence)
       if (bestId) {
         artistIds.set(p.id, bestId.id)
         return (await p.artistTracks(bestId.id)).map(result => ({ ...result, confidence: (result.confidence+bestId.confidence)/2, soul_id: `soul_${Bun.hash(`${result.plugin_id}:${result.id}`.slice(0, this.soulIdCutoff))}` }))
@@ -129,15 +128,15 @@ export default class MetadataManager {
     return MetadataManager.merge(results, cached)
   }
 
-  public async handleRequest<T extends Request['type']>(request: Request & { type: T }, peers: PeerManager): Promise<Response<T>> {
+  public async handleRequest<T extends Request['type']>(request: Request & { type: T }, getPeerConfidence: (address: `0x${string}`) => number): Promise<Response<T>> {
     const trace = Trace.start(`[META] Searching for ${request.type}: ${request.query}`)
     const results: Response<T> = []
     if (request.type === 'tracks') results.push(...await this.searchTracks(request.query) as Response<T>)
     else if (request.type === 'artists') results.push(...await this.searchArtists(request.query) as Response<T>)
     else if (request.type === 'albums') results.push(...await this.searchAlbums(request.query) as Response<T>)
-    else if (request.type === 'artist.albums') results.push(...await this.artistAlbums(request.query, peers) as Response<T>)
-    else if (request.type === 'artist.tracks') results.push(...await this.artistTracks(request.query, peers) as Response<T>)
-    else if (request.type === 'album.tracks') results.push(...await this.albumTracks(request.query, peers) as Response<T>)
+    else if (request.type === 'artist.albums') results.push(...await this.artistAlbums(request.query, getPeerConfidence) as Response<T>)
+    else if (request.type === 'artist.tracks') results.push(...await this.artistTracks(request.query, getPeerConfidence) as Response<T>)
+    else if (request.type === 'album.tracks') results.push(...await this.albumTracks(request.query, getPeerConfidence) as Response<T>)
     else warn('DEVWARN:', `[HIP2] Invalid request ${request.type}`)
     trace.step(`[META] Received ${results.length} results`)
     trace.success()

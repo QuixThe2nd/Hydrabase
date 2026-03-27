@@ -2,7 +2,7 @@ import type { SocketAddress } from 'bun'
 
 import type { Config, Socket } from '../../../types/hydrabase'
 import type { HydrabaseTelemetryContext } from '../../../utils/log'
-import type { Account } from '../../Crypto/Account'
+import type { Account } from '../../crypto/Account'
 import type PeerManager from '../../PeerManager'
 import type { UDP_Server } from '../udp/server'
 

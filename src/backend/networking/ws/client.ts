@@ -1,6 +1,5 @@
 import type { Config, Socket } from '../../../types/hydrabase'
-import type { Account } from '../../Crypto/Account'
-import type PeerManager from '../../PeerManager'
+import type { Account } from '../../crypto/Account'
 
 import { warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
@@ -9,22 +8,24 @@ import { type Identity, proveClient } from '../../protocol/HIP1_Identity'
 export default class WebSocketClient implements Socket {
   private static readonly OPEN_TIMEOUT_MS = 30_000
 
-  get isOpened() {
-    return this._isOpened
-  }
-  private _isOpened = false
   private closeHandlers: (() => void)[] = []
+  private isOpened = false
   private messageHandlers: ((message: string) => void)[] = []
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
   private trace!: Trace
 
-  private constructor(public readonly identity: Identity, private readonly peers: PeerManager, private readonly node: Config['node'], private readonly onOpen: () => void) {
-    this._connect(peers.account)
+  private constructor(
+    public readonly identity: Identity,
+    private readonly account: Account,
+    private readonly node: Config['node'],
+    private readonly onOpen: () => void
+  ) {
+    this._connect(account)
   }
 
-  static init = (identity: Identity, peers: PeerManager, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>(res => {
-    const socket = new WebSocketClient(identity, peers, node, () => res(socket))
+  static init = (identity: Identity, account: Account, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>(res => {
+    const socket = new WebSocketClient(identity, account, node, () => res(socket))
   })
 
   public readonly close = () => {
@@ -41,7 +42,7 @@ export default class WebSocketClient implements Socket {
   }
 
   send(data: string) {
-    if (this._isOpened) this.socket.send(data)
+    if (this.isOpened) this.socket.send(data)
     else {
       warn('DEVWARN:', `[CLIENT] Cannot send to ${this.identity.username} ${this.identity.address} ws://${this.identity.hostname} - connection not open (readyState: ${this.socket.readyState}), queuing message`)
       this.retryQueue.push(() => this.socket.send(data))
@@ -53,7 +54,7 @@ export default class WebSocketClient implements Socket {
     this.trace.step('Connecting')
     this.socket = new WebSocket(`ws://${this.identity.hostname}`, { headers: proveClient(account, this.node, this.identity.hostname, this.trace, true) })
     const openTimeout = setTimeout(() => {
-      if (!this._isOpened) {
+      if (!this.isOpened) {
         this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
         this.trace.fail('Connection timed out')
         this.socket.close()
@@ -63,7 +64,7 @@ export default class WebSocketClient implements Socket {
       clearTimeout(openTimeout)
       this.trace.step('Connected')
       this.trace.success()
-      this._isOpened = true
+      this.isOpened = true
       this._flushQueue()
       this.onOpen()
     })
@@ -73,7 +74,7 @@ export default class WebSocketClient implements Socket {
       const codeInfo = ev.code === 1000 ? '' : ` (code: ${ev.code})`
       this.trace.step(`Connection closed: ${reason}${codeInfo}`)
       this.trace.fail(`${reason}${codeInfo}`)
-      this._isOpened = false
+      this.isOpened = false
       for (const handler of this.closeHandlers) handler()
     })
     this.socket.addEventListener('error', err => {
@@ -86,7 +87,7 @@ export default class WebSocketClient implements Socket {
         this._fetchRejectionReason()
       }
       
-      this._isOpened = false
+      this.isOpened = false
     }) // TODO: peer rate limiting
     this.socket.addEventListener('message', message => {
       if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.identity.hostname}`)
@@ -103,7 +104,7 @@ export default class WebSocketClient implements Socket {
         headers: { 
           'Connection': 'upgrade',
           'Upgrade': 'websocket',
-          ...proveClient(this.peers.account, this.node, this.identity.hostname, this.trace, true)
+          ...proveClient(this.account, this.node, this.identity.hostname, this.trace, true)
         },
         method: 'GET'
       }).catch(() => null)

@@ -2,13 +2,13 @@ import z from 'zod'
 
 import type { Config } from '../../../types/hydrabase'
 import type { Trace } from '../../../utils/trace'
-import type { Account } from '../../Crypto/Account'
+import type { Account } from '../../crypto/Account'
 import type { UDP_Server } from '../../networking/udp/server'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../../../VERSION' with { type: 'text' }
 import { BRANCH } from '../../branch'
-import { Signature } from '../../Crypto/Signature'
+import { Signature } from '../../crypto/Signature'
 import { upgradeHostname } from '../HIP4_HostnameUpgrades'
 
 export const IdentitySchema = z.object({

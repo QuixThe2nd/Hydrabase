@@ -1,7 +1,7 @@
 import z from 'zod'
 
 import type { Trace } from '../../../utils/trace'
-import type { Peer } from '../../peer'
+import type { Peer } from '../../Peer'
 import type { RequestManager } from '../../RequestManager'
 
 import { type Request, RequestSchema, type Response, ResponseSchema } from '../../../types/hydrabase-schemas'

@@ -1,6 +1,6 @@
 import z from 'zod'
 
-import type { Peer } from '../../peer'
+import type { Peer } from '../../Peer'
 import type PeerManager from '../../PeerManager'
 
 import { Trace } from '../../../utils/trace'
@@ -18,7 +18,7 @@ export class HIP3_AnnouncePeers {
   }
 
   sendAnnounce(announce: Announce, trace: Trace): void {
-    if (this.peer.hostname === announce.hostname || announce.hostname === this.peers.node.hostname) return
+    if (this.peer.hostname === announce.hostname || announce.hostname === this.peers.nodeConfig.hostname) return
     trace.step(`[HIP3] Announcing peer ${announce.hostname} ${this.peer.address}`)
     this.peer.send({ announce: { hostname: announce.hostname }, nonce: this.peer.nonce++ }, trace)
   }

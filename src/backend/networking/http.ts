@@ -1,5 +1,5 @@
 import type { Config } from '../../types/hydrabase'
-import type { Account } from '../Crypto/Account'
+import type { Account } from '../crypto/Account'
 import type PeerManager from '../PeerManager'
 
 import { debug, logContext } from '../../utils/log'

@@ -4,7 +4,7 @@ import fs from 'fs'
 import z from 'zod'
 
 import type { Config } from '../../../types/hydrabase'
-import type PeerManager from '../../PeerManager'
+import type { Account } from '../../crypto/Account'
 
 import { debug, error, log, logContext, warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
@@ -33,22 +33,34 @@ export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y
 ]))
 export type RPCMessage = z.infer<typeof rpcMessageSchema>
 
-const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, peerManager: PeerManager, node: Config['node']): boolean => {
+const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, account: Account, node: Config['node']): boolean => {
   const identity = authenticatedPeers.get(peerHostname)
   if (!identity) {
     const trace = Trace.start(`[SERVER] Received message from unauthenticated peer ${peerHostname}`)
-    authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
-      if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-      else debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+    authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
+      if (Array.isArray(result)) {
+        trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+        warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      } else {
+        trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+        trace.success()
+        debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+      }
     })
     return false
   }
   const connection = udpConnections.get(peerHostname) ?? udpConnections.get(identity.hostname as `${string}:${number}`)
   if (!connection) {
     const trace = Trace.start(`[SERVER] Couldn't find connection ${peerHostname}`)
-    authenticateServerUDP(server, peerHostname, peerManager.account, node, trace).then(result => {
-      if (Array.isArray(result)) warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-      else debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+    authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
+      if (Array.isArray(result)) {
+        trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+        warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
+      } else {
+        trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+        trace.success()
+        debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
+      }
     })
     return false
   }
@@ -67,13 +79,13 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
   return connection.messageHandlers.length === 0 ? warn('DEVWARN:', `[SERVER] Couldn't find message handler ${peerHostname}`) : true
 }
 
-const messageHandler = async (server: UDP_Server, socket: dgram.Socket, peerManager: PeerManager, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined): Promise<boolean> => {
+const messageHandler = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
   if (query.y === 'e') return warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
-  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, peerManager, query, peerHostname, peer, node, config, apiKey)
+  if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, account, query, peerHostname, peer, node, config, apiKey, addPeer)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false
-    return handleHydraQuery(server, query as Query, peerHostname, peerManager, node)
+    return handleHydraQuery(server, query as Query, peerHostname, account, node)
   }
   if (query.y === 'r') return false
   log('[SERVER] Unhandled query', {query})
@@ -105,7 +117,7 @@ export class UDP_Server {
   private readonly MAX_INBOUND_TRACKED_PEERS = 1_000
   private readonly responseAwaiters = new Map<string, ResponseAwaiter>()
 
-  private constructor(peerManager: () => PeerManager, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined) {
+  private constructor(account: Account, public readonly socket: dgram.Socket, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>) {
     socket.on('error', err => {
       error('ERROR:', `[SERVER] An error was thrown ${err.name} - ${err.message}`)
       socket.close()
@@ -133,11 +145,11 @@ export class UDP_Server {
         }
       }
       if (result.data.y === 'h2') debug(`[SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
-      await messageHandler(this, socket, peerManager(), result.data, { host: peer.address, port: peer.port }, node, config, apiKey)
+      await messageHandler(this, socket, account, result.data, { host: peer.address, port: peer.port }, node, config, apiKey, addPeer)
     }))
   }
 
-  static init(peerManager: () => PeerManager, config: Config['rpc'], node: Config['node'], apiKey: string | undefined): Promise<UDP_Server> {
+  static init(account: Account, config: Config['rpc'], node: Config['node'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<UDP_Server> {
     const server = dgram.createSocket('udp4')
     server.bind(node.port)
 
@@ -145,7 +157,7 @@ export class UDP_Server {
       server.on('listening', () => {
         const {address,port} = server.address()
         log(`[UDP] [SERVER] listening at ${address}:${port}`)
-        res(new UDP_Server(peerManager, server, node, config, apiKey))
+        res(new UDP_Server(account, server, node, config, apiKey, addPeer))
       })
     })
   }

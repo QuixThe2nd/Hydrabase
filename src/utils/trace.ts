@@ -73,6 +73,17 @@ export class Trace {
     return false
   }
 
+  silentFail(reason: string, context?: unknown): false {
+    logEvent({
+      category: 'trace',
+      context: { detail: context, label: this.label, traceId: this.traceId },
+      level: 'warning',
+      message: reason,
+    })
+    this.finished = true
+    return false
+  }
+
   softFail(reason: string, context?: unknown): false {
     this.print(false, reason)
     this.finished = true
