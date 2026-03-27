@@ -7,7 +7,7 @@ import net from 'net'
 import type { Config } from '../../types/hydrabase'
 import type PeerManager from '../PeerManager'
 
-import { error, logContext, stats, warn } from '../../utils/log'
+import { debug, error, logContext, warn } from '../../utils/log'
 import { Trace } from '../../utils/trace'
 import { authenticatedPeers, UDP_Server } from './udp/server'
 
@@ -48,7 +48,7 @@ export class DHT_Node {
         this.startupTrace.step(`${resolved}/${resolved+notResolved} Connected to ${nodes} nodes`)
       }
       if (nodes % 25 === 0 && nodes !== lastNodes) {
-        stats(`Connected to ${nodes} nodes`)
+        debug(`Connected to ${nodes} nodes`)
         lastNodes = nodes
       }
       if (nodes > 50 || !(await this.cacheFile.exists()) || (nodes > this.cacheSize && this.cacheSize !== 0)) {

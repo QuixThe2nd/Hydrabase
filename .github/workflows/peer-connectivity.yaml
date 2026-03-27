@@ -1,0 +1,94 @@
+name: Peer Connectivity
+
+on:
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: peer-connectivity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-node-peer-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      USERNAME: Github-Dev-Node
+      BRANCH: dev
+      REQUIRE_DHT_READY: "false"
+      HYDRABASE_TELEMETRY: "true"
+      PREFER_TRANSPORT: UDP
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Start node and wait for peer connection
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bun start > node.log 2>&1 &
+          NODE_PID=$!
+          echo "Started node PID=${NODE_PID}"
+
+          cleanup() {
+            if kill -0 "$NODE_PID" 2>/dev/null; then
+              kill "$NODE_PID" 2>/dev/null || true
+              wait "$NODE_PID" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          echo "Waiting for node startup..."
+          started=false
+          for _ in {1..90}; do
+            if grep -q 'Listening on port' node.log; then
+              started=true
+              break
+            fi
+
+            if ! kill -0 "$NODE_PID" 2>/dev/null; then
+              echo "Node exited before startup"
+              cat node.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if [[ "$started" != "true" ]]; then
+            echo "Node did not start in time"
+            tail -n 200 node.log || true
+            exit 1
+          fi
+
+          echo "Node started, waiting for at least one peer..."
+          deadline=$((SECONDS + 900))
+          while (( SECONDS < deadline )); do
+            if grep -Eq '[1-9][0-9]* peer(s)? connected:' node.log; then
+              echo "Peer connectivity check passed"
+              tail -n 120 node.log || true
+              exit 0
+            fi
+
+            if ! kill -0 "$NODE_PID" 2>/dev/null; then
+              echo "Node exited before connecting to a peer"
+              tail -n 200 node.log || true
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "Timed out waiting for peer connection"
+          tail -n 200 node.log || true
+          exit 1

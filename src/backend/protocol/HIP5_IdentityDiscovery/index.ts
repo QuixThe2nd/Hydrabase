@@ -148,7 +148,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   const timer = setTimeout(() => {
     server.cancelAwaiter(t)
     resolve([408, '[HIP5] h0 discovery request timed out'])
-  }, 10_000)
+  }, 30_000)
 
   server.awaitResponse(t, (msg) => {
     if (msg.y !== 'h0r') return false
