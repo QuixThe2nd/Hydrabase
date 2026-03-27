@@ -124,8 +124,7 @@ export default class PeerManager {
 
     this.peers.set(peer.address, peer)
     cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-    this.announcePeerToAll(peer, trace)
-    this.announceAllToPeer(peer, trace)
+    this.announce(peer, trace)
     this.knownPeers.add(peer.hostname)
 
     return true
@@ -166,27 +165,17 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
-  private announceAllToPeer(announceTo: Peer, trace: Trace) {
-    trace.step('[PEERS] Sending peer list')
+  private announce(newPeer: Peer, trace: Trace) {
+    if (newPeer.address === '0x0') return
+    trace.step('[PEERS] Announcing peers')
     for (const peerAddress of this.peerAddresses) {
-      const peer = this.peers.get(peerAddress)
-      if (!peer) {
+      const existingPeer = this.peers.get(peerAddress)
+      if (!existingPeer) {
         warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
         continue
       }
-      announceTo.announcePeer(peer, trace)
-    }
-  }
-
-  private announcePeerToAll(peer: Peer, trace: Trace) {
-    trace.step('[PEERS] Announcing peer')
-    for (const peerAddress of this.peerAddresses) {
-      const announceTo = this.peers.get(peerAddress)
-      if (!announceTo) {
-        warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
-        continue
-      }
-      announceTo.announcePeer(peer, trace)
+      newPeer.announcePeer(existingPeer, trace)
+      existingPeer.announcePeer(newPeer, trace)
     }
   }
 
