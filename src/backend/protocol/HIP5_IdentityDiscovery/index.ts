@@ -158,19 +158,18 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
     const canonicalHostname = msg.h0r.hostname as `${string}:${number}`
     if (canonicalHostname !== hostname) {
       trace.step(`Upgrading hostname → ${canonicalHostname}`)
-      const childTrace = trace.child(`h1 handshake to ${canonicalHostname}`)
-      authenticateServerUDP(server, canonicalHostname, account, node, childTrace).then(result => {
+      authenticateServerUDP(server, canonicalHostname, account, node, trace).then(result => {
         if (!Array.isArray(result)) authenticatedPeers.set(hostname, result)
-        if (Array.isArray(result)) trace.fail(`[HIP5] Hostname upgrade auth failed: ${result[1]}`)
-        else trace.success()
+        if (Array.isArray(result)) trace.step(`[HIP5] Hostname upgrade auth failed: ${result[1]}`)
+        else trace.step(`[HIP5] Hostname upgrade auth succeeded: ${canonicalHostname}`)
         resolve(result)
       })
       return true
     }
 
     doH1Handshake(server, hostname, account, node, trace, tid).then(result => {
-      if (Array.isArray(result)) trace.fail(`[HIP5] UDP auth failed: ${result[1]}`)
-      else trace.success()
+      if (Array.isArray(result)) trace.step(`[HIP5] UDP auth failed: ${result[1]}`)
+      else trace.step(`[HIP5] UDP auth succeeded: ${hostname}`)
       resolve(result)
     })
     return true
