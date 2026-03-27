@@ -208,7 +208,7 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const existingTrace = tid ? pendingH0Traces.get(tid) : undefined
     const trace = existingTrace
-      ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (correlation tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
+      ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
     if (tid) pendingH0Traces.delete(tid)
     trace.step('Received h1')
     const result = await UDP_Client.connectToUnauthenticatedPeer(account, socket, query, peerHostname, node, config, apiKey, server, trace, addPeer)
