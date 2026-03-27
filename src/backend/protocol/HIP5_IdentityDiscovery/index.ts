@@ -51,6 +51,7 @@ export type HandshakeResponse = z.infer<typeof H2_HandshakeResponseSchema>
 
 const h0LastSeen = new Map<string, number>()
 const h1LastSeen = new Map<string, number>()
+const pendingH0Traces = new Map<string, Trace>()
 const H0_COOLDOWN_MS = 5_000
 const H1_COOLDOWN_MS = 10_000
 
@@ -186,11 +187,11 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
       return true
     }
     h0LastSeen.set(peerHostname, now)
-    const trace = Trace.start(`[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
-    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node, trace), t: query.t, y: 'h0r' }
-    if ('tid' in query && query.tid) payload.tid = query.tid
+    const traceId = Math.random().toString(16).slice(2, 6)
+    const trace = new Trace(traceId, `[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
+    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(peerManager.account, node, trace), t: query.t, tid: traceId, y: 'h0r' }
     socket.send(bencode.encode(payload), peer.port, peer.host)
-    trace.success()
+    pendingH0Traces.set(traceId, trace)
     return true
   } else if (query.y === 'h1') {
     const now = Date.now()
@@ -201,7 +202,9 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     }
     h1LastSeen.set(peerHostname, now)
     const tid = 'tid' in query && query.tid ? query.tid : undefined
-    const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
+    const existingTrace = tid ? pendingH0Traces.get(tid) : undefined
+    const trace = existingTrace ?? (tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`))
+    if (tid) pendingH0Traces.delete(tid)
     trace.step('Received h1')
     const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server, trace)
     if (result) {
