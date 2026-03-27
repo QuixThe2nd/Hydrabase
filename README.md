@@ -67,6 +67,8 @@ Hydrabase will automatically try to port forward using uPnP. For best connectabi
 
 When setting `PREFER_TRANSPORT`, you only change the transport for connections you initiate, not on ones initiated by other peers. If UDP is selected, TCP is still used to handle authentication. A proper UDP-only mode for those with restricted networks is planned.
 
+The select port must be between 4000-5000. This limitation is not permanent, it is simply so we can reduce the number of non Hydrabase nodes we try to connect to.
+
 ## API Documentation
 
 ### 1. Connection & Authentication
