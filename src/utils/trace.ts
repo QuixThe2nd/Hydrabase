@@ -5,7 +5,7 @@ export class Trace {
   private children: Trace[] = []
   private finished = false
   private startTime: Date
-  private steps: { error?: true; msg: string; time: Date; }[] = []
+  private steps: { error?: true; msg: string; time: Date }[] = []
 
   constructor(
     public readonly traceId: string,
@@ -33,10 +33,7 @@ export class Trace {
     return `${hours}:${minutes}:${seconds}.${millis}`
   }
 
-  static start(label: string, noPrint = false): Trace {
-    const traceId = Math.random().toString(16).slice(2, 6)
-    return new Trace(traceId, label, noPrint)
-  }
+  static readonly start = (label: string, noPrint = false) => new Trace(Math.random().toString(16).slice(2, 6), label, noPrint)
 
   caughtError(msg: string): false {
     this.steps.push({ error: true, msg, time: new Date() })

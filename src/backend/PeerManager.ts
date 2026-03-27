@@ -108,6 +108,18 @@ export default class PeerManager {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.node.preferTransport): Promise<boolean> {
+    if (typeof _peer === 'string') {
+      const separatorIndex = _peer.lastIndexOf(':')
+      if (separatorIndex === -1) return trace.fail('Invalid peer format')
+
+      const hostname = _peer.slice(0, separatorIndex)
+      const port = Number(_peer.slice(separatorIndex + 1))
+      if (!Number.isInteger(port) || port <= 0 || port > 65535) return trace.fail('Invalid peer port')
+
+      // Keep discovery constrained while allowing local development/test ports.
+      const isLocalHostname = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]'
+      if (!isLocalHostname && (port < 4000 || port > 5000)) return trace.fail('Invalid port range')
+    }
     const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
     if (socket === false) return false
     const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
@@ -124,8 +136,7 @@ export default class PeerManager {
 
     this.peers.set(peer.address, peer)
     cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-    this.announcePeerToAll(peer, trace)
-    this.announceAllToPeer(peer, trace)
+    this.announce(peer, trace)
     this.knownPeers.add(peer.hostname)
 
     return true
@@ -166,27 +177,17 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
-  private announceAllToPeer(announceTo: Peer, trace: Trace) {
-    trace.step('[PEERS] Sending peer list')
+  private announce(newPeer: Peer, trace: Trace) {
+    if (newPeer.address === '0x0') return
+    trace.step('[PEERS] Announcing peers')
     for (const peerAddress of this.peerAddresses) {
-      const peer = this.peers.get(peerAddress)
-      if (!peer) {
+      const existingPeer = this.peers.get(peerAddress)
+      if (!existingPeer) {
         warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
         continue
       }
-      announceTo.announcePeer(peer, trace)
-    }
-  }
-
-  private announcePeerToAll(peer: Peer, trace: Trace) {
-    trace.step('[PEERS] Announcing peer')
-    for (const peerAddress of this.peerAddresses) {
-      const announceTo = this.peers.get(peerAddress)
-      if (!announceTo) {
-        warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
-        continue
-      }
-      announceTo.announcePeer(peer, trace)
+      newPeer.announcePeer(existingPeer, trace)
+      existingPeer.announcePeer(newPeer, trace)
     }
   }
 
@@ -250,7 +251,10 @@ export default class PeerManager {
     if (typeof shouldConnect === 'string') return trace.softFail(shouldConnect)
 
     const firstSocket = await this.toSocket(hostname, preferTransport, trace, identity)
-    if (typeof firstSocket === 'object') return firstSocket
+    if (typeof firstSocket === 'object') {
+      trace.success()
+      return firstSocket
+    }
     if (typeof firstSocket === 'string') return trace.softFail(firstSocket)
     trace.caughtError('Peer verification failed')
 

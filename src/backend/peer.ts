@@ -91,6 +91,7 @@ export class Peer {
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
+      pendingPing.trace.step(`[HIP2] Received pong ${nonce} in ${latency}ms`)
       pendingPing.trace.success()
       this.pendingPings.delete(nonce)
     },
@@ -116,6 +117,7 @@ export class Peer {
 
   private startTime?: number
 
+  // eslint-disable-next-line max-lines-per-function
   constructor(
     public readonly socket: Socket,
     peers: PeerManager,
@@ -133,6 +135,7 @@ export class Peer {
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
       this.pendingPings.set(nonce, { time, trace })
       this.send({ nonce, ping: { time } }, trace)
+      trace.step(`[HIP2] Waiting for pong ${nonce}`)
     }, 60_000)
     this.socket.onClose(() => {
       this.requestManager.close()
@@ -143,10 +146,38 @@ export class Peer {
       this.pendingPings.clear()
     })
     this.socket.onMessage(async message => {
-      const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
       this._dl += message.length
+
+      let parsedMessage: unknown
+      try {
+        parsedMessage = JSON.parse(message)
+      } catch {
+        const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
+        trace.fail('Failed to parse message')
+        return
+      }
+
+      const parsedRecord = typeof parsedMessage === 'object' && parsedMessage && !Array.isArray(parsedMessage)
+        ? parsedMessage as Record<string, unknown>
+        : null
+      if (!parsedRecord) {
+        const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
+        trace.fail('Failed to parse message')
+        return
+      }
+
+      const { nonce: parsedNonce, ...candidatePayload } = parsedRecord
+      const candidateType = HIP2_Messaging.identifyType(candidatePayload)
+      const matchedPongTrace = candidateType === 'pong'
+        && typeof parsedNonce === 'number'
+        && this.pendingPings.has(parsedNonce)
+      const trace = matchedPongTrace
+        ? this.pendingPings.get(parsedNonce)?.trace ?? Trace.start(`Received message from ${socket.identity.hostname}`)
+        : Trace.start(`Received message from ${socket.identity.hostname}`)
+
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
       if (!result) {
+        if (matchedPongTrace && typeof parsedNonce === 'number') this.pendingPings.delete(parsedNonce)
         trace.fail('Failed to parse message')
         return
       }
@@ -158,7 +189,7 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
-      trace.success()
+      if (!matchedPongTrace) trace.success()
     })
   }
 

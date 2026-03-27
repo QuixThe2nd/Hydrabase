@@ -8,10 +8,10 @@ import type PeerManager from '../../PeerManager'
 
 import { debug, error, log, logContext, warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
-import { FSMap } from '../../FSMap'
 import { decoder, ErrorMessage, type Query, QueryMessage, ResponseMessageSchema } from '../../protocol/DHT'
 import { type Identity } from '../../protocol/HIP1_Identity'
 import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
+import { FSMap } from '../../storage/FSMap'
 import { UDP_Client } from './client'
 
 if (!fs.existsSync('./data/')) fs.mkdirSync('./data')
@@ -220,7 +220,7 @@ export class UDP_Server {
     if (state.messageCount > this.INBOUND_RATE_MAX_MESSAGES) {
       state.blockedUntil = now + this.INBOUND_BLOCK_MS
       if (now - state.lastWarnAt >= this.INBOUND_WARN_COOLDOWN_MS) {
-        warn('DEVWARN:', `[SERVER] Blocking UDP peer ${key} for ${this.INBOUND_BLOCK_MS}ms (rate ${state.messageCount}/${this.INBOUND_RATE_WINDOW_MS}ms)`)
+        warn('WARN:', `[SERVER] Blocking UDP peer ${key} for ${this.INBOUND_BLOCK_MS}ms (rate ${state.messageCount}/${this.INBOUND_RATE_WINDOW_MS}ms)`)
         state.lastWarnAt = now
       }
       this.inboundRateState.set(key, state)

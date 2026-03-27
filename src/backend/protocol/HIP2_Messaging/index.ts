@@ -1,11 +1,10 @@
 import z from 'zod'
 
 import type { Trace } from '../../../utils/trace'
+import type { Peer } from '../../peer'
 import type { RequestManager } from '../../RequestManager'
 
 import { type Request, RequestSchema, type Response, ResponseSchema } from '../../../types/hydrabase-schemas'
-import { debug } from '../../../utils/log'
-import { type Peer } from '../../peer'
 import { AnnounceSchema } from '../HIP3_AnnouncePeers'
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
@@ -66,8 +65,7 @@ export class HIP2_Messaging {
     const {data,error} = MessageSchemas[type].safeParse(result[type])
     if (!data) return trace.caughtError(`[HIP2] Unexpected ${type} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}${error ? `: ${JSON.stringify(error.issues).slice(0, 300)}` : ''}`)
     
-    if (type === 'ping' || type === 'pong') debug(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
-    else trace.step(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
+    trace.step(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
 
     return { data, nonce, type }
   }

@@ -70,6 +70,7 @@ export const verifyClient = async (
     trace.step('[HIP1] Verifying API')
     return auth.apiKey === apiKey ? { address: '0x0', hostname: 'API:4545', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` } : [500, 'Invalid API Key']
   }
+  trace.step(`[HIP1] Verifying client ${auth.username} running ${auth.userAgent}`)
   trace.step(`[HIP1] Verifying client address ${auth.address}`)
   const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address, trace)
   trace.step(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${node.hostname}:${node.port}" result=${signatureValid}`)
