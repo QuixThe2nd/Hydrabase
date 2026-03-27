@@ -42,12 +42,8 @@ export class UDP_Client implements Socket {
     const [peerAddress] = peerHostname.split(':') as [string, `${number}`]
     const ip = { address: peerAddress }
     const peerIdentity = await verifyClient(node, peerHostname, auth.h1 as unknown as Auth, apiKey, trace, 'UDP', server, peerManager.account, auth.h1 as unknown as Identity, ip)
-    trace.step(`verifyClient result: ${Array.isArray(peerIdentity) ? peerIdentity[1] : peerIdentity.username}`)
-    if (Array.isArray(peerIdentity)) {
-      trace.fail(`UDP auth query verification failed: ${peerIdentity[1]}`)
-      return warn('DEVWARN:', `[CLIENT] UDP auth query verification failed for ${peerHostname}: ${peerIdentity[1]}`)
-    }
-    trace.step(`Authenticated peer ${peerIdentity.username} ${peerIdentity.address}`)
+    if (Array.isArray(peerIdentity)) return trace.fail(`UDP auth query verification failed: ${peerIdentity[1]}`)
+    trace.step('Authenticated peer')
     trace.success()
     authenticatedPeers.set(peerHostname, peerIdentity)
     if (peerIdentity.hostname && peerIdentity.hostname !== peerHostname) authenticatedPeers.set(peerIdentity.hostname as `${string}:${number}`, peerIdentity)

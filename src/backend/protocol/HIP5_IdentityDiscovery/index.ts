@@ -8,7 +8,7 @@ import type { Config } from '../../../types/hydrabase'
 import type { Account } from '../../Crypto/Account'
 import type PeerManager from '../../PeerManager'
 
-import { debug, log, warn } from '../../../utils/log'
+import { debug, warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
 import { DHT_Node } from '../../networking/dht'
 import { UDP_Client } from '../../networking/udp/client'
@@ -203,7 +203,6 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const trace = tid ? new Trace(tid, `Inbound UDP h1 from ${peerHostname}`) : Trace.start(`Inbound UDP h1 from ${peerHostname}`)
     trace.step('Received h1')
-    log(`[HANDSHAKE] Received h1 from ${peerHostname} txnId=${query.t} address=${query.h1.address} hostname=${query.h1.hostname}`)
     const result = await UDP_Client.connectToUnauthenticatedPeer(peerManager, query, peerHostname, node, config, apiKey, socket, server, trace)
     if (result) {
       trace.step('HIP1 verifyClient → valid')
