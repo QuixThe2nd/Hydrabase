@@ -37,7 +37,7 @@ export type RPCMessage = z.infer<typeof rpcMessageSchema>
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, account: Account, node: Config['node']): boolean => {
   const identity = authenticatedPeers.get(peerHostname)
   if (!identity) {
-    const trace = Trace.start(`[SERVER] Received message from unauthenticated peer ${peerHostname}`)
+    const trace = Trace.start(`[SERVER] Received message ${query.q} from unauthenticated peer ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
