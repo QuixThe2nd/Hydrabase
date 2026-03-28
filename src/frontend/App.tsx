@@ -1,8 +1,8 @@
-/* eslint-disable max-lines-per-function */
+/* eslint-disable max-lines, max-lines-per-function */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { EventEntry, FilterState, NodeStats, PartialNodeStats, PeerStats, PeerWithCountry, WsState } from '../types/hydrabase'
+import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerStats, PeerWithCountry, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
 import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
 
 import { error, warn } from '../utils/log'
@@ -18,25 +18,166 @@ import { PeersTab } from './tabs/Peers'
 import { SearchTab } from './tabs/Search'
 import { VotesTab } from './tabs/votes'
 import { BG, GLOBAL_STYLES, TEXT } from './theme'
-import { getCountry, mergePartialStats } from './utils'
+import { getCountryForHost, mergePartialStats } from './utils'
 
-export interface BwPoint { dl: number; ul: number }
+export interface BwPoint { dl: number; t: number; ul: number }
+type SearchType = 'album.tracks' | 'albums' | 'artist.albums' | 'artist.tracks' | 'artists' | 'tracks'
 
-const BW_HISTORY_LEN = 300
+const PULSE_WINDOW_MS = 6 * 60 * 60 * 1000
+const PULSE_MIN_INTERVAL_MS = 500
+
+const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, intervalMs: number): BwPoint[] => {
+  const maxPoints = Math.ceil(PULSE_WINDOW_MS / Math.max(intervalMs, PULSE_MIN_INTERVAL_MS)) + 4
+  const bounded = history.length > maxPoints ? history.slice(history.length - maxPoints) : history
+  const cutoff = latestTimestamp - PULSE_WINDOW_MS
+  const firstRecentIndex = bounded.findIndex(point => point.t >= cutoff)
+  if (firstRecentIndex <= 0) return bounded
+  return bounded.slice(firstRecentIndex)
+}
+
 const nonce = Math.random()
 
-const filterPeers = (peers: PeerWithCountry[], filter: FilterState) => [...peers].filter((p) => filter === 'all' || (p.connection === undefined && filter === 'disconnected') || (p.connection !== undefined && filter === 'connected'))
+const TAB_PATHS: Record<Tab, string> = {
+  dht: '/dht',
+  messages: '/messages',
+  overview: '/',
+  peers: '/peers',
+  search: '/search',
+  votes: '/votes',
+}
+
+const SEARCH_TYPE_PATHS: Record<SearchType, string> = {
+  'album.tracks': 'album-tracks',
+  albums: 'albums',
+  'artist.albums': 'artist-albums',
+  'artist.tracks': 'artist-tracks',
+  artists: 'artists',
+  tracks: 'tracks',
+}
+
+const PATH_SEARCH_TYPES: Record<string, SearchType> = Object.fromEntries(
+  Object.entries(SEARCH_TYPE_PATHS).map(([searchType, slug]) => [slug, searchType as SearchType])
+) as Record<string, SearchType>
+
+const PATH_TABS: Record<string, Tab> = {
+  '/': 'overview',
+  '/dht': 'dht',
+  '/messages': 'messages',
+  '/overview': 'overview',
+  '/peers': 'peers',
+  '/search': 'search',
+  '/votes': 'votes',
+}
+
+const isTab = (value: string): value is Tab => (
+  value === 'dht'
+  || value === 'messages'
+  || value === 'overview'
+  || value === 'peers'
+  || value === 'search'
+  || value === 'votes'
+)
+
+const isSearchType = (value: string): value is SearchType => (
+  value === 'album.tracks'
+  || value === 'albums'
+  || value === 'artist.albums'
+  || value === 'artist.tracks'
+  || value === 'artists'
+  || value === 'tracks'
+)
+
+const getLocationState = (): { peerAddress?: string; searchType: SearchType; tab: Tab } => {
+  const pathname = window.location.pathname.replace(/\/+$/u, '') || '/'
+
+  const peerMatch = pathname.match(/^\/peers\/(?<address>0x[0-9a-fA-F]+)$/u)
+  if (peerMatch?.groups?.['address']) return { peerAddress: peerMatch.groups['address'], searchType: 'artists', tab: 'peers' }
+
+  const searchRouteMatch = pathname.match(/^\/search\/(?<searchType>[a-z-]+)$/u)
+  if (searchRouteMatch?.groups?.['searchType']) {
+    const fromPath = PATH_SEARCH_TYPES[searchRouteMatch.groups['searchType']]
+    if (fromPath) return { searchType: fromPath, tab: 'search' }
+  }
+
+  const searchTypeParam = new URLSearchParams(window.location.search).get('searchType')
+  if (searchTypeParam && isSearchType(searchTypeParam)) return { searchType: searchTypeParam, tab: 'search' }
+
+  const tabParam = new URLSearchParams(window.location.search).get('tab')
+  if (tabParam && isTab(tabParam)) return { searchType: 'artists', tab: tabParam }
+
+  const hash = window.location.hash.replace(/^#/u, '').replace(/^\//u, '')
+  if (hash && isTab(hash)) return { searchType: 'artists', tab: hash }
+
+  return { searchType: 'artists', tab: PATH_TABS[pathname] ?? 'overview' }
+}
+
+const shouldCanonicalizeTabUrl = (): boolean => {
+  const pathname = window.location.pathname.replace(/\/+$/u, '') || '/'
+  const searchRouteMatch = pathname.match(/^\/search\/(?<searchType>[a-z-]+)$/u)
+  if (searchRouteMatch?.groups?.['searchType']) {
+    const fromPath = PATH_SEARCH_TYPES[searchRouteMatch.groups['searchType']]
+    if (fromPath) return true
+  }
+
+  if (pathname === '/search') return true
+
+  const searchTypeParam = new URLSearchParams(window.location.search).get('searchType')
+  if (searchTypeParam && isSearchType(searchTypeParam)) return true
+
+  const param = new URLSearchParams(window.location.search).get('tab')
+  if (param && isTab(param)) return true
+
+  const hash = window.location.hash.replace(/^#/u, '').replace(/^\//u, '')
+  if (hash && isTab(hash)) return true
+
+  return pathname in PATH_TABS
+}
+
+const updateUrlForState = (tab: Tab, searchType: SearchType, mode: 'push' | 'replace' = 'push') => {
+  const url = new URL(window.location.href)
+  const nextPath = tab === 'search' ? `/search/${SEARCH_TYPE_PATHS[searchType]}` : TAB_PATHS[tab]
+  if (url.pathname !== nextPath) {
+    url.pathname = nextPath
+  }
+  if (url.searchParams.get('tab') !== null) {
+    url.searchParams.set('tab', tab)
+  }
+  const next = `${url.pathname}${url.search}${url.hash}`
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (next !== current) {
+    if (mode === 'replace') window.history.replaceState(null, '', next)
+    else window.history.pushState(null, '', next)
+  }
+}
+
+const hasPopulatedPeerStats = (peer: PeerWithCountry): boolean => {
+  const { auth, connection } = peer
+  if (!connection) return Boolean(auth?.username || auth?.hostname || auth?.bio)
+  return connection.confidence > 0
+    || connection.latency > 0
+    || connection.lookupTime > 0
+    || connection.plugins.length > 0
+    || connection.totalDL > 0
+    || connection.totalUL > 0
+    || connection.uptime > 0
+    || Boolean(auth?.username || auth?.hostname || auth?.bio)
+}
+
+const filterPeers = (peers: PeerWithCountry[], filter: FilterState) => [...peers]
+  .filter((p) => filter === 'all' || (p.connection === undefined && filter === 'disconnected') || (p.connection !== undefined && filter === 'connected'))
+  .sort((a, b) => Number(hasPopulatedPeerStats(b)) - Number(hasPopulatedPeerStats(a)) || Number(b.connection !== undefined) - Number(a.connection !== undefined))
 
 const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
+  const initialLocationState = getLocationState()
   const [wsState, setWsState] = useState<WsState>('connecting')
   const [peers, setPeers] = useState<PeerWithCountry[]>([])
   const [dhtNodes, setDhtNodes] = useState<{ country: string; host: string }[]>([])
   const [eventLog, setEventLog] = useState<EventEntry[]>([])
   const [uptime, setUptime] = useState<number>(0)
-  const [bwHistory, setBwHistory] = useState<BwPoint[]>(Array(BW_HISTORY_LEN).fill({ dl: 0, ul: 0 }))
-  const prevTotalsRef = useRef<{ DL: number; UL: number; }>({ DL: 0, UL: 0 })
+  const [bwHistory, setBwHistory] = useState<BwPoint[]>([])
+  const prevPulseTotalsRef = useRef<null | { DL: number; UL: number; }>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchType, setSearchType] = useState<'album.tracks' | 'albums' | 'artist.albums' | 'artist.tracks' | 'artists' | 'tracks'>('artists')
+  const [searchType, setSearchType] = useState<SearchType>(() => initialLocationState.searchType)
   const [searchResults, setSearchResults] = useState<null | unknown[]>(null)
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<null | string>(null)
@@ -45,9 +186,10 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pendingSearches = useRef(new Map<number, (r: unknown[]) => void>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = useState<Tab>(() => initialLocationState.tab)
   // keep tabRef in sync so the ws message handler can read current tab without stale closure
   const [sel, setSel] = useState<null | PeerWithCountry>(null)
+  const pendingPeerAddrRef = useRef<null | string>(initialLocationState.peerAddress ?? null)
   const [filter, setFilter] = useState<FilterState>('all')
   const [stats, setStats] = useState<NodeStats | null>(null)
   const [dhtNodeCounts, setDhtNodeCounts] = useState<number[]>([])
@@ -65,10 +207,24 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     setEventLog((prev) => [...prev.slice(-199), { lv, m, t: new Date().toISOString().slice(11, 19) }])
   }, [])
 
+  const applyPulse = useCallback((statsPulse: StatsPulsePayload) => {
+    const pointTimestamp = Number(new Date(statsPulse.timestamp)) || Date.now()
+    const previous = prevPulseTotalsRef.current
+    const dlDelta = previous ? Math.max(0, statsPulse.totalDL - previous.DL) : 0
+    const ulDelta = previous ? Math.max(0, statsPulse.totalUL - previous.UL) : 0
+    prevPulseTotalsRef.current = { DL: statsPulse.totalDL, UL: statsPulse.totalUL }
+
+    setBwHistory((prev) => {
+      const next = [...prev, { dl: dlDelta, t: pointTimestamp, ul: ulDelta }]
+      return keepRecentPulsePoints(next, pointTimestamp, statsPulse.intervalMs)
+    })
+  }, [])
+
   const applyStats = useCallback((fullOrPartialStats: NodeStats | PartialNodeStats) => {
     // Check if it's a full or partial stats object
     const isFull = 'dhtNodes' in fullOrPartialStats && fullOrPartialStats.dhtNodes !== undefined &&
                    'peers' in fullOrPartialStats && 'self' in fullOrPartialStats
+    const partialUpdate = isFull ? null : fullOrPartialStats as PartialNodeStats
 
     let newStats: NodeStats
     if (isFull) {
@@ -80,22 +236,27 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
     statsRef.current = newStats
     setStats(newStats)
-    setDhtNodeCounts(prev => ([...prev, newStats.dhtNodes.length]))
-    Promise.all(newStats.peers.known.map(async (peer) => {
-      const ip = peer.connection?.hostname.split(':')[0] ?? 'unknown'
-      const country = ip === 'unknown' ? 'N/A' : await getCountry(ip)
-      return { ...peer, activity: [], country }
-    }))
-      .then((peers) => setPeers(peers))
-    Promise.all(newStats.dhtNodes.map(async (host) => ({ country: await getCountry((host.split(':') as [string, string])[0]), host })))
-      .then((nodes) => setDhtNodes(nodes))
+    if (isFull || partialUpdate?.dhtNodes !== undefined) {
+      setDhtNodeCounts(prev => ([...prev, newStats.dhtNodes.length]))
+      Promise.all(newStats.dhtNodes.map(async (host) => ({ country: await getCountryForHost(host), host })))
+        .then((nodes) => setDhtNodes(nodes))
+    }
 
-    const totalDL = (newStats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
-    const totalUL = (newStats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
-    const dlDelta = Math.max(0, totalDL - prevTotalsRef.current.DL)
-    const ulDelta = Math.max(0, totalUL - prevTotalsRef.current.UL)
-    prevTotalsRef.current = { DL: totalDL, UL: totalUL }
-    setBwHistory(prev => [...prev.slice(1 - BW_HISTORY_LEN), { dl: dlDelta, ul: ulDelta }])
+    if (isFull || partialUpdate?.peers?.known !== undefined) {
+      Promise.all(newStats.peers.known.map(async (peer) => {
+        const host = peer.connection?.hostname ?? peer.auth?.hostname
+        const country = host ? await getCountryForHost(host) : 'N/A'
+        return { ...peer, activity: [], country }
+      }))
+        .then((peers) => {
+          setPeers(peers)
+          const pending = pendingPeerAddrRef.current
+          if (pending) {
+            const found = peers.find(p => p.address === pending)
+            if (found) { setSel(found); pendingPeerAddrRef.current = null }
+          }
+        })
+    }
 
     addLog('INFO', isFull ? 'Received full stats' : 'Received stats update')
   }, [addLog])
@@ -128,7 +289,28 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             setMessages(prev => [...prev, data.deliver_message as MessageEnvelope])
             if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
           } else if (data.stats) applyStats(data.stats)
-          else if (data.partial_stats) applyStats(data.partial_stats)
+          else if (data.stats_self) applyStats({ self: data.stats_self })
+          else if (data.stats_peers) applyStats({ peers: { known: data.stats_peers } })
+          else if (data.stats_votes) {
+            const statsVotes = data.stats_votes as StatsVotesPayload
+            applyStats({ peers: statsVotes.peers, self: statsVotes.self })
+          }
+          else if (data.stats_dht_nodes) applyStats({ dhtNodes: data.stats_dht_nodes })
+          else if (data.stats_pulse) applyPulse(data.stats_pulse as StatsPulsePayload)
+          else if (data.stats_timestamp) applyStats({ timestamp: data.stats_timestamp })
+          else if (data.stats_peer_connected) {
+            const connectedPeer = data.stats_peer_connected as ApiPeer
+            const currentKnown = statsRef.current?.peers.known ?? []
+            const nextKnown = [connectedPeer, ...currentKnown.filter(peer => peer.address !== connectedPeer.address)]
+            applyStats({ peers: { known: nextKnown } })
+            addLog('INFO', `Peer connected: ${connectedPeer.auth?.username ?? connectedPeer.connection?.username ?? connectedPeer.address}`)
+          }
+          else if (data.stats_dht_node_connected) {
+            const connectedNode = data.stats_dht_node_connected as string
+            const currentNodes = statsRef.current?.dhtNodes ?? []
+            if (!currentNodes.includes(connectedNode)) applyStats({ dhtNodes: [...currentNodes, connectedNode] })
+            addLog('INFO', `DHT node connected: ${connectedNode}`)
+          }
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
@@ -147,7 +329,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
     connect()
     return () => { destroyed = true; wsRef.current?.close() }
-  }, [applyStats, addLog, socket, apiKey])
+  }, [applyPulse, applyStats, addLog, socket, apiKey])
 
   useEffect(() => {
     const id = setInterval(() => setUptime((u) => u + 1), 1000)
@@ -195,12 +377,20 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
   }, [playingId])
 
+  const handleSetSearchType = useCallback((next: React.SetStateAction<SearchType>) => {
+    setSearchType((prev) => {
+      const resolved = typeof next === 'function' ? next(prev) : next
+      if (resolved !== prev && tabRef.current === 'search') updateUrlForState('search', resolved)
+      return resolved
+    })
+  }, [])
+
   const handleHistorySelect = useCallback((entry: SearchHistoryEntry) => {
     setSearchQuery(entry.query)
-    setSearchType(entry.type)
+    handleSetSearchType(entry.type)
     setShowHistory(false)
     setTimeout(() => doSearch(), 0)
-  }, [doSearch, setSearchQuery, setSearchType])
+  }, [doSearch, handleSetSearchType, setSearchQuery])
 
   const handleRemoveHistory = useCallback((entry: SearchHistoryEntry, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -228,12 +418,61 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const handleSetTab = useCallback((next: React.SetStateAction<Tab>) => {
     setTab((prev) => {
       const resolved = typeof next === 'function' ? next(prev) : next
+      if (resolved === 'peers' && prev === 'peers' && sel !== null) {
+        setSel(null)
+        window.history.pushState(null, '', '/peers')
+        return prev
+      }
       if (resolved === 'messages') setUnreadMessages(0)
+      if (resolved !== prev) updateUrlForState(resolved, searchType)
       return resolved
     })
+  }, [searchType, sel])
+
+  const handleSelectPeer = useCallback((p: null | PeerWithCountry) => {
+    if (!p) { setSel(null); return }
+    setSel(p)
+    setTab('peers')
+    window.history.pushState(null, '', `/peers/${p.address}`)
+  }, [])
+
+  const handlePeerClose = useCallback(() => {
+    setSel(null)
+    window.history.pushState(null, '', '/peers')
   }, [])
 
   useEffect(() => { tabRef.current = tab }, [tab])
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const fromLocation = getLocationState()
+      setTab((current) => {
+        if (current === fromLocation.tab) return current
+        if (fromLocation.tab === 'messages') setUnreadMessages(0)
+        return fromLocation.tab
+      })
+      setSearchType((current) => current === fromLocation.searchType ? current : fromLocation.searchType)
+      if (fromLocation.peerAddress) {
+        pendingPeerAddrRef.current = fromLocation.peerAddress
+      } else {
+        setSel(null)
+      }
+    }
+
+    // Canonicalize tab URLs on first load (e.g. /overview -> /) without rewriting unknown deep links.
+    if (shouldCanonicalizeTabUrl()) {
+      const locationState = getLocationState()
+      updateUrlForState(locationState.tab, locationState.searchType, 'replace')
+    }
+    window.addEventListener('popstate', syncTabFromUrl)
+    window.addEventListener('hashchange', syncTabFromUrl)
+    return () => {
+      window.removeEventListener('popstate', syncTabFromUrl)
+      window.removeEventListener('hashchange', syncTabFromUrl)
+    }
+  }, [])
+
+  const sidebarTab = tab === 'peers' && sel !== null ? null : tab
 
   const tLabels = Array.from({ length: 60 }, (_, i) => `${60 - i}s`).toReversed()
   // const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
@@ -242,18 +481,19 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
   return <div style={{ background: BG, color: TEXT, display: 'flex', fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: '100vh' }}>
     <style>{GLOBAL_STYLES}</style>
-    <Sidebar peers={peers} setTab={handleSetTab} stats={stats} tab={tab} unreadMessages={unreadMessages} uptime={uptime} />
+    <Sidebar onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
-      {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={setSel} stats={stats} uptime={uptime} />}
-      {tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={setSel} sorted={filterPeers(peers, filter)} />}
+      {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
+      {tab === 'peers' && sel
+        ? <PeerDetail messages={messages} onClose={handlePeerClose} ownAddress={stats?.self.address} peer={sel} sendMessage={handleSendMessage} wsRef={wsRef} />
+        : tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
-      {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
+      {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
       {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
     </div>
-    <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
     <ActivityFeed eventLog={eventLog} />
-    <StatusBar dhtNodes={dhtNodes} peers={peers} setTab={handleSetTab} uptime={uptime} wsState={wsState} />
+    <StatusBar dhtNodes={dhtNodes} peers={peers} uptime={uptime} wsState={wsState} />
   </div>
 }
 

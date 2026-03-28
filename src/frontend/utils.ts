@@ -3,6 +3,15 @@ import { countryCodeEmoji } from 'country-code-emoji'
 
 import type { NodeStats, PartialNodeStats } from '../types/hydrabase'
 
+interface DnsAnswer {
+  data?: string
+  type?: number
+}
+
+interface DnsResponse {
+  Answer?: DnsAnswer[]
+}
+
 export const fmt = (n: null | number | undefined, d = 1): string => n === null ? '—' : Number(n).toFixed(d)
 
 export const fmtBytes = (bytes: number): string => bytes > 1024 * 1024
@@ -25,6 +34,57 @@ export const fmtClock = (seconds: number): string => `${String(Math.floor(second
 export const toEmoji = (country: string): string => country === 'N/A' || country === '-' ? '🌐' : countryCodeEmoji(country)
 
 const ipMap = new Map<string, string>()
+const resolvedHostMap = new Map<string, Promise<null | string>>()
+
+const IPV4_PART = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
+const IPV4_REGEX = new RegExp(`^(?:${IPV4_PART}\\.){3}${IPV4_PART}$`, 'u')
+const IPV6_REGEX = /^[\da-f:]+$/iu
+
+const isIpAddress = (hostname: string): boolean => IPV4_REGEX.test(hostname) || (hostname.includes(':') && IPV6_REGEX.test(hostname))
+
+const normalizeHostname = (hostname: string): string => hostname.replace(/^\[(?<host>[^\]]+)\]$/u, '$<host>').replace(/\.$/u, '').toLowerCase()
+
+export const parseEndpoint = (endpoint: string): { hostname: string; port: null | number } => {
+  try {
+    const url = new URL(endpoint.includes('://') ? endpoint : `ws://${endpoint}`)
+    return { hostname: normalizeHostname(url.hostname), port: url.port ? Number(url.port) : null }
+  } catch {
+    const [hostname = '', port] = endpoint.split(':')
+    return { hostname: normalizeHostname(hostname), port: port ? Number(port) || null : null }
+  }
+}
+
+const lookupDnsRecord = async (hostname: string, recordType: 'A' | 'AAAA'): Promise<null | string> => {
+  try {
+    const response = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=${recordType}`, {
+      headers: { accept: 'application/dns-json' },
+    })
+    if (!response.ok) return null
+
+    const payload = await response.json() as DnsResponse
+    const answer = payload.Answer?.find(({ data, type }) => Boolean(data) && (recordType === 'A' ? type === 1 : type === 28))
+    return answer?.data ?? null
+  } catch {
+    return null
+  }
+}
+
+export const resolveHostnameToIp = (hostname: string): Promise<null | string> => {
+  const normalizedHostname = normalizeHostname(hostname)
+  if (!normalizedHostname || isIpAddress(normalizedHostname)) return Promise.resolve(normalizedHostname || null)
+
+  const pendingResolution = resolvedHostMap.get(normalizedHostname)
+  if (pendingResolution) return pendingResolution
+
+  const resolution = (async () => {
+    const ipv4 = await lookupDnsRecord(normalizedHostname, 'A')
+    if (ipv4) return ipv4
+    return lookupDnsRecord(normalizedHostname, 'AAAA')
+  })()
+
+  resolvedHostMap.set(normalizedHostname, resolution)
+  return resolution
+}
 
 export const getCountry = async (ip: string): Promise<string> => {
   const known = ipMap.get(ip)
@@ -34,6 +94,12 @@ export const getCountry = async (ip: string): Promise<string> => {
   const { country } = result
   ipMap.set(ip, country)
   return country
+}
+
+export const getCountryForHost = async (endpoint: string): Promise<string> => {
+  const { hostname } = parseEndpoint(endpoint)
+  const resolvedIp = await resolveHostnameToIp(hostname)
+  return resolvedIp ? getCountry(resolvedIp) : 'N/A'
 }
 
 export const mergePartialStats = (current: NodeStats | null, partial: PartialNodeStats): NodeStats => {

@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { PeerStats, PeerWithCountry } from '../../types/hydrabase'
+import type { MessageEnvelope } from '../../types/hydrabase-schemas'
 
-import { ACCENT, BG, BORD, confColor, latColor, MUTED, SURF } from '../theme'
+import { ACCENT, BG, BG2, BG3, BORD, confColor, latColor, MUTED, SURF, TEXT } from '../theme'
 import { fmtBytes, fmtUptime, shortAddr, toEmoji } from '../utils'
 import { Identicon } from './Identicon'
 import { StatusDot } from './StatusDot'
 
 interface Props {
   // callback: (callback: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => void
+  messages: MessageEnvelope[]
   onClose: () => void
-  peer: null | PeerWithCountry
+  ownAddress: `0x${string}` | undefined
+  peer: PeerWithCountry
+  sendMessage: (to: `0x${string}`, payload: string) => void
   wsRef: React.RefObject<undefined | WebSocket>
 }
 
@@ -34,6 +38,7 @@ const ConfBar = ({ label, value }: { label: string; value: number; }) => <div st
 </div>
 
 const Header = ({ onClose, peer }: { onClose: () => void; peer: PeerWithCountry }) => {
+  const peerIdentity = peer.connection ?? peer.auth
   const [copied, setCopied] = useState(false)
   const copyAddr = () => {
     navigator.clipboard.writeText(peer.address).then(() => {
@@ -41,8 +46,13 @@ const Header = ({ onClose, peer }: { onClose: () => void; peer: PeerWithCountry 
       setTimeout(() => setCopied(false), 1500)
     })
   }
-  return <div style={{ background: BG, borderBottom: `1px solid ${BORD}`, padding: '16px 20px' }}>
-    <div style={{ alignItems: 'flex-start', display: 'flex', gap: 12, justifyContent: 'space-between', marginBottom: 12 }}>
+  return <div style={{ background: BG3, borderBottom: `1px solid ${BORD}`, padding: '16px 20px' }}>
+    <div style={{ marginBottom: 14 }}>
+      <button onClick={onClose} style={{ alignItems: 'center', background: 'none', border: 'none', color: MUTED, cursor: 'pointer', display: 'flex', fontSize: 12, gap: 6, padding: 0 }}>
+        <span style={{ fontSize: 16, lineHeight: 1 }}>←</span> Back
+      </button>
+    </div>
+    <div style={{ alignItems: 'flex-start', display: 'flex', gap: 12, marginBottom: 12 }}>
       <Identicon address={peer.address} size={40} style={{ borderRadius: 6, marginTop: 2 }} />
       <div style={{ minWidth: 0 }}>
         <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -54,9 +64,8 @@ const Header = ({ onClose, peer }: { onClose: () => void; peer: PeerWithCountry 
           {peer.address}
           <span style={{ color: MUTED, fontSize: 10, marginLeft: 8 }}>{copied ? '✓ copied' : '⎘'}</span>
         </div>
-        <div style={{ color: MUTED, fontSize: 11, marginTop: 3 }}>ws://{peer.connection?.hostname}</div>
+        {peerIdentity?.hostname && <div style={{ color: MUTED, fontSize: 11, marginTop: 3 }}>ws://{peerIdentity.hostname}</div>}
       </div>
-      <button onClick={onClose} style={{ background: 'none', border: `1px solid ${BORD}`, borderRadius: 6, color: MUTED, cursor: 'pointer', flexShrink: 0, fontSize: 16, height: 32, lineHeight: 1, width: 32 }}>✕</button>
     </div>
     <ConfBar label="Historic Confidence" value={peer.connection?.confidence ?? 0} />
   </div>
@@ -71,8 +80,8 @@ const Statistics = ({ peer }: { peer: PeerWithCountry }) => <div style={{ displa
   {([
     ['Latency', peer.connection?.latency ? `${(peer.connection?.latency ?? 0).toFixed(1)}ms` : '—', peer.connection?.latency ? latColor(peer.connection?.latency) : MUTED],
     ['Uptime', fmtUptime(peer.connection?.uptime ?? 0), '#a5d6ff'],
-    ['↑ UL', fmtBytes(peer.connection?.totalUL ?? 0), '#f0883e'],
-    ['↓ DL', fmtBytes(peer.connection?.totalDL ?? 0), ACCENT],
+    ['↑ UL', fmtBytes(peer.connection?.totalUL ?? 0), ACCENT],
+    ['↓ DL', fmtBytes(peer.connection?.totalDL ?? 0), '#f0883e'],
   ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: BG, borderRadius: 7, padding: '10px 12px' }}>
     <div style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', marginBottom: 5, textTransform: 'uppercase' }}>{l}</div>
     <div style={{ color: c, fontSize: 18, fontWeight: 700 }}>{v}</div>
@@ -93,29 +102,79 @@ const Reputation = ({ data, peer }: { data: PeerStats; peer: PeerWithCountry }) 
   </Section>
 }
 
-const Peer = ({ data, loading, onClose, peer, wsError }: { data: null | PeerStats; loading: boolean, onClose: () => void, peer: null | PeerWithCountry, wsError: null | string }) => <>
-  <div onClick={onClose} style={{ background: 'rgba(0,0,0,.55)', bottom: 0, left: 0, opacity: peer ? 1 : 0, pointerEvents: peer ? 'all' : 'none', position: 'fixed', right: 0, top: 0, transition: 'opacity .2s', zIndex: 50 }} />
-  {peer && <div style={{ background: SURF, borderLeft: `1px solid ${BORD}`, bottom: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto', position: 'fixed', right: 0, top: 0, transform: peer ? 'translateX(0)' : 'translateX(100%)', transition: 'transform .25s cubic-bezier(.4,0,.2,1)', width: 'min(460px, 100vw)', zIndex: 50 }}>
-    <Header onClose={onClose} peer={peer} />
-    <div style={{ flex: 1, padding: '16px 20px' }}>
-      <Statistics peer={peer} />
-      <Section label="Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{(peer.connection?.plugins.length ?? 0) > 0 ? peer.connection?.plugins.map((pl) => <Tag active key={pl} label={pl} />) : <span style={{ color: MUTED, fontSize: 11 }}>No plugins reported</span>}</div></Section>
-      {loading && <div style={{ color: MUTED, fontSize: 11, padding: '20px 0', textAlign: 'center' }}>Loading peer stats…</div>}
-      {wsError && !loading && <div style={{ color: '#f85149', fontSize: 11, padding: '20px 0', textAlign: 'center' }}>{wsError}</div>}
-      {data && !loading && <>
-        <Reputation data={data} peer={peer} />
-        {data.sharedPlugins.length > 0 && <Section label="Shared Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{data.sharedPlugins.map((pl) => <Tag active key={pl} label={pl} />)}</div></Section>}
-        {data.peerPlugins.length > 0 && <Section label="Peer Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{data.peerPlugins.map((pl) => <Tag active key={pl} label={pl} />)}</div></Section>}
-      </>}
-      <Section label="Identity">
-        <Row color={MUTED} label="Full Address" value={shortAddr(peer.address)} />
-        <Row label="Username" value={peer.connection?.username ?? 'Unknown'} />
-        {peer.connection?.bio && <Row label="Bio" value={peer.connection.bio} />}
-        <Row label="Country" value={`${toEmoji(peer.country)} ${peer.country}`} />
-      </Section>
+const fmtTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+const MessagePanel = ({ messages, onSend, ownAddress, peerAddress }: { messages: MessageEnvelope[]; onSend: (payload: string) => void; ownAddress: `0x${string}` | undefined; peerAddress: `0x${string}` }) => {
+  const [text, setText] = useState('')
+  const threadEndRef = useRef<HTMLDivElement>(null)
+  const thread = messages.filter(m => m.from === peerAddress || m.to === peerAddress)
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [thread.length])
+
+  const handleSend = () => {
+    if (!text.trim()) return
+    onSend(text.trim())
+    setText('')
+  }
+
+  return <Section label="Message">
+    <div style={{ background: SURF, border: `1px solid ${BORD}`, borderRadius: 6, display: 'flex', flexDirection: 'column', maxHeight: 280, minHeight: 80, overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
+        {thread.length === 0
+          ? <div style={{ color: MUTED, fontSize: 11, paddingTop: 4, textAlign: 'center' }}>No messages yet. Say hello!</div>
+          : thread.map((msg, i) => {
+              const isMine = msg.from === ownAddress
+              return <div key={i} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
+                <div style={{ background: isMine ? '#063a4a' : '#1e2c3a', border: `1px solid ${isMine ? '#0a6080' : '#2a3f52'}`, borderRadius: isMine ? '10px 10px 2px 10px' : '10px 10px 10px 2px', maxWidth: '80%', padding: '6px 10px' }}>
+                  <div style={{ fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>
+                  <div style={{ color: MUTED, fontSize: 9, marginTop: 3, textAlign: 'right' }}>{fmtTime(msg.timestamp)}</div>
+                </div>
+              </div>
+            })}
+        <div ref={threadEndRef} />
+      </div>
+      <div style={{ alignItems: 'flex-end', borderTop: `1px solid ${BORD}`, display: 'flex', gap: 6, padding: '8px 10px' }}>
+        <textarea
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          placeholder="Type a message… (Enter to send)"
+          rows={2}
+          style={{ background: BG, border: `1px solid ${BORD}`, borderRadius: 5, color: TEXT, flex: 1, fontFamily: 'inherit', fontSize: 11, padding: '6px 8px', resize: 'none' }}
+          value={text}
+        />
+        <button
+          disabled={!text.trim()}
+          onClick={handleSend}
+          style={{ background: text.trim() ? ACCENT : 'transparent', border: `1px solid ${text.trim() ? ACCENT : BORD}`, borderRadius: 5, color: text.trim() ? '#000' : MUTED, cursor: text.trim() ? 'pointer' : 'default', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '8px 14px' }}
+        >Send</button>
+      </div>
     </div>
-  </div>}
-</>
+  </Section>
+}
+
+const Peer = ({ data, loading, messages, onClose, onSend, ownAddress, peer, wsError }: { data: null | PeerStats; loading: boolean, messages: MessageEnvelope[]; onClose: () => void, onSend: (payload: string) => void; ownAddress: `0x${string}` | undefined; peer: PeerWithCountry, wsError: null | string }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 10, overflow: 'hidden' }}>
+  <Header onClose={onClose} peer={peer} />
+  <div style={{ padding: '16px 20px' }}>
+    <MessagePanel messages={messages} onSend={onSend} ownAddress={ownAddress} peerAddress={peer.address} />
+    <Statistics peer={peer} />
+    <Section label="Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{(peer.connection?.plugins.length ?? 0) > 0 ? peer.connection?.plugins.map((pl) => <Tag active key={pl} label={pl} />) : <span style={{ color: MUTED, fontSize: 11 }}>No plugins reported</span>}</div></Section>
+    {loading && <div style={{ color: MUTED, fontSize: 11, padding: '20px 0', textAlign: 'center' }}>Loading peer stats…</div>}
+    {wsError && !loading && <div style={{ color: '#f85149', fontSize: 11, padding: '20px 0', textAlign: 'center' }}>{wsError}</div>}
+    {data && !loading && <>
+      <Reputation data={data} peer={peer} />
+      {data.sharedPlugins.length > 0 && <Section label="Shared Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{data.sharedPlugins.map((pl) => <Tag active key={pl} label={pl} />)}</div></Section>}
+      {data.peerPlugins.length > 0 && <Section label="Peer Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{data.peerPlugins.map((pl) => <Tag active key={pl} label={pl} />)}</div></Section>}
+    </>}
+    <Section label="Identity">
+      <Row color={MUTED} label="Full Address" value={shortAddr(peer.address)} />
+      <Row label="Username" value={peer.connection?.username ?? peer.auth?.username ?? 'Unknown'} />
+      {(peer.connection?.bio ?? peer.auth?.bio) && <Row label="Bio" value={peer.connection?.bio ?? peer.auth?.bio ?? ''} />}
+      <Row label="Country" value={`${toEmoji(peer.country)} ${peer.country}`} />
+    </Section>
+  </div>
+</div>
 
 const requestPeerStats = (peer: PeerWithCountry, ws: WebSocket, pending: React.RefObject<Map<number, (d: PeerStats) => void>>, nonceRef: React.RefObject<number>, setData: (d: null | PeerStats) => void, setLoading: (v: boolean) => void, setWsError: (e: null | string) => void) => {
   setLoading(true)
@@ -139,7 +198,7 @@ const requestPeerStats = (peer: PeerWithCountry, ws: WebSocket, pending: React.R
   ws.send(JSON.stringify({ nonce, peer_stats: { address: peer.address } }))
 }
 
-export const PeerDetail = ({ onClose, peer, wsRef }: Props) => {
+export const PeerDetail = ({ messages, onClose, ownAddress, peer, sendMessage, wsRef }: Props) => {
   const [data, setData] = useState<null | PeerStats>(null)
   const [loading, setLoading] = useState(false)
   const [wsError, setWsError] = useState<null | string>(null)
@@ -155,9 +214,11 @@ export const PeerDetail = ({ onClose, peer, wsRef }: Props) => {
   // callback(onPeerStats)
 
   useEffect(() => {
-    if (!peer || !wsRef.current) return
+    if (!wsRef.current) return
     requestPeerStats(peer, wsRef.current, pending, nonceRef, setData, setLoading, setWsError)
-  }, [peer, peer?.address, wsRef])
+  }, [peer, peer.address, wsRef])
 
-  return <Peer data={data} loading={loading} onClose={onClose} peer={peer} wsError={wsError}/>
+  const handleSend = (payload: string) => sendMessage(peer.address, payload)
+
+  return <Peer data={data} loading={loading} messages={messages} onClose={onClose} onSend={handleSend} ownAddress={ownAddress} peer={peer} wsError={wsError}/>
 }

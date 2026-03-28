@@ -34,17 +34,17 @@ This project uses strict TypeScript (`strict: true`) and comprehensive ESLint ru
 
 **After editing `src/frontend/**` files**: Run a single build to verify the GUI rebuilds correctly:
 ```bash
-bun start
+bun build-webui
 ```
 
-Run this once after frontend changes complete and validation passes. This ensures the built GUI is fresh for testing.
+Run this once after frontend changes complete and validation passes. This ensures the built GUI artifacts are fresh for testing.
 
 ### Integration
 
 When you complete major changes:
 1. Run type check and eslint as documented above
 2. Fix any errors that appear
-3. If frontend files were changed, run `bun start` once
+3. If frontend files were changed, run `bun build-webui` once
 4. Report the results (pass/fail)
 5. Only mark the task complete after validation passes
 

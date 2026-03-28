@@ -1,6 +1,8 @@
 export interface ApiPeer {
   address: `0x${string}`
+  auth?: PeerAuthInfo
   connection: Connection | undefined
+  knownPlugins?: string[]
 }
 
 export interface Config {
@@ -75,6 +77,20 @@ export interface NodeStats {
   timestamp: string
 }
 
+export interface PartialNodeStats {
+  dhtNodes?: NodeStats['dhtNodes']
+  peers?: Partial<NodeStats['peers']>
+  self?: Partial<NodeStats['self']>
+  timestamp?: string
+}
+
+export interface PeerAuthInfo {
+  bio?: string
+  hostname: `${string}:${number}`
+  userAgent: string
+  username: string
+}
+
 export interface PeerStats {
   address: `0x${string}`
   peerPlugins: string[]
@@ -101,6 +117,18 @@ export interface Socket {
   readonly onClose: (handler: () => void) => void
   readonly onMessage: (handler: (message: string) => void) => void
   readonly send: (message: string) => void
+}
+
+export interface StatsPulsePayload {
+  intervalMs: number
+  timestamp: string
+  totalDL: number
+  totalUL: number
+}
+
+export interface StatsVotesPayload {
+  peers: Pick<NodeStats['peers'], 'plugins' | 'votes'>
+  self: Pick<NodeStats['self'], 'votes'>
 }
 
 export interface Votes {

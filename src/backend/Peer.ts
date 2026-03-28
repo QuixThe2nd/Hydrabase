@@ -1,4 +1,4 @@
-import type { NodeStats, PeerStats, Socket } from '../types/hydrabase'
+import type { ApiPeer, NodeStats, PeerStats, Socket, StatsPulsePayload, StatsVotesPayload } from '../types/hydrabase'
 import type { Album, Artist, MessageEnvelope, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas'
 import type { Repositories } from './db'
 import type PeerManager from './PeerManager'
@@ -207,6 +207,7 @@ export class Peer {
       if (type === 'ping') this.handlers[type](data as Ping, nonce, trace)
       else if (type === 'pong') this.handlers[type](data as Ping, nonce)
       else if (type === 'announce') this.handlers[type](data as Announce)
+      else if (type === 'peer_stats') this.handlers[type](data as { address: `0x${string}` }, nonce, trace)
       else if (type === 'request') await this.handlers[type](data as Request, nonce, trace)
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
@@ -230,7 +231,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))
@@ -240,5 +241,13 @@ export class Peer {
 
   public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
   public readonly sendStats = (stats: NodeStats, trace: Trace) => this.send({ nonce: this.nonce++, stats }, trace)
+  public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
+  public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)
+  public readonly sendStatsPeerConnected = (stats_peer_connected: ApiPeer, trace: Trace) => this.send({ nonce: this.nonce++, stats_peer_connected }, trace)
+  public readonly sendStatsPeers = (stats_peers: NodeStats['peers']['known'], trace: Trace) => this.send({ nonce: this.nonce++, stats_peers }, trace)
+  public readonly sendStatsPulse = (stats_pulse: StatsPulsePayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_pulse }, trace)
+  public readonly sendStatsSelf = (stats_self: NodeStats['self'], trace: Trace) => this.send({ nonce: this.nonce++, stats_self }, trace)
+  public readonly sendStatsTimestamp = (stats_timestamp: NodeStats['timestamp'], trace: Trace) => this.send({ nonce: this.nonce++, stats_timestamp }, trace)
+  public readonly sendStatsVotes = (stats_votes: StatsVotesPayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_votes }, trace)
   public readonly sendStoreMessage = (message: MessageEnvelope, trace: Trace) => this.send({ nonce: this.nonce++, store_message: message }, trace)
 }

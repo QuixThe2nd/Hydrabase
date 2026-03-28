@@ -29,6 +29,7 @@ export type SendMessage = z.infer<typeof SendMessageSchema>
 const MessageSchemas = {
   announce: AnnounceSchema,
   deliver_message: MessageEnvelopeSchema,
+  peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
   pong: PingSchema,
   request: RequestSchema,
@@ -61,6 +62,7 @@ export class HIP2_Messaging {
     : 'response' in result ? 'response'
     : 'store_message' in result ? 'store_message'
     : 'deliver_message' in result ? 'deliver_message'
+    : 'peer_stats' in result ? 'peer_stats'
     : 'announce' in result ? 'announce'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'

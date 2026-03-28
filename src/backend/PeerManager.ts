@@ -118,6 +118,7 @@ export default class PeerManager {
   private readonly heldMessages = new Map<`0x${string}`, MessageEnvelope[]>()
   private readonly heldMessageSweepTimer: NodeJS.Timeout
   private readonly knownPeers = new Set<`${string}:${number}`>()
+  private readonly peerConnectedHandlers: ((peer: Peer) => Promise<void> | void)[] = []
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
 
@@ -134,6 +135,10 @@ export default class PeerManager {
       this.pruneExpiredHeldMessages()
     }, PeerManager.HELD_MESSAGE_SWEEP_MS)
     this.heldMessageSweepTimer.unref?.()
+  }
+
+  private static normalizeHostname(hostname: `${string}:${number}`): `${string}:${number}` {
+    return authenticatedPeers.get(hostname)?.hostname ?? hostname
   }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
@@ -172,10 +177,12 @@ export default class PeerManager {
 
       this.peers.set(peer.address, peer)
       if (peer.address === '0x0') this.apiConnectedHandlers.forEach(handler => handler())
+      else this.notifyPeerConnected(peer)
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
       this.announce(peer, trace)
       this.knownPeers.add(peer.hostname)
       this.forwardHeldMessagesForPeer(peer)
+      this.syncHeldMessagesToPeer(peer)
 
       return true
     } finally {
@@ -210,7 +217,6 @@ export default class PeerManager {
     trace.step(`[HIP2] Received delivered message for ${envelope.to} from ${envelope.from} via ${peer.address}`)
     this.apiPeer?.sendDeliverMessage(envelope, trace)
   }
-
   public handleStoreMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
     if (this.isEnvelopeExpired(envelope)) {
       trace.step(`[HIP2] Dropping expired store message for ${envelope.to} from ${peer.address}`)
@@ -234,6 +240,7 @@ export default class PeerManager {
     this.heldMessages.set(envelope.to, existing)
     trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}; held=${existing.length}`)
   }
+
   // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
   public readonly has = (address: `0x${string}`) => this.peers.has(address)
 
@@ -252,6 +259,10 @@ export default class PeerManager {
 
   public onApiConnected(handler: () => void): void {
     this.apiConnectedHandlers.push(handler)
+  }
+
+  public onPeerConnected(handler: (peer: Peer) => Promise<void> | void): void {
+    this.peerConnectedHandlers.push(handler)
   }
 
   public async requestAll<T extends Request['type']>(formulas: Config['formulas'], request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>, trace: Trace): Promise<Map<bigint, SearchResult[T]>> {
@@ -291,10 +302,6 @@ export default class PeerManager {
     return sent
   }
 
-  private static normalizeHostname(hostname: `${string}:${number}`): `${string}:${number}` {
-    return authenticatedPeers.get(hostname)?.hostname ?? hostname
-  }
-
   private announce(newPeer: Peer, trace: Trace) {
     if (newPeer.address === '0x0') return
     trace.step('[PEERS] Announcing peers')
@@ -332,6 +339,14 @@ export default class PeerManager {
   // eslint-disable-next-line class-methods-use-this
   private isEnvelopeExpired(envelope: MessageEnvelope, now = Number(new Date())): boolean {
     return envelope.timestamp + envelope.ttl <= now
+  }
+
+  private notifyPeerConnected(peer: Peer): void {
+    this.peerConnectedHandlers.forEach(handler => {
+      Promise.resolve(handler(peer)).catch(error => {
+        warn('DEVWARN:', `[PEERS] onPeerConnected handler failed: ${error instanceof Error ? error.message : String(error)}`)
+      })
+    })
   }
 
   private pruneExpiredHeldMessages() {
@@ -380,7 +395,6 @@ export default class PeerManager {
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     if (normalizedHostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}` || normalizedHostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) return `[PEERS] Not connecting to self ${normalizedHostname}`
     if (this.knownPeers.has(normalizedHostname)) return `[PEERS] Already connected to peer ${normalizedHostname}`
-    if (this.connectingPeers.has(normalizedHostname)) return `[PEERS] Already connecting to peer ${normalizedHostname}`
     return true
   }
 
@@ -393,6 +407,33 @@ export default class PeerManager {
     if (identity.hostname !== normalizedHostname && this.knownPeers.has(identity.hostname)) return `[PEERS] Not connecting to self ${normalizedHostname}`
     if (this.peers.has(identity.address)) return `[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`
     return true
+  }
+
+  private syncHeldMessagesToPeer(peer: Peer) {
+    if (peer.address === '0x0') return
+
+    const trace = Trace.start(`[HIP2] Syncing held message memory to ${peer.username} ${peer.address}`)
+    const now = Number(new Date())
+    let sent = 0
+
+    for (const [recipient, messages] of this.heldMessages.entries()) {
+      if (recipient === peer.address) continue
+
+      const valid = messages.filter(message => !this.isEnvelopeExpired(message, now))
+      if (valid.length === 0) {
+        this.heldMessages.delete(recipient)
+        continue
+      }
+      if (valid.length !== messages.length) this.heldMessages.set(recipient, valid)
+
+      for (const message of valid) {
+        peer.sendStoreMessage(message, trace)
+        sent++
+      }
+    }
+
+    trace.step(`[HIP2] Synced ${sent} held message${sent === 1 ? '' : 's'} to ${peer.address}`)
+    trace.success()
   }
 
   private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<false | Socket> {
