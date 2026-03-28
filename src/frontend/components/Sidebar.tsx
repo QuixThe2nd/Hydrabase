@@ -3,17 +3,18 @@ import type { NodeStats, PeerWithCountry } from '../../types/hydrabase'
 import { ACCENT, BORD, MUTED, TEXT } from '../theme'
 import { fmtBytes, fmtClock, shortAddr } from '../utils'
 
-export type Tab = 'dht' | 'overview' | 'peers' | 'search' | 'votes'
+export type Tab = 'dht' | 'messages' | 'overview' | 'peers' | 'search' | 'votes'
 
 const NAV_ITEMS: { icon: string; label: string; tab: Tab; }[] = [
   { icon: '◈', label: 'Overview', tab: 'overview' },
   { icon: '⌕', label: 'Search', tab: 'search' },
   { icon: '⬡', label: 'Peers', tab: 'peers' },
+  { icon: '✉', label: 'Messages', tab: 'messages' },
   { icon: '◎', label: 'DHT', tab: 'dht' },
   { icon: '✦', label: 'Votes', tab: 'votes' },
 ]
 
-export const Sidebar = ({ peers, setTab, stats, tab, uptime }: { peers: PeerWithCountry[]; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: Tab; uptime: number }) => {
+export const Sidebar = ({ peers, setTab, stats, tab, unreadMessages, uptime }: { peers: PeerWithCountry[]; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: Tab; unreadMessages: number; uptime: number }) => {
   const totalRx = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
   const totalTx = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
   const connCount = peers.filter(p => p.connection !== undefined).length
@@ -27,6 +28,7 @@ export const Sidebar = ({ peers, setTab, stats, tab, uptime }: { peers: PeerWith
         <span style={{ fontSize: 12, opacity: .8, width: 14 }}>{icon}</span>
         {label}
         {t === 'peers' && connCount > 0 && <span style={{ background: ACCENT, borderRadius: 99, color: '#000', fontSize: 9, fontWeight: 700, marginLeft: 'auto', padding: '1px 5px' }}>{connCount}</span>}
+        {t === 'messages' && unreadMessages > 0 && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, marginLeft: 'auto', padding: '1px 5px' }}>{unreadMessages}</span>}
       </button>)}
     </nav>
     <div style={{ borderTop: `1px solid ${BORD}`, padding: '12px 16px' }}>

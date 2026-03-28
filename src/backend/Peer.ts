@@ -7,7 +7,7 @@ import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { UDP_Client } from './networking/udp/client'
 import WebSocketClient from './networking/ws/client'
-import { HIP2_Messaging, type Ping } from './protocol/HIP2_Messaging'
+import { HIP2_Messaging, type Ping, type SendMessage } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
@@ -119,6 +119,10 @@ export class Peer {
         this.send({ nonce, search_history: this.repos.searchHistory.getAll() }, trace)
       }
     },
+    send_message: (data: SendMessage, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.peers.createAndSendMessage(data.to, data.payload, trace)
+    },
     store_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleStoreMessage(envelope, this, trace)
   }
 
@@ -203,6 +207,7 @@ export class Peer {
       else if (type === 'request') await this.handlers[type](data as Request, nonce, trace)
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
+      else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
       else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
       else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)

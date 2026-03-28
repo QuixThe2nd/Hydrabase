@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { EventEntry, FilterState, NodeStats, PeerStats, PeerWithCountry, WsState } from '../types/hydrabase'
-import type { SearchHistoryEntry } from '../types/hydrabase-schemas'
+import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
 
 import { error, warn } from '../utils/log'
 import { ActivityFeed } from './components/ActivityFeed'
@@ -12,6 +12,7 @@ import { PeerDetail } from './components/PeerDetail'
 import { Sidebar, type Tab } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { DhtTab } from './tabs/dht'
+import { MessagesTab } from './tabs/Messages'
 import { OverviewTab } from './tabs/Overview'
 import { PeersTab } from './tabs/Peers'
 import { SearchTab } from './tabs/Search'
@@ -45,15 +46,19 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const pendingSearches = useRef(new Map<number, (r: unknown[]) => void>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
   const [tab, setTab] = useState<Tab>('overview')
+  // keep tabRef in sync so the ws message handler can read current tab without stale closure
   const [sel, setSel] = useState<null | PeerWithCountry>(null)
   const [filter, setFilter] = useState<FilterState>('all')
   const [stats, setStats] = useState<NodeStats | null>(null)
   const [dhtNodeCounts, setDhtNodeCounts] = useState<number[]>([])
   const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [messages, setMessages] = useState<MessageEnvelope[]>([])
+  const [unreadMessages, setUnreadMessages] = useState(0)
 
   const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => warn('DEVWARN:', '[WEBUI] onPeerStatsRef not initialised'))
   const wsRef = useRef<undefined | WebSocket>(undefined)
+  const tabRef = useRef(tab)
 
   const addLog = useCallback((lv: string, m: string) => {
     setEventLog((prev) => [...prev.slice(-199), { lv, m, t: new Date().toISOString().slice(11, 19) }])
@@ -100,6 +105,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           }
           if (data.search_history !== undefined) {
             setSearchHistory(data.search_history)
+          } else if (data.deliver_message) {
+            setMessages(prev => [...prev, data.deliver_message as MessageEnvelope])
+            if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
           } else if (data.stats && data.stats.self.address) applyStats(data.stats)
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
@@ -182,6 +190,13 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
   }, [])
 
+  const handleSendMessage = useCallback((to: `0x${string}`, payload: string) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    setMessages(prev => [...prev, { from: stats?.self.address ?? '0x0' as `0x${string}`, payload, sig: '', timestamp: Date.now(), to, ttl: 86_400_000 }])
+    ws.send(JSON.stringify({ nonce: nonceRef.current++, send_message: { payload, to } }))
+  }, [stats?.self.address])
+
   const handleClearHistory = useCallback(() => {
     const ws = wsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -190,6 +205,16 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     setShowHistory(false)
   }, [])
 
+  const handleSetTab = useCallback((next: React.SetStateAction<Tab>) => {
+    setTab((prev) => {
+      const resolved = typeof next === 'function' ? next(prev) : next
+      if (resolved === 'messages') setUnreadMessages(0)
+      return resolved
+    })
+  }, [])
+
+  useEffect(() => { tabRef.current = tab }, [tab])
+
   const tLabels = Array.from({ length: 60 }, (_, i) => `${60 - i}s`).toReversed()
   // const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
   //   onPeerStatsRef.current = onPeerStats
@@ -197,13 +222,14 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
   return <div style={{ background: BG, color: TEXT, display: 'flex', fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: '100vh' }}>
     <style>{GLOBAL_STYLES}</style>
-    <Sidebar peers={peers} setTab={setTab} stats={stats} tab={tab} uptime={uptime} />
+    <Sidebar peers={peers} setTab={handleSetTab} stats={stats} tab={tab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} peers={peers} sel={sel} setSel={setSel} stats={stats} />}
       {tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={setSel} sorted={filterPeers(peers, filter)} />}
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={setSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
+      {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
     </div>
     <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
     <ActivityFeed eventLog={eventLog} />

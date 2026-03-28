@@ -171,6 +171,15 @@ export default class PeerManager {
     return true
   }
 
+  public createAndSendMessage(to: `0x${string}`, payload: string, trace: Trace): void {
+    const from = this.account.address
+    const timestamp = Date.now()
+    const ttl = 86_400_000 // 24 hours
+    const sig = this.account.sign(`${from}:${to}:${timestamp}:${payload}`, trace).toString()
+    const envelope: MessageEnvelope = { from, payload, sig, timestamp, to, ttl }
+    this.sendStoreMessage(envelope, trace)
+  }
+
   public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
     const peer = this.peers.get(address)
     if (!peer) return 0
@@ -187,6 +196,7 @@ export default class PeerManager {
       return
     }
     trace.step(`[HIP2] Received delivered message for ${envelope.to} from ${envelope.from} via ${peer.address}`)
+    this.apiPeer?.sendDeliverMessage(envelope, trace)
   }
 
   public handleStoreMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
