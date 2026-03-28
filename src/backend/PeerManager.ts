@@ -109,6 +109,9 @@ export default class PeerManager {
   get connectedPeers() {
     return [...this.peers.values()]
   }
+  get messageHistory(): MessageEnvelope[] {
+    return this.localMessageHistory
+  }
   get peerAddresses() {
     return this.peers.addresses
   }
@@ -118,6 +121,7 @@ export default class PeerManager {
   private readonly heldMessages = new Map<`0x${string}`, MessageEnvelope[]>()
   private readonly heldMessageSweepTimer: NodeJS.Timeout
   private readonly knownPeers = new Set<`${string}:${number}`>()
+  private readonly localMessageHistory: MessageEnvelope[] = []
   private readonly peerConnectedHandlers: ((peer: Peer) => Promise<void> | void)[] = []
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
@@ -133,6 +137,7 @@ export default class PeerManager {
   ) {
     this.heldMessageSweepTimer = setInterval(() => {
       this.pruneExpiredHeldMessages()
+      this.pruneExpiredLocalHistory()
     }, PeerManager.HELD_MESSAGE_SWEEP_MS)
     this.heldMessageSweepTimer.unref?.()
   }
@@ -196,6 +201,7 @@ export default class PeerManager {
     const ttl = 86_400_000 // 24 hours
     const sig = this.account.sign(`${from}:${to}:${timestamp}:${payload}`, trace).toString()
     const envelope: MessageEnvelope = { from, payload, sig, timestamp, to, ttl }
+    this.recordLocalMessage(envelope)
     this.sendStoreMessage(envelope, trace)
   }
 
@@ -215,6 +221,7 @@ export default class PeerManager {
       return
     }
     trace.step(`[HIP2] Received delivered message for ${envelope.to} from ${envelope.from} via ${peer.address}`)
+    this.recordLocalMessage(envelope)
     this.apiPeer?.sendDeliverMessage(envelope, trace)
   }
   public handleStoreMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
@@ -356,6 +363,18 @@ export default class PeerManager {
       if (valid.length === 0) this.heldMessages.delete(recipient)
       else if (valid.length !== messages.length) this.heldMessages.set(recipient, valid)
     }
+  }
+
+  private pruneExpiredLocalHistory() {
+    const now = Number(new Date())
+    const before = this.localMessageHistory.length
+    this.localMessageHistory.splice(0, before, ...this.localMessageHistory.filter(m => !this.isEnvelopeExpired(m, now)))
+  }
+
+  private recordLocalMessage(envelope: MessageEnvelope) {
+    const envelopeHash = Bun.hash(JSON.stringify(envelope))
+    if (this.localMessageHistory.some(m => Bun.hash(JSON.stringify(m)) === envelopeHash)) return
+    this.localMessageHistory.push(envelope)
   }
 
   private scheduleReconnect(hostname: `${string}:${number}`) {

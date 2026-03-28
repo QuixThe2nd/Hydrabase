@@ -20,6 +20,8 @@ const SearchHistoryDataSchema = z.union([
   z.object({ remove: z.number() })
 ])
 
+const MessageHistoryRequestSchema = z.literal('get')
+
 export const SendMessageSchema = z.object({
   payload: z.string(),
   to: z.string().startsWith('0x').transform(v => v as `0x${string}`)
@@ -29,6 +31,7 @@ export type SendMessage = z.infer<typeof SendMessageSchema>
 const MessageSchemas = {
   announce: AnnounceSchema,
   deliver_message: MessageEnvelopeSchema,
+  message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
   pong: PingSchema,
@@ -68,6 +71,7 @@ export class HIP2_Messaging {
     : 'pong' in result ? 'pong'
     : 'search_history' in result ? 'search_history'
     : 'send_message' in result ? 'send_message'
+    : 'message_history' in result ? 'message_history'
     : null
 
   parseMessage = (message: string, trace: Trace): false | { data: Message, nonce: number; type: MessageType } => {

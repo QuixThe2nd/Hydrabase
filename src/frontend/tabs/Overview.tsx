@@ -46,6 +46,7 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
   const parsedPeerEndpoint = peerEndpoint ? parseEndpoint(peerEndpoint) : null
   const peerIp = parsedPeerEndpoint?.hostname ?? 'unknown'
   const peerPort = parsedPeerEndpoint?.port ?? 'N/A'
+  const peerUserAgent = peer.connection?.userAgent ?? peer.auth?.userAgent
   return <div className={isSelected ? 'peer-overview-row selected' : 'peer-overview-row'} data-addr={peer.address} onClick={onSelect} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.06)' : 'transparent', borderBottom: `1px solid ${BORD}`, cursor: 'pointer', display: 'grid', gap: 0, gridTemplateColumns: '36px 1fr 100px 60px 60px 60px 80px 50px', transition: 'background .1s' }}>
     <div style={{ padding: '8px 6px 8px 10px' }}>
       <Identicon address={peer.address} size={22} />
@@ -59,8 +60,9 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
       <div style={{ color: MUTED, fontSize: 9, overflow: 'hidden', paddingLeft: 13, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         <span title={`${peerIp}:${peerPort}`}>{shortAddr(peer.address)} · {peerIp}:{peerPort}</span>
       </div>
-      {(peer.connection?.userAgent ?? peer.auth?.userAgent) && <div style={{ color: DIM, fontSize: 9, overflow: 'hidden', paddingLeft: 13, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        <span title={peer.connection?.userAgent ?? peer.auth?.userAgent}>{peer.connection?.userAgent ?? peer.auth?.userAgent}</span>
+      {peerUserAgent && <div style={{ color: DIM, fontSize: 9, overflow: 'hidden', paddingLeft: 13, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: MUTED, fontWeight: 600, letterSpacing: '.04em', marginRight: 4, textTransform: 'uppercase' }}>Client</span>
+        <span title={peerUserAgent}>{peerUserAgent}</span>
       </div>}
     </div>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '8px 6px' }}>
@@ -71,8 +73,8 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection !== undefined && peer.connection?.latency ? (peer.connection?.latency < 100 ? GREEN : peer.connection?.latency < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.latency ? `${Math.round(peer.connection?.latency)}ms` : '—'}</span></div>
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection !== undefined && peer.connection?.lookupTime ? (peer.connection?.lookupTime < 100 ? GREEN : peer.connection?.lookupTime < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.lookupTime ? `${Math.round(peer.connection?.lookupTime)}ms` : '—'}</span></div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 6px' }}>
-      <span style={{ color: ORANGE, fontSize: 10, fontWeight: 600 }}>{formatBytes(peer.connection?.totalDL ?? 0)}</span>
       <span style={{ color: ACCENT, fontSize: 10, fontWeight: 600 }}>{formatBytes(peer.connection?.totalUL ?? 0)}</span>
+      <span style={{ color: ORANGE, fontSize: 10, fontWeight: 600 }}>{formatBytes(peer.connection?.totalDL ?? 0)}</span>
     </div>
     <div style={{ padding: '8px 8px 8px 4px' }}>
       <div style={{ alignItems: 'center', display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -93,7 +95,7 @@ const PeerList = ({ onViewMorePeers, peers, sel, setSel }: { onViewMorePeers: ()
     <div style={{ padding: '0 6px' }}>Activity</div>
     <div style={{ padding: '0 6px' }}>Latency</div>
     <div style={{ padding: '0 6px' }}>Lookup Time</div>
-    <div style={{ padding: '0 6px' }}>DL / UL</div>
+    <div style={{ padding: '0 6px' }}>UL / DL</div>
     <div style={{ padding: '0 8px 0 4px' }}>Conf</div>
   </div>
   {peers.length === 0 && <div style={{ color: MUTED, fontSize: 11, padding: '20px 14px', textAlign: 'center' }}>No peers yet…</div>}

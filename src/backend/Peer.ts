@@ -82,6 +82,10 @@ export class Peer {
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
     deliver_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleDeliverMessage(envelope, this, trace),
+    message_history: (_data: 'get', nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.send({ message_history: this.peers.messageHistory, nonce }, trace)
+    },
     peer_stats: (_data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       const peer_stats = this.repos.peer.collectPeerStats(this.address, this.ownPlugins)
@@ -211,6 +215,7 @@ export class Peer {
       else if (type === 'request') await this.handlers[type](data as Request, nonce, trace)
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
+      else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
       else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
       else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
       else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
@@ -231,7 +236,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))

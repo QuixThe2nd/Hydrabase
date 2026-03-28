@@ -274,6 +274,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         setWsState('open')
         addLog('INFO', 'WebSocket connected')
         ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
+        ws.send(JSON.stringify({ message_history: 'get', nonce: nonceRef.current++ }))
       }
       ws.onmessage = (e: MessageEvent) => {
         if (destroyed) return
@@ -285,6 +286,14 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           }
           if (data.search_history !== undefined) {
             setSearchHistory(data.search_history)
+          } else if (data.message_history !== undefined) {
+            const snapshot = data.message_history as MessageEnvelope[]
+            setMessages(prev => {
+              const seen = new Set(prev.map((m: MessageEnvelope) => `${m.from}|${m.to}|${m.timestamp}`))
+              const merged = [...snapshot.filter((m: MessageEnvelope) => !seen.has(`${m.from}|${m.to}|${m.timestamp}`)), ...prev]
+              merged.sort((a: MessageEnvelope, b: MessageEnvelope) => a.timestamp - b.timestamp)
+              return merged
+            })
           } else if (data.deliver_message) {
             setMessages(prev => [...prev, data.deliver_message as MessageEnvelope])
             if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
