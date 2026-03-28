@@ -1,6 +1,5 @@
 import type { Config } from '../types/hydrabase'
-import type { Request, Response, SearchResult } from '../types/hydrabase-schemas'
-import type { IPeerProvider } from '../types/interfaces'
+import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 
 import { Trace } from '../utils/trace'
 import { Account, getPrivateKey } from './crypto/Account'
@@ -19,12 +18,21 @@ import { buildWebUI } from './webui'
 const {SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET} = process.env
 
 export class Node {
-  private peers?: IPeerProvider
+  private peers?: PeerManager
   constructor(
     private readonly metadataManager: MetadataManager,
 
     private readonly formulas: Config['formulas']
   ) {}
+
+  public readonly relayStoreMessage = (envelope: MessageEnvelope): number => {
+    if (!this.peers) return 0
+    const trace = Trace.start(`[HIP2] Relaying message to ${envelope.to}`)
+    const sent = this.peers.sendStoreMessage(envelope, trace)
+    if (sent > 0) trace.success()
+    else trace.softFail('No eligible peers available to relay message')
+    return sent
+  }
 
   public readonly search = async <T extends Request['type']>(type: T, query: string, searchPeers = true): Promise<Response<T>> => {
     const results = await this.metadataManager.handleRequest({ query, type }, this.getPeerConfidence)
@@ -54,8 +62,7 @@ export class Node {
 
     return [...peerResults.values()] as Response<T>
   }
-
-  public readonly setPeerContext = (peers: IPeerProvider, getPeerConfidence: (address: `0x${string}`) => number) => {
+  public readonly setPeerContext = (peers: PeerManager, getPeerConfidence: (address: `0x${string}`) => number) => {
     this.peers = peers
     this.getPeerConfidence = getPeerConfidence
   }

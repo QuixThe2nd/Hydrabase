@@ -68,13 +68,24 @@ export const RequestSchema = z.object({
 })
 export const ResponseSchema = z.union([z.array(TrackSearchResultSchema), z.array(ArtistSearchResultSchema), z.array(AlbumSearchResultSchema)])
 
+export const MessageEnvelopeSchema = z.object({
+  from: z.string().startsWith('0x').transform(v => v as `0x${string}`),
+  payload: z.string(),
+  sig: z.string(),
+  timestamp: z.number().int().nonnegative(),
+  to: z.string().startsWith('0x').transform(v => v as `0x${string}`),
+  ttl: z.number().int().positive()
+})
+
 export type Album = z.infer<typeof AlbumSearchResultSchema>
 export type Artist = z.infer<typeof ArtistSearchResultSchema>
+export type MessageEnvelope = z.infer<typeof MessageEnvelopeSchema>
 export interface PendingRequest<T extends Request['type']> {
   resolve: (value: false | Response<T>) => void
   startedAt: number
   timeout: ReturnType<typeof setTimeout>
 }
+
 export type Props = SearchResultsProps & {
   onClearHistory: () => void
   onHistorySelect: (entry: SearchHistoryEntry) => void
@@ -89,9 +100,9 @@ export type Props = SearchResultsProps & {
   setShowHistory: (show: boolean) => void
   showHistory: boolean
 }
-
 export type Request = z.infer<typeof RequestSchema>
 export type Response<T extends keyof SearchResult = keyof SearchResult> = SearchResult[T][]
+
 export interface SearchHistoryEntry {
   id: number
   query: string
@@ -117,5 +128,4 @@ export interface SearchResultsProps {
   searchResults: null | unknown[]
   searchType: Request['type']
 }
-
 export type Track = z.infer<typeof TrackSearchResultSchema>

@@ -5,7 +5,7 @@ import z from 'zod'
 import type { Config } from '../types/hydrabase'
 import type { Peer } from './Peer'
 
-import { RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
+import { MessageEnvelopeSchema, RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
 import { Trace } from '../utils/trace'
 import { Account, generatePrivateKey } from './crypto/Account'
 import { Signature } from './crypto/Signature'
@@ -429,6 +429,8 @@ describe('HIP2 message parsing', () => {
     expect(identify({ request: { query: 'test', type: 'artists' } })).toBe('request')
     expect(identify({ response: [] })).toBe('response')
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')
+    expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('store_message')
+    expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('deliver_message')
     expect(identify({ ping: { time: 123 } })).toBe('ping')
     expect(identify({ pong: { time: 123 } })).toBe('pong')
     expect(identify({ unknown: true })).toBeNull()
@@ -463,6 +465,30 @@ describe('Schema validation', () => {
 
   it('PingSchema rejects non-number time', () => {
     const result = PingSchema.safeParse({ time: 'not-a-number' })
+    expect(result.success).toBe(false)
+  })
+
+  it('MessageEnvelopeSchema validates store-and-forward envelopes', () => {
+    const result = MessageEnvelopeSchema.safeParse({
+      from: account1.address,
+      payload: 'encrypted-payload',
+      sig: account1.sign('encrypted-payload', trace).toString(),
+      timestamp: Date.now(),
+      to: account2.address,
+      ttl: 60_000,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('MessageEnvelopeSchema rejects invalid TTL', () => {
+    const result = MessageEnvelopeSchema.safeParse({
+      from: account1.address,
+      payload: 'encrypted-payload',
+      sig: 'signature',
+      timestamp: Date.now(),
+      to: account2.address,
+      ttl: 0,
+    })
     expect(result.success).toBe(false)
   })
 

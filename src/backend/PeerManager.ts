@@ -1,8 +1,8 @@
+/* eslint-disable max-lines */
 import { Parser } from 'expr-eval'
 
 import type { Config, Socket } from '../types/hydrabase'
-import type { Request, Response, SearchResult } from '../types/hydrabase-schemas'
-import type { IPeerProvider } from '../types/interfaces'
+import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
 import type MetadataManager from './metadata'
@@ -96,7 +96,8 @@ const searchPeer = async <T extends Request['type']>(formulas: Config['formulas'
 const isPeer = (peer: Peer | undefined, address: `0x${string}`): peer is Peer => peer ? true : warn('DEVWARN:', `[PEERS] Peer not found ${address}`)
 const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => peer ? true : warn('WARN:', `[PEERS] Skipping peer ${address}: connection not open`)
 
-export default class PeerManager implements IPeerProvider {
+export default class PeerManager {
+  private static readonly HELD_MESSAGE_SWEEP_MS = 10_000
   private static readonly RECONNECT_BASE_DELAY_MS = 5_000
   private static readonly RECONNECT_MAX_ATTEMPTS = 10
   private static readonly RECONNECT_MAX_DELAY_MS = 300_000
@@ -112,6 +113,8 @@ export default class PeerManager implements IPeerProvider {
     return this.peers.addresses
   }
 
+  private readonly heldMessages = new Map<`0x${string}`, MessageEnvelope[]>()
+  private readonly heldMessageSweepTimer: NodeJS.Timeout
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
@@ -124,7 +127,12 @@ export default class PeerManager implements IPeerProvider {
     public readonly nodeConfig: Config['node'],
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
-  ) {}
+  ) {
+    this.heldMessageSweepTimer = setInterval(() => {
+      this.pruneExpiredHeldMessages()
+    }, PeerManager.HELD_MESSAGE_SWEEP_MS)
+    this.heldMessageSweepTimer.unref?.()
+  }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
@@ -158,15 +166,52 @@ export default class PeerManager implements IPeerProvider {
     cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
     this.announce(peer, trace)
     this.knownPeers.add(peer.hostname)
+    this.forwardHeldMessagesForPeer(peer)
 
     return true
   }
+
   public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
     const peer = this.peers.get(address)
     if (!peer) return 0
     return peer.historicConfidence // TODO: tit for tat
   }
 
+  public handleDeliverMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
+    if (this.isEnvelopeExpired(envelope)) {
+      trace.step(`[HIP2] Dropping expired delivered message for ${envelope.to} from ${peer.address}`)
+      return
+    }
+    if (envelope.to !== this.account.address) {
+      trace.step(`[HIP2] Ignoring delivered message not addressed to this node (${envelope.to})`)
+      return
+    }
+    trace.step(`[HIP2] Received delivered message for ${envelope.to} from ${envelope.from} via ${peer.address}`)
+  }
+
+  public handleStoreMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
+    if (this.isEnvelopeExpired(envelope)) {
+      trace.step(`[HIP2] Dropping expired store message for ${envelope.to} from ${peer.address}`)
+      return
+    }
+
+    const recipientPeer = this.peers.get(envelope.to)
+    if (recipientPeer) {
+      trace.step(`[HIP2] Recipient ${envelope.to} online; forwarding message from intermediary ${peer.address}`)
+      recipientPeer.sendDeliverMessage(envelope, trace)
+      return
+    }
+
+    const existing = this.heldMessages.get(envelope.to) ?? []
+    const envelopeHash = Bun.hash(JSON.stringify(envelope))
+    if (existing.some(item => Bun.hash(JSON.stringify(item)) === envelopeHash)) {
+      trace.step(`[HIP2] Duplicate store message ignored for recipient ${envelope.to}`)
+      return
+    }
+    existing.push(envelope)
+    this.heldMessages.set(envelope.to, existing)
+    trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}; held=${existing.length}`)
+  }
   // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
   public readonly has = (address: `0x${string}`) => this.peers.has(address)
 
@@ -196,6 +241,30 @@ export default class PeerManager implements IPeerProvider {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
+  public sendStoreMessage(envelope: MessageEnvelope, trace: Trace): number {
+    if (this.isEnvelopeExpired(envelope)) {
+      trace.step(`[HIP2] Not sending expired store message for ${envelope.to}`)
+      return 0
+    }
+
+    const recipientPeer = this.peers.get(envelope.to)
+    if (recipientPeer) {
+      recipientPeer.sendDeliverMessage(envelope, trace)
+      trace.step(`[HIP2] Recipient ${envelope.to} online; sent DELIVER_MESSAGE directly`)
+      return 1
+    }
+
+    let sent = 0
+    for (const peer of this.connectedPeers) {
+      if (peer.address === '0x0') continue
+      if (peer.address === envelope.to) continue
+      peer.sendStoreMessage(envelope, trace)
+      sent++
+    }
+    trace.step(`[HIP2] Sent STORE_MESSAGE for ${envelope.to} to ${sent} online peer${sent === 1 ? '' : 's'}`)
+    return sent
+  }
+
   private announce(newPeer: Peer, trace: Trace) {
     if (newPeer.address === '0x0') return
     trace.step('[PEERS] Announcing peers')
@@ -207,6 +276,40 @@ export default class PeerManager implements IPeerProvider {
       }
       newPeer.announcePeer(existingPeer, trace)
       existingPeer.announcePeer(newPeer, trace)
+    }
+  }
+
+  private forwardHeldMessagesForPeer(peer: Peer) {
+    const held = this.heldMessages.get(peer.address)
+    if (!held || held.length === 0) return
+
+    const trace = Trace.start(`[HIP2] Forwarding ${held.length} held message${held.length === 1 ? '' : 's'} to ${peer.username} ${peer.address}`)
+    const now = Number(new Date())
+    const valid = held.filter(message => !this.isEnvelopeExpired(message, now))
+
+    if (valid.length === 0) {
+      this.heldMessages.delete(peer.address)
+      trace.step('[HIP2] All held messages had expired before delivery')
+      trace.success()
+      return
+    }
+
+    for (const message of valid) peer.sendDeliverMessage(message, trace)
+    this.heldMessages.delete(peer.address)
+    trace.success()
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  private isEnvelopeExpired(envelope: MessageEnvelope, now = Number(new Date())): boolean {
+    return envelope.timestamp + envelope.ttl <= now
+  }
+
+  private pruneExpiredHeldMessages() {
+    const now = Number(new Date())
+    for (const [recipient, messages] of this.heldMessages.entries()) {
+      const valid = messages.filter(message => !this.isEnvelopeExpired(message, now))
+      if (valid.length === 0) this.heldMessages.delete(recipient)
+      else if (valid.length !== messages.length) this.heldMessages.set(recipient, valid)
     }
   }
 
