@@ -59,6 +59,9 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
       <div style={{ color: MUTED, fontSize: 9, overflow: 'hidden', paddingLeft: 13, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         <span title={`${peerIp}:${peerPort}`}>{shortAddr(peer.address)} · {peerIp}:{peerPort}</span>
       </div>
+      {(peer.connection?.userAgent ?? peer.auth?.userAgent) && <div style={{ color: DIM, fontSize: 9, overflow: 'hidden', paddingLeft: 13, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span title={peer.connection?.userAgent ?? peer.auth?.userAgent}>{peer.connection?.userAgent ?? peer.auth?.userAgent}</span>
+      </div>}
     </div>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '8px 6px' }}>
       {peer.connection?.plugins.slice(0, 2).map(pl => <span key={pl} style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: ACCENT, fontSize: 8, letterSpacing: '.03em', padding: '1px 5px' }}>{pl}</span>)}
