@@ -73,9 +73,9 @@ export const startServer = (
     },
     hostname: node.listenAddress,
     port: node.port,
-    routes: { '/auth': () => {
+    routes: { '/auth': async () => {
       const trace = Trace.start('Peer requested server auth')
-      const res = new Response(JSON.stringify(proveServer(account, node, trace))) 
+      const res = new Response(JSON.stringify(await proveServer(account, node, trace))) 
       trace.success()
       return res
     } },

@@ -149,8 +149,8 @@ describe('HIP1', () => {
     expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)).not.toBeArray()
   })
 
-  it('produces server proof that is is verified by client', () => {
-    expect(verifyServer(proveServer(account1, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
+  it('produces server proof that is is verified by client', async () => {
+    expect(verifyServer(await proveServer(account1, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
   })
 
   it('peer 1 connected to peer 2 over TCP', async () => {
@@ -328,15 +328,15 @@ describe('HIP1 handshake edge cases', () => {
     expect(code).toBe(500)
   })
 
-  it('verifyServer rejects mismatched hostname', () => {
-    const proof = proveServer(account1, config1, trace)
+  it('verifyServer rejects mismatched hostname', async () => {
+    const proof = await proveServer(account1, config1, trace)
     const result = verifyServer(proof, 'wrong.host:9999', trace)
     expect(result).toBeArray()
     expect((result as [number, string])[1]).toContain('Expected')
   })
 
-  it('verifyServer crashes on tampered signature (no input validation)', () => {
-    const proof = proveServer(account1, config1, trace)
+  it('verifyServer crashes on tampered signature (no input validation)', async () => {
+    const proof = await proveServer(account1, config1, trace)
     proof.signature = 'tampered'
     expect(() => verifyServer(proof, `${config1.hostname}:${config1.port}`, trace)).toThrow()
   })
@@ -677,7 +677,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(cached).toEqual(testIdentity)
   })
 
-  it('validates server proof correctly for UDP', () => {
+  it('validates server proof correctly for UDP', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       hostname: 'test.example.com',
@@ -688,7 +688,7 @@ describe('UDP Authentication Edge Cases', () => {
       username: 'TestNode'
     }
     
-    const serverProof = proveServer(account, nodeConfig, trace)
+    const serverProof = await proveServer(account, nodeConfig, trace)
     
     expect(serverProof.address).toBe(account.address)
     expect(serverProof.hostname).toBe(`${nodeConfig.hostname}:${nodeConfig.port}`)
@@ -698,7 +698,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(isValid).toBe(true)
   })
 
-  it('detects hostname mismatch in server verification', () => {
+  it('detects hostname mismatch in server verification', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       hostname: 'test.example.com',
@@ -709,7 +709,7 @@ describe('UDP Authentication Edge Cases', () => {
       username: 'TestNode'
     }
     
-    const serverProof = proveServer(account, nodeConfig, trace)
+    const serverProof = await proveServer(account, nodeConfig, trace)
     
 
     const isValid = verifyServer(serverProof, 'wrong.example.com:4545', trace)

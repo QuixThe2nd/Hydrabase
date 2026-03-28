@@ -150,7 +150,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
     resolve([408, '[HIP5] h0 discovery request timed out'])
   }, 30_000)
 
-  server.awaitResponse(t, (msg) => {
+  server.awaitResponse(t, msg => {
     if (msg.y !== 'h0r') return false
     clearTimeout(timer)
     trace.step(`h0r received, server identifies as ${msg.h0r.hostname}`)
@@ -193,7 +193,7 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     h0LastSeen.set(peerHostname, now)
     const traceId = Math.random().toString(16).slice(2, 6)
     const trace = new Trace(traceId, `[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
-    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(account, node, trace), t: query.t, tid: traceId, y: 'h0r' }
+    const payload: HandshakeDiscoveryResponse = { h0r: await proveServer(account, node, trace), t: query.t, tid: traceId, y: 'h0r' }
     socket.send(bencode.encode(payload), peer.port, peer.host)
     pendingH0Traces.set(traceId, trace)
     return true

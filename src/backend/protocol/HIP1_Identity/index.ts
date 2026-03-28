@@ -9,6 +9,7 @@ import type { UDP_Server } from '../../networking/udp/server'
 import VERSION from '../../../../VERSION' with { type: 'text' }
 import { BRANCH } from '../../branch'
 import { Signature } from '../../crypto/Signature'
+import { getIp, isPeerLocalHostname } from '../../networking/utils'
 import { upgradeHostname } from '../HIP4_HostnameUpgrades'
 
 export const IdentitySchema = z.object({
@@ -25,12 +26,13 @@ export const AuthSchema = IdentitySchema.extend({
 export type Auth = z.infer<typeof AuthSchema>
 export type Identity = z.infer<typeof IdentitySchema>
 
-export const proveServer = (account: Account, node: Config['node'], trace: Trace): Auth => {
+export const proveServer = async (account: Account, node: Config['node'], trace: Trace): Promise<Auth> => {
   trace.step('[HIP1] Proving server')
+  const hostname = node.hostname === node.ip && !isPeerLocalHostname(node.hostname) ? await getIp() : node.hostname
   return {
     address: account.address,
-    hostname: `${node.hostname}:${node.port}`,
-    signature: account.sign(`I am ${node.hostname}:${node.port}`, trace).toString(),
+    hostname: `${hostname}:${node.port}`,
+    signature: account.sign(`I am ${hostname}:${node.port}`, trace).toString(),
     userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
     username: node.username
   }

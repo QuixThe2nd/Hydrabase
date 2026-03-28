@@ -41,11 +41,9 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
     authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-        warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       } else {
         trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
         trace.success()
-        debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
       }
     })
     return false
@@ -56,11 +54,9 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
     authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-        warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       } else {
         trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
         trace.success()
-        debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
       }
     })
     return false
