@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 360
 
     env:
-      USERNAME: "Github-Dev-Node"
+      USERNAME: "GithubDevNode"
       BRANCH: "dev"
       REQUIRE_DHT_READY: "false"
       HYDRABASE_TELEMETRY: "true"

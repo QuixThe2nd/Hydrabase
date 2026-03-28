@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { EventEntry, FilterState, NodeStats, PeerStats, PeerWithCountry, WsState } from '../types/hydrabase'
+import type { EventEntry, FilterState, NodeStats, PartialNodeStats, PeerStats, PeerWithCountry, WsState } from '../types/hydrabase'
 import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
 
 import { error, warn } from '../utils/log'
@@ -18,7 +18,7 @@ import { PeersTab } from './tabs/Peers'
 import { SearchTab } from './tabs/Search'
 import { VotesTab } from './tabs/votes'
 import { BG, GLOBAL_STYLES, TEXT } from './theme'
-import { getCountry } from './utils'
+import { getCountry, mergePartialStats } from './utils'
 
 export interface BwPoint { dl: number; ul: number }
 
@@ -55,6 +55,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [showHistory, setShowHistory] = useState(false)
   const [messages, setMessages] = useState<MessageEnvelope[]>([])
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const statsRef = useRef<NodeStats | null>(null)
 
   const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => warn('DEVWARN:', '[WEBUI] onPeerStatsRef not initialised'))
   const wsRef = useRef<undefined | WebSocket>(undefined)
@@ -64,21 +65,39 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     setEventLog((prev) => [...prev.slice(-199), { lv, m, t: new Date().toISOString().slice(11, 19) }])
   }, [])
 
-  const applyStats = useCallback((stats: NodeStats) => {
-    setStats(stats)
-    setDhtNodeCounts(prev => ([...prev, stats.dhtNodes.length]))
-    setPeers(stats.peers.known.map(peer => ({ ...peer, activity: [], country: 'AU' })))
-    Promise.all(stats.dhtNodes.map(async (host) => ({ country: await getCountry((host.split(':') as [string, string])[0]), host })))
+  const applyStats = useCallback((fullOrPartialStats: NodeStats | PartialNodeStats) => {
+    // Check if it's a full or partial stats object
+    const isFull = 'dhtNodes' in fullOrPartialStats && fullOrPartialStats.dhtNodes !== undefined &&
+                   'peers' in fullOrPartialStats && 'self' in fullOrPartialStats
+
+    let newStats: NodeStats
+    if (isFull) {
+      newStats = fullOrPartialStats as NodeStats
+    } else {
+      // It's a partial update - merge with existing
+      newStats = mergePartialStats(statsRef.current, fullOrPartialStats as PartialNodeStats)
+    }
+
+    statsRef.current = newStats
+    setStats(newStats)
+    setDhtNodeCounts(prev => ([...prev, newStats.dhtNodes.length]))
+    Promise.all(newStats.peers.known.map(async (peer) => {
+      const ip = peer.connection?.hostname.split(':')[0] ?? 'unknown'
+      const country = ip === 'unknown' ? 'N/A' : await getCountry(ip)
+      return { ...peer, activity: [], country }
+    }))
+      .then((peers) => setPeers(peers))
+    Promise.all(newStats.dhtNodes.map(async (host) => ({ country: await getCountry((host.split(':') as [string, string])[0]), host })))
       .then((nodes) => setDhtNodes(nodes))
 
-    const totalDL = (stats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
-    const totalUL = (stats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
+    const totalDL = (newStats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
+    const totalUL = (newStats.peers.known ?? []).reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
     const dlDelta = Math.max(0, totalDL - prevTotalsRef.current.DL)
     const ulDelta = Math.max(0, totalUL - prevTotalsRef.current.UL)
     prevTotalsRef.current = { DL: totalDL, UL: totalUL }
     setBwHistory(prev => [...prev.slice(1 - BW_HISTORY_LEN), { dl: dlDelta, ul: ulDelta }])
 
-    addLog('INFO', 'Received stats')
+    addLog('INFO', isFull ? 'Received full stats' : 'Received stats update')
   }, [addLog])
 
   useEffect(() => {
@@ -108,7 +127,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           } else if (data.deliver_message) {
             setMessages(prev => [...prev, data.deliver_message as MessageEnvelope])
             if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
-          } else if (data.stats && data.stats.self.address) applyStats(data.stats)
+          } else if (data.stats) applyStats(data.stats)
+          else if (data.partial_stats) applyStats(data.partial_stats)
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
@@ -224,7 +244,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     <style>{GLOBAL_STYLES}</style>
     <Sidebar peers={peers} setTab={handleSetTab} stats={stats} tab={tab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
-      {tab === 'overview' && <OverviewTab bwHistory={bwHistory} peers={peers} sel={sel} setSel={setSel} stats={stats} />}
+      {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={setSel} stats={stats} uptime={uptime} />}
       {tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={setSel} sorted={filterPeers(peers, filter)} />}
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
@@ -233,7 +253,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     </div>
     <PeerDetail onClose={() => setSel(null)} peer={sel} wsRef={wsRef} />
     <ActivityFeed eventLog={eventLog} />
-    <StatusBar dhtNodes={dhtNodes} peers={peers} uptime={uptime} wsState={wsState} />
+    <StatusBar dhtNodes={dhtNodes} peers={peers} setTab={handleSetTab} uptime={uptime} wsState={wsState} />
   </div>
 }
 

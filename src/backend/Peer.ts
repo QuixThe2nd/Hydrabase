@@ -20,6 +20,9 @@ export class Peer {
   get address() {
     return this.socket.identity.address
   }
+  get bio() {
+    return this.socket.identity.bio
+  }
   get historicConfidence(): number {
     return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
   }

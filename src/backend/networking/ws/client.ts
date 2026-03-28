@@ -100,11 +100,14 @@ export default class WebSocketClient implements Socket {
   private async _fetchRejectionReason() {
     try {
       const httpUrl = `http://${this.identity.hostname}`
+      const authHeaders = Object.fromEntries(
+        Object.entries(proveClient(this.account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
+      ) as Record<string, string>
       const response = await fetch(httpUrl, { 
-        headers: { 
+        headers: {
           'Connection': 'upgrade',
           'Upgrade': 'websocket',
-          ...proveClient(this.account, this.node, this.identity.hostname, this.trace, true)
+          ...authHeaders
         },
         method: 'GET'
       }).catch(() => null)

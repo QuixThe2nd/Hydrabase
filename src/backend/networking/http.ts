@@ -53,7 +53,7 @@ export const startServer = (
   apiKey: string,
   preferTransport: 'TCP' | 'UDP' = node.preferTransport,
   udpServer?: UDP_Server,
-  identity: Identity = { address: account.address, hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
+  identity: Identity = { address: account.address, bio: node.bio?.slice(0, 80), hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
 ) => logContext('HTTP', () => {
   const server = Bun.serve({
     fetch: async (req, server) => {

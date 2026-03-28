@@ -109,6 +109,8 @@ const Peer = ({ data, loading, onClose, peer, wsError }: { data: null | PeerStat
       </>}
       <Section label="Identity">
         <Row color={MUTED} label="Full Address" value={shortAddr(peer.address)} />
+        <Row label="Username" value={peer.connection?.username ?? 'Unknown'} />
+        {peer.connection?.bio && <Row label="Bio" value={peer.connection.bio} />}
         <Row label="Country" value={`${toEmoji(peer.country)} ${peer.country}`} />
       </Section>
     </div>

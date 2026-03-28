@@ -1,6 +1,8 @@
 import ipLookup from '@iplookup/country'
 import { countryCodeEmoji } from 'country-code-emoji'
 
+import type { NodeStats, PartialNodeStats } from '../types/hydrabase'
+
 export const fmt = (n: null | number | undefined, d = 1): string => n === null ? '—' : Number(n).toFixed(d)
 
 export const fmtBytes = (bytes: number): string => bytes > 1024 * 1024
@@ -32,4 +34,40 @@ export const getCountry = async (ip: string): Promise<string> => {
   const { country } = result
   ipMap.set(ip, country)
   return country
+}
+
+export const mergePartialStats = (current: NodeStats | null, partial: PartialNodeStats): NodeStats => {
+  if (!current) {
+    return {
+      dhtNodes: partial.dhtNodes ?? [],
+      peers: {
+        known: partial.peers?.known ?? [],
+        plugins: partial.peers?.plugins ?? [],
+        votes: partial.peers?.votes ?? { albums: 0, artists: 0, tracks: 0 },
+      },
+      self: {
+        address: partial.self?.address ?? ('0x0' as const),
+        hostname: partial.self?.hostname ?? '',
+        plugins: partial.self?.plugins ?? [],
+        votes: partial.self?.votes ?? { albums: 0, artists: 0, tracks: 0 },
+      },
+      timestamp: partial.timestamp ?? new Date().toISOString(),
+    }
+  }
+
+  return {
+    dhtNodes: partial.dhtNodes ?? current.dhtNodes,
+    peers: {
+      known: partial.peers?.known ?? current.peers.known,
+      plugins: partial.peers?.plugins ?? current.peers.plugins,
+      votes: partial.peers?.votes ?? current.peers.votes,
+    },
+    self: {
+      address: partial.self?.address ?? current.self.address,
+      hostname: partial.self?.hostname ?? current.self.hostname,
+      plugins: partial.self?.plugins ?? current.self.plugins,
+      votes: partial.self?.votes ?? current.self.votes,
+    },
+    timestamp: partial.timestamp ?? current.timestamp,
+  }
 }

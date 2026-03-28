@@ -17,10 +17,11 @@ import { type Auth, type Identity, proveClient, proveServer, verifyServer } from
 
 export const AuthSchema = z.object({
   address: BinaryString,
+  bio: BinaryString.refine(b => b.length <= 80, { message: 'Bio must be 80 characters or less' }).optional(),
   hostname: BinaryString,
   signature: BinaryString,
   userAgent: BinaryString,
-  username:  BinaryString,
+  username: BinaryString.refine(u => /^[a-zA-Z0-9]{3,20}$/u.test(u), { message: 'Username must be 3-20 alphanumeric characters, no spaces' }),
 }).strict()
 
 export const H0_HandshakeDiscoverySchema = BaseMessage.extend({

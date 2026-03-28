@@ -31,6 +31,7 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
           </div>
           {p.connection?.username && <div style={{ color: MUTED, fontSize: 10, marginLeft: 12 }}>{p.address}</div>}
           <div style={{ color: MUTED, fontSize: 11, marginLeft: 12 }}>ws://{p.connection?.hostname}</div>
+          {p.connection?.bio && <div style={{ color: '#a5d6ff', fontSize: 11, marginLeft: 12, marginTop: 4 }}>{p.connection.bio}</div>}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {p.connection?.plugins.map((pl) => <span key={pl} style={{ background: '#21262d', border: `1px solid ${BORD}`, borderRadius: 4, color: ACCENT, fontSize: 10, padding: '2px 8px' }}>{pl}</span>)}

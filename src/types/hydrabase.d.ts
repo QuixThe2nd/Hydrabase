@@ -17,6 +17,7 @@ export interface Config {
     pluginConfidence: string
   }
   node: {
+    bio?: string
     hostname: string
     ip: string
     listenAddress: string
@@ -36,6 +37,7 @@ export interface Config {
 
 export interface Connection {
   address: `0x${string}`
+  bio?: string
   confidence: number
   hostname: `${string}:${number}`
   latency: number

@@ -20,6 +20,7 @@ export class StatsReporter {
     private readonly repos: Repositories,
     private readonly intervalMs = 10_000
   ) {
+    this.peers.onApiConnected(() => this.report())
     this.report()
     setInterval(() => this.report(), this.intervalMs)
     this.logStatus()
@@ -53,6 +54,7 @@ export class StatsReporter {
         if (!peer) return peer
         return {
           address: peer.address,
+          bio: peer.bio,
           confidence: peer.historicConfidence,
           hostname: peer.hostname,
           latency: peer.latency,

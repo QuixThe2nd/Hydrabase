@@ -497,6 +497,7 @@ describe('Schema validation', () => {
     const sig = account.sign('I am 127.0.0.1:4545', trace)
     const result = AuthSchema.safeParse({
       address: account.address,
+      bio: 'A test node bio',
       hostname: '127.0.0.1:4545',
       signature: sig.toString(),
       userAgent: 'Hydrabase/test',
@@ -512,6 +513,20 @@ describe('Schema validation', () => {
       signature: 'sig',
       userAgent: 'test',
       username: 'test'
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('AuthSchema rejects bio over 80 characters', () => {
+    const account = new Account(generatePrivateKey())
+    const sig = account.sign('I am 127.0.0.1:4545', trace)
+    const result = AuthSchema.safeParse({
+      address: account.address,
+      bio: 'x'.repeat(81),
+      hostname: '127.0.0.1:4545',
+      signature: sig.toString(),
+      userAgent: 'Hydrabase/test',
+      username: 'TestNode'
     })
     expect(result.success).toBe(false)
   })
