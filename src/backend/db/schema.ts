@@ -64,5 +64,11 @@ export const searchHistory = sqliteTable('search_history', {
   type: text('type').notNull(),
 })
 
-export const schema = { album, artist, searchHistory, soul, track } as const
+export const peerStats = sqliteTable('peer_stats', {
+  address: text('address').primaryKey().notNull(),
+  lifetime_dl: integer('lifetime_dl').notNull().default(0),
+  lifetime_ul: integer('lifetime_ul').notNull().default(0),
+})
+
+export const schema = { album, artist, peerStats, searchHistory, soul, track } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts

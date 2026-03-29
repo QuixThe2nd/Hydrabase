@@ -320,6 +320,10 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             if (!currentNodes.includes(connectedNode)) applyStats({ dhtNodes: [...currentNodes, connectedNode] })
             addLog('INFO', `DHT node connected: ${connectedNode}`)
           }
+          else if (data.refresh_ui !== undefined) {
+            addLog('INFO', 'Received refresh_ui from backend. Reloading UI...')
+            window.location.reload()
+          }
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
@@ -432,6 +436,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         window.history.pushState(null, '', '/peers')
         return prev
       }
+      if (resolved !== 'peers' && sel !== null) setSel(null)
       if (resolved === 'messages') setUnreadMessages(0)
       if (resolved !== prev) updateUrlForState(resolved, searchType)
       return resolved
@@ -484,9 +489,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const sidebarTab = tab === 'peers' && sel !== null ? null : tab
 
   const tLabels = Array.from({ length: 60 }, (_, i) => `${60 - i}s`).toReversed()
-  // const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
-  //   onPeerStatsRef.current = onPeerStats
-  // }
+  const onPeerStatsCallback = (onPeerStats: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => {
+    onPeerStatsRef.current = onPeerStats
+  }
 
   return <div style={{ background: BG, color: TEXT, display: 'flex', fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: '100vh' }}>
     <style>{GLOBAL_STYLES}</style>
@@ -494,7 +499,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
       {tab === 'peers' && sel
-        ? <PeerDetail messages={messages} onClose={handlePeerClose} ownAddress={stats?.self.address} peer={sel} sendMessage={handleSendMessage} wsRef={wsRef} />
+        ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} ownAddress={stats?.self.address} peer={sel} sendMessage={handleSendMessage} wsRef={wsRef} />
         : tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}

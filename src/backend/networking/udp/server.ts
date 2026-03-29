@@ -20,6 +20,14 @@ export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
 
 type ResponseAwaiter = (msg: RPCMessage, rinfo: { address: string, port: number }) => boolean
+
+const isVersionOnlyProbe = (payload: unknown): payload is { v: Uint8Array } => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const obj = payload as Record<string, unknown>
+  const keys = Object.keys(obj)
+  return keys.length === 1 && keys[0] === 'v' && obj['v'] instanceof Uint8Array
+}
+
 export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
   ...msg,
   y: decoder.decode(msg.y),
@@ -132,6 +140,7 @@ export class UDP_Server {
       }
       const result = rpcMessageSchema.safeParse(decoded)
       if (!result.data) {
+        if (isVersionOnlyProbe(decoded)) return
         warn('DEVWARN:', '[SERVER] Unexpected payload', { err: JSON.parse(result.error.message), payload: decoded })
         return
       }

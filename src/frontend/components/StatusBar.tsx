@@ -22,6 +22,7 @@ const Item = ({ label, value, valueColor }: { label: string; value: string; valu
 
 export const StatusBar = ({ dhtNodes, peers, uptime, wsState }: Props) => {
   const connCount = peers.filter(p => p.connection !== undefined).length
+  const peerCount = `${connCount}/${peers.length}`
   const totalUL = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
   const totalDL = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
   const hasGithubDevNode = peers.some((p) => p.connection?.username?.toLowerCase() === 'githubdevnode')
@@ -31,7 +32,7 @@ export const StatusBar = ({ dhtNodes, peers, uptime, wsState }: Props) => {
   return <div style={{ alignItems: 'center', background: '#010409', borderTop: `1px solid ${BORD}`, bottom: 0, display: 'flex', gap: 12, height: 28, left: 0, padding: '0 14px', position: 'fixed', right: 0, zIndex: 48 }}>
     <SocketStatus state={wsState} />
     <Sep />
-    <Item label="peers" value={String(connCount)} valueColor="#3fb950" />
+    <Item label="peers" value={peerCount} valueColor="#3fb950" />
     <Sep />
     <Item label="" value={connectability} valueColor={connectabilityColor} />
     <Sep />

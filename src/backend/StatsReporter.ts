@@ -50,6 +50,8 @@ export class StatsReporter {
       confidence: peer.historicConfidence,
       hostname: peer.hostname,
       latency: peer.latency,
+      lifetimeDL: peer.lifetimeDL,
+      lifetimeUL: peer.lifetimeUL,
       lookupTime: peer.lookupTime,
       plugins: peer.plugins,
       totalDL: peer.totalDL,

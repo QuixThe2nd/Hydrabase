@@ -93,7 +93,7 @@ const SidebarPeers = ({ onSelectPeer, peers, selectedPeerAddress, setTab, tab }:
   </button>
 
   <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 4, minHeight: 0, overflowY: 'auto', padding: '0 4px' }}>
-    {peers.length === 0 && <div style={{ color: MUTED, fontSize: 11, padding: '4px 8px' }}>No peers yet</div>}
+    {peers.length === 0 && <div style={{ color: MUTED, fontSize: 11, padding: '4px 8px' }}>No peers online</div>}
     {peers.map((peer) => <SidebarPeerButton isActive={selectedPeerAddress === peer.address} key={peer.address} onSelectPeer={onSelectPeer} peer={peer} />)}
   </div>
 </div>
@@ -101,7 +101,7 @@ const SidebarPeers = ({ onSelectPeer, peers, selectedPeerAddress, setTab, tab }:
 export const Sidebar = ({ onSelectPeer, peers, selectedPeerAddress, setTab, stats, tab, unreadMessages, uptime }: { onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: ActiveTab; unreadMessages: number; uptime: number }) => {
   const totalRx = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
   const totalTx = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
-  const sidebarPeers = sortSidebarPeers(peers).slice(0, 8)
+  const sidebarPeers = sortSidebarPeers(peers.filter(peer => peer.connection !== undefined)).slice(0, 8)
 
   return <div style={{ background: '#010409', borderRight: `1px solid ${BORD}`, display: 'flex', flexDirection: 'column', flexShrink: 0, height: 'calc(100vh - 48px)', position: 'sticky', top: 0, width: 196 }}>
     <div style={{ borderBottom: `1px solid ${BORD}`, padding: '16px 16px 14px' }}>

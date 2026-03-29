@@ -43,6 +43,8 @@ export interface Connection {
   confidence: number
   hostname: `${string}:${number}`
   latency: number
+  lifetimeDL: number
+  lifetimeUL: number
   lookupTime: number
   plugins: string[]
   totalDL: number

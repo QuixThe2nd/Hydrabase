@@ -12,53 +12,93 @@ interface Props {
   setSel: (p: null | PeerWithCountry) => void;
   sorted: PeerWithCountry[];
 }
-export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-  <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-    <span style={{ color: MUTED, fontSize: 11 }}>Filter:</span>
-    {(['all', 'connected', 'disconnected'] as const).map((s) => <button className={`fbtn${filter === s ? ' on' : ''}`} key={s} onClick={() => setFilter(s)}>{s}</button>)}
-    <span style={{ color: MUTED, fontSize: 11, marginLeft: 'auto' }}>{sorted.length} peers</span>
+
+const FILTERS = ['all', 'connected', 'disconnected'] as const
+
+const MetaChips = ({ peer }: { peer: PeerWithCountry }) => {
+  const meta = [
+    (peer.connection?.username || peer.auth?.username) ? peer.address : undefined,
+    (peer.connection?.hostname || peer.auth?.hostname)
+      ? `ws://${peer.connection?.hostname || peer.auth?.hostname}`
+      : undefined,
+    peer.connection?.userAgent || peer.auth?.userAgent,
+  ].filter(Boolean)
+
+  return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginLeft: 12, marginTop: 6 }}>
+    {meta.map((item) => <span key={item} style={{ background: '#161b22', border: `1px solid ${BORD}`, borderRadius: 999, color: MUTED, fontSize: 10, lineHeight: 1.3, padding: '2px 8px' }}>{item}</span>)}
   </div>
-  {sorted.map(p => <div key={p.address} onClick={() => setSel(sel?.address === p.address ? null : p)} style={{ ...panel(), borderColor: sel?.address === p.address ? '#58a6ff55' : BORD, cursor: 'pointer', transition: 'border-color .15s' }}>
+}
+
+const PluginChips = ({ peer }: { peer: PeerWithCountry }) => <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+  {peer.connection?.plugins.map((plugin) => <span key={plugin} style={{ background: '#21262d', border: `1px solid ${BORD}`, borderRadius: 4, color: ACCENT, fontSize: 10, padding: '2px 8px' }}>{plugin}</span>)}
+  {peer.connection?.plugins.length === 0 && <span style={{ color: MUTED, fontSize: 10 }}>no plugins</span>}
+</div>
+
+const PeerStats = ({ peer }: { peer: PeerWithCountry }) => {
+  const uptime = peer.connection?.uptime ?? 0
+  const uptimeColor = uptime / 1_000 > 90 ? '#3fb950' : uptime / 1_000 > 60 ? '#d29922' : '#f85149'
+  const stats = [
+    ['Latency', peer.connection?.latency ? `${Math.round(peer.connection?.latency * 10) / 10}ms` : '—', peer.connection?.latency ? latColor(peer.connection?.latency) : MUTED],
+    ['↑ UL (Session)', fmtBytes(peer.connection?.totalUL ?? 0), ACCENT],
+    ['↓ DL (Session)', fmtBytes(peer.connection?.totalDL ?? 0), '#f0883e'],
+    ['↑ UL (Lifetime)', fmtBytes(peer.connection?.lifetimeUL ?? 0), ACCENT],
+    ['↓ DL (Lifetime)', fmtBytes(peer.connection?.lifetimeDL ?? 0), '#f0883e'],
+    ['Uptime', fmtUptime(uptime), uptimeColor],
+  ] as [string, string, string][]
+
+  return <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(100px,1fr))', marginBottom: 10 }}>
+    {stats.map(([label, value, color]) => <div key={label} style={{ background: '#0d1117', borderRadius: 6, padding: '8px 10px' }}>
+      <div style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color, fontSize: 15, fontWeight: 700 }}>{value}</div>
+    </div>)}
+  </div>
+}
+
+const ConfidenceBar = ({ peer }: { peer: PeerWithCountry }) => {
+  const confidence = peer.connection?.confidence ?? 0
+  const confidenceColor = confColor(confidence)
+
+  return <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+      <span style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase' }}>Historic Confidence</span>
+      <span style={{ color: confidenceColor, fontSize: 10, fontWeight: 700 }}>{(confidence * 100).toFixed(1)}%</span>
+    </div>
+    <div style={{ background: '#21262d', borderRadius: 2, height: 4, overflow: 'hidden' }}>
+      <div style={{ background: confidenceColor, borderRadius: 2, height: '100%', transition: 'width .3s', width: `${confidence * 100}%` }} />
+    </div>
+  </div>
+}
+
+const PeerCard = ({ peer, selected, setSel }: { peer: PeerWithCountry; selected: boolean; setSel: (p: null | PeerWithCountry) => void }) => {
+  const displayName = peer.connection?.username || peer.auth?.username || peer.address
+  const bio = peer.connection?.bio || peer.auth?.bio
+
+  return <div onClick={() => setSel(selected ? null : peer)} style={{ ...panel(), borderColor: selected ? '#58a6ff55' : BORD, cursor: 'pointer', transition: 'border-color .15s' }}>
     <div style={{ padding: '12px 16px' }}>
       <div style={{ alignItems: 'flex-start', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
           <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 3 }}>
-            <Identicon address={p.address} size={24} />
-            <StatusDot status={p.connection !== undefined} />
-            <span style={{ fontSize: 12, fontWeight: 700 }}>{p.connection?.username || p.auth?.username || p.address}</span>
-            <span style={{ fontSize: 12 }}>{toEmoji(p.country)}</span>
+            <Identicon address={peer.address} size={24} />
+            <StatusDot status={peer.connection !== undefined} />
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{displayName}</span>
+            <span style={{ fontSize: 12 }}>{toEmoji(peer.country)}</span>
           </div>
-          {(p.connection?.username || p.auth?.username) && <div style={{ color: MUTED, fontSize: 10, marginLeft: 12 }}>{p.address}</div>}
-          {(p.connection?.hostname || p.auth?.hostname) && <div style={{ color: MUTED, fontSize: 11, marginLeft: 12 }}>ws://{p.connection?.hostname || p.auth?.hostname}</div>}
-          {(p.connection?.userAgent || p.auth?.userAgent) && <div style={{ color: MUTED, fontSize: 11, marginLeft: 12, marginTop: 2 }}>{p.connection?.userAgent || p.auth?.userAgent}</div>}
-          {(p.connection?.bio || p.auth?.bio) && <div style={{ color: '#a5d6ff', fontSize: 11, marginLeft: 12, marginTop: 4 }}>{p.connection?.bio || p.auth?.bio}</div>}
+          <MetaChips peer={peer} />
+          {bio && <div style={{ color: '#a5d6ff', fontSize: 11, marginLeft: 12, marginTop: 4 }}>{bio}</div>}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {p.connection?.plugins.map((pl) => <span key={pl} style={{ background: '#21262d', border: `1px solid ${BORD}`, borderRadius: 4, color: ACCENT, fontSize: 10, padding: '2px 8px' }}>{pl}</span>)}
-          {p.connection?.plugins.length === 0 && <span style={{ color: MUTED, fontSize: 10 }}>no plugins</span>}
-        </div>
+        <PluginChips peer={peer} />
       </div>
-
-      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(100px,1fr))', marginBottom: 10 }}>
-        {([
-          ['Latency', p.connection?.latency ? `${Math.round(p.connection?.latency * 10) / 10}ms` : '—', p.connection?.latency ? latColor(p.connection?.latency) : MUTED],
-          ['↑ UL',   fmtBytes(p.connection?.totalUL ?? 0), ACCENT],
-          ['↓ DL',   fmtBytes(p.connection?.totalDL ?? 0), '#f0883e'],
-          ['Uptime',  fmtUptime(p.connection?.uptime ?? 0), (p.connection?.uptime ?? 0) / 1_000 > 90 ? '#3fb950' : (p.connection?.uptime ?? 0) / 1_000 > 60 ? '#d29922' : '#f85149'],
-        ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: '#0d1117', borderRadius: 6, padding: '8px 10px' }}>
-          <div style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', marginBottom: 4, textTransform: 'uppercase' }}>{l}</div>
-          <div style={{ color: c, fontSize: 15, fontWeight: 700 }}>{v}</div>
-        </div>)}
-      </div>
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase' }}>Historic Confidence</span>
-          <span style={{ color: confColor(p.connection?.confidence ?? 0), fontSize: 10, fontWeight: 700 }}>{((p.connection?.confidence ?? 0) * 100).toFixed(1)}%</span>
-        </div>
-        <div style={{ background: '#21262d', borderRadius: 2, height: 4, overflow: 'hidden' }}>
-          <div style={{ background: confColor(p.connection?.confidence ?? 0), borderRadius: 2, height: '100%', transition: 'width .3s', width: `${(p.connection?.confidence ?? 0) * 100}%` }} />
-        </div>
-      </div>
+      <PeerStats peer={peer} />
+      <ConfidenceBar peer={peer} />
     </div>
-  </div>)}
+  </div>
+}
+
+export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+  <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+    <span style={{ color: MUTED, fontSize: 11 }}>Filter:</span>
+    {FILTERS.map((status) => <button className={`fbtn${filter === status ? ' on' : ''}`} key={status} onClick={() => setFilter(status)}>{status}</button>)}
+    <span style={{ color: MUTED, fontSize: 11, marginLeft: 'auto' }}>{sorted.length} peers</span>
+  </div>
+  {sorted.map((peer) => <PeerCard key={peer.address} peer={peer} selected={sel?.address === peer.address} setSel={setSel} />)}
 </div>

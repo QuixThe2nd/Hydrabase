@@ -285,6 +285,16 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
+  public sendRefreshUi(trace: Trace): number {
+    let sent = 0
+    for (const peer of this.connectedPeers) {
+      if (peer.address !== '0x0') continue
+      peer.sendRefreshUi(trace)
+      sent++
+    }
+    return sent
+  }
+
   public sendStoreMessage(envelope: MessageEnvelope, trace: Trace): number {
     if (this.isEnvelopeExpired(envelope)) {
       trace.step(`[HIP2] Not sending expired store message for ${envelope.to}`)

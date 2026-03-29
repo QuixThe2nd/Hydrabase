@@ -32,6 +32,12 @@ export class Peer {
   get latency(): number {
     return this.totalLatency/this.totalPongs
   }
+  get lifetimeDL(): number {
+    return this.repos.peer.getLifetimeStats(this.address).lifetimeDL
+  }
+  get lifetimeUL(): number {
+    return this.repos.peer.getLifetimeStats(this.address).lifetimeUL
+  }
   get lookupTime(): number {
     return this.requestManager.averageLatencyMs
   }
@@ -74,11 +80,10 @@ export class Peer {
   private _ul = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
-  private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
-  private readonly requestManager: RequestManager
-  private totalLatency = 0
-  private totalPongs = 0
-
+    private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
+    private readonly requestManager: RequestManager
+    private totalLatency = 0
+    private totalPongs = 0
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
     deliver_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleDeliverMessage(envelope, this, trace),
@@ -86,9 +91,9 @@ export class Peer {
       if (this.address !== '0x0') return
       this.send({ message_history: this.peers.messageHistory, nonce }, trace)
     },
-    peer_stats: (_data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
+    peer_stats: (data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
-      const peer_stats = this.repos.peer.collectPeerStats(this.address, this.ownPlugins)
+      const peer_stats = this.repos.peer.collectPeerStats(data.address, this.ownPlugins)
       this.send({ nonce, peer_stats }, trace)
     },
     ping: (_: Ping, nonce: number, trace: Trace) => {
@@ -132,6 +137,8 @@ export class Peer {
     },
     store_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleStoreMessage(envelope, this, trace)
   }
+  private lastSavedDL = 0
+  private lastSavedUL = 0
 
   private startTime?: number
 
@@ -147,6 +154,18 @@ export class Peer {
     this.HIP2_Conn_Message = new HIP2_Messaging(this, this.requestManager)
     this.HIP4_Conn_Announce = new HIP3_AnnouncePeers(this, this.peers)
     this.startTime = Number(new Date())
+    
+    // Periodically save session stats to lifetime stats (every 30 seconds)
+    const statsSaveInterval = setInterval(() => {
+      const ulDelta = this._ul - this.lastSavedUL
+      const dlDelta = this._dl - this.lastSavedDL
+      if (ulDelta > 0 || dlDelta > 0) {
+        this.repos.peer.accumulateSessionStats(this.address, ulDelta, dlDelta)
+        this.lastSavedUL = this._ul
+        this.lastSavedDL = this._dl
+      }
+    }, 30_000)
+    
     const id = setInterval(() => {
       if (this.pendingPings.size > 0) {
         const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
@@ -170,6 +189,13 @@ export class Peer {
     this.socket.onClose(() => {
       this.requestManager.close()
       if (id) clearInterval(id)
+      if (statsSaveInterval) clearInterval(statsSaveInterval)
+      // Final save on disconnect
+      const ulDelta = this._ul - this.lastSavedUL
+      const dlDelta = this._dl - this.lastSavedDL
+      if (ulDelta > 0 || dlDelta > 0) {
+        this.repos.peer.accumulateSessionStats(this.address, ulDelta, dlDelta)
+      }
       for (const ping of this.pendingPings.values()) {
         clearTimeout(ping.timeout)
         ping.trace.softFail('Peer disconnected before pong')
@@ -236,7 +262,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))
@@ -245,6 +271,7 @@ export class Peer {
   }
 
   public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
+  public readonly sendRefreshUi = (trace: Trace) => this.send({ nonce: this.nonce++, refresh_ui: 'backend_changed' }, trace)
   public readonly sendStats = (stats: NodeStats, trace: Trace) => this.send({ nonce: this.nonce++, stats }, trace)
   public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
   public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)

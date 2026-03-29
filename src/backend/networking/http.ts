@@ -66,7 +66,7 @@ export const startServer = (
         return new Response('Failed to get client IP', { status: 500 })
       }
       const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager, preferTransport, udpServer, account, identity)
-      if (response === undefined) return response
+      if (response === undefined) return new Response(null)
       const {res} = response
       trace.fail(res[1])
       return new Response(res[1], { status: res[0] })

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { PeerStats, PeerWithCountry } from '../../types/hydrabase'
 import type { MessageEnvelope } from '../../types/hydrabase-schemas'
@@ -9,7 +9,7 @@ import { Identicon } from './Identicon'
 import { StatusDot } from './StatusDot'
 
 interface Props {
-  // callback: (callback: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => void
+  callback: (handler: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => void
   messages: MessageEnvelope[]
   onClose: () => void
   ownAddress: `0x${string}` | undefined
@@ -199,20 +199,23 @@ const requestPeerStats = (peer: PeerWithCountry, ws: WebSocket, pending: React.R
   ws.send(JSON.stringify({ nonce, peer_stats: { address: peer.address } }))
 }
 
-export const PeerDetail = ({ messages, onClose, ownAddress, peer, sendMessage, wsRef }: Props) => {
+export const PeerDetail = ({ callback, messages, onClose, ownAddress, peer, sendMessage, wsRef }: Props) => {
   const [data, setData] = useState<null | PeerStats>(null)
   const [loading, setLoading] = useState(false)
   const [wsError, setWsError] = useState<null | string>(null)
   const nonceRef = useRef(Math.floor(nonceRoot * 90_000) + 10_000)
   const pending = useRef(new Map<number, (d: PeerStats) => void>())
 
-  // const onPeerStats = ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats }) => {
-  //   const resolve = pending.current.get(nonce)
-  //   if (!resolve) return
-  //   pending.current.delete(nonce)
-  //   resolve(peer_stats as PeerStats)
-  // }
-  // callback(onPeerStats)
+  const onPeerStats = useCallback(({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats }) => {
+    const resolve = pending.current.get(nonce)
+    if (!resolve) return
+    pending.current.delete(nonce)
+    resolve(peer_stats)
+  }, [])
+
+  useEffect(() => {
+    callback(onPeerStats)
+  }, [callback, onPeerStats])
 
   useEffect(() => {
     if (!wsRef.current) return
