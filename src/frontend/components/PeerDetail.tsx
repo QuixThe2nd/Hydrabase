@@ -170,6 +170,7 @@ const Peer = ({ data, loading, messages, onClose, onSend, ownAddress, peer, wsEr
     <Section label="Identity">
       <Row color={MUTED} label="Full Address" value={shortAddr(peer.address)} />
       <Row label="Username" value={peer.connection?.username ?? peer.auth?.username ?? 'Unknown'} />
+      <Row label="User Agent" value={peer.connection?.userAgent ?? peer.auth?.userAgent ?? 'Unknown'} />
       {(peer.connection?.bio ?? peer.auth?.bio) && <Row label="Bio" value={peer.connection?.bio ?? peer.auth?.bio ?? ''} />}
       <Row label="Country" value={`${toEmoji(peer.country)} ${peer.country}`} />
     </Section>

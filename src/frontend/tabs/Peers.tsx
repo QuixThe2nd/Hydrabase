@@ -18,7 +18,6 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
     {(['all', 'connected', 'disconnected'] as const).map((s) => <button className={`fbtn${filter === s ? ' on' : ''}`} key={s} onClick={() => setFilter(s)}>{s}</button>)}
     <span style={{ color: MUTED, fontSize: 11, marginLeft: 'auto' }}>{sorted.length} peers</span>
   </div>
-
   {sorted.map(p => <div key={p.address} onClick={() => setSel(sel?.address === p.address ? null : p)} style={{ ...panel(), borderColor: sel?.address === p.address ? '#58a6ff55' : BORD, cursor: 'pointer', transition: 'border-color .15s' }}>
     <div style={{ padding: '12px 16px' }}>
       <div style={{ alignItems: 'flex-start', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', marginBottom: 12 }}>
@@ -31,6 +30,7 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
           </div>
           {(p.connection?.username || p.auth?.username) && <div style={{ color: MUTED, fontSize: 10, marginLeft: 12 }}>{p.address}</div>}
           {(p.connection?.hostname || p.auth?.hostname) && <div style={{ color: MUTED, fontSize: 11, marginLeft: 12 }}>ws://{p.connection?.hostname || p.auth?.hostname}</div>}
+          {(p.connection?.userAgent || p.auth?.userAgent) && <div style={{ color: MUTED, fontSize: 11, marginLeft: 12, marginTop: 2 }}>{p.connection?.userAgent || p.auth?.userAgent}</div>}
           {(p.connection?.bio || p.auth?.bio) && <div style={{ color: '#a5d6ff', fontSize: 11, marginLeft: 12, marginTop: 4 }}>{p.connection?.bio || p.auth?.bio}</div>}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
