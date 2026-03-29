@@ -76,7 +76,9 @@ try {
 export const logContext = <T>(context: string, callback: () => T): T => {
   if (!asyncLocalStorage) return callback()
   const store = asyncLocalStorage.getStore()
-  const contexts = store ? [...store.contexts, context] : [context]
+  const previousContexts = store?.contexts ?? []
+  // Re-entrant async callbacks can repeatedly add the same context label.
+  const contexts = previousContexts.at(-1) === context ? previousContexts : [...previousContexts, context]
   const nextStore: HydrabaseContextStore = store?.telemetry ? { contexts, telemetry: store.telemetry } : { contexts }
   return asyncLocalStorage.run(nextStore, callback)
 }

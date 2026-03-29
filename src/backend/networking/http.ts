@@ -53,7 +53,7 @@ export const startServer = (
   apiKey: string,
   preferTransport: 'TCP' | 'UDP' = node.preferTransport,
   udpServer?: UDP_Server,
-  identity: Identity = { address: account.address, hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
+  identity: Identity = { address: account.address, bio: node.bio?.slice(0, 80), hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
 ) => logContext('HTTP', () => {
   const server = Bun.serve({
     fetch: async (req, server) => {
@@ -73,9 +73,9 @@ export const startServer = (
     },
     hostname: node.listenAddress,
     port: node.port,
-    routes: { '/auth': () => {
+    routes: { '/auth': async () => {
       const trace = Trace.start('Peer requested server auth')
-      const res = new Response(JSON.stringify(proveServer(account, node, trace))) 
+      const res = new Response(JSON.stringify(await proveServer(account, node, trace))) 
       trace.success()
       return res
     } },

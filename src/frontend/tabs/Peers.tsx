@@ -18,7 +18,6 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
     {(['all', 'connected', 'disconnected'] as const).map((s) => <button className={`fbtn${filter === s ? ' on' : ''}`} key={s} onClick={() => setFilter(s)}>{s}</button>)}
     <span style={{ color: MUTED, fontSize: 11, marginLeft: 'auto' }}>{sorted.length} peers</span>
   </div>
-
   {sorted.map(p => <div key={p.address} onClick={() => setSel(sel?.address === p.address ? null : p)} style={{ ...panel(), borderColor: sel?.address === p.address ? '#58a6ff55' : BORD, cursor: 'pointer', transition: 'border-color .15s' }}>
     <div style={{ padding: '12px 16px' }}>
       <div style={{ alignItems: 'flex-start', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', marginBottom: 12 }}>
@@ -26,11 +25,13 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
           <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 3 }}>
             <Identicon address={p.address} size={24} />
             <StatusDot status={p.connection !== undefined} />
-            <span style={{ fontSize: 12, fontWeight: 700 }}>{p.connection?.username || p.address}</span>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{p.connection?.username || p.auth?.username || p.address}</span>
             <span style={{ fontSize: 12 }}>{toEmoji(p.country)}</span>
           </div>
-          {p.connection?.username && <div style={{ color: MUTED, fontSize: 10, marginLeft: 12 }}>{p.address}</div>}
-          <div style={{ color: MUTED, fontSize: 11, marginLeft: 12 }}>ws://{p.connection?.hostname}</div>
+          {(p.connection?.username || p.auth?.username) && <div style={{ color: MUTED, fontSize: 10, marginLeft: 12 }}>{p.address}</div>}
+          {(p.connection?.hostname || p.auth?.hostname) && <div style={{ color: MUTED, fontSize: 11, marginLeft: 12 }}>ws://{p.connection?.hostname || p.auth?.hostname}</div>}
+          {(p.connection?.userAgent || p.auth?.userAgent) && <div style={{ color: MUTED, fontSize: 11, marginLeft: 12, marginTop: 2 }}>{p.connection?.userAgent || p.auth?.userAgent}</div>}
+          {(p.connection?.bio || p.auth?.bio) && <div style={{ color: '#a5d6ff', fontSize: 11, marginLeft: 12, marginTop: 4 }}>{p.connection?.bio || p.auth?.bio}</div>}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {p.connection?.plugins.map((pl) => <span key={pl} style={{ background: '#21262d', border: `1px solid ${BORD}`, borderRadius: 4, color: ACCENT, fontSize: 10, padding: '2px 8px' }}>{pl}</span>)}
@@ -41,8 +42,8 @@ export const PeersTab = ({ filter, sel, setFilter, setSel, sorted }: Props) => <
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(100px,1fr))', marginBottom: 10 }}>
         {([
           ['Latency', p.connection?.latency ? `${Math.round(p.connection?.latency * 10) / 10}ms` : '—', p.connection?.latency ? latColor(p.connection?.latency) : MUTED],
-          ['↑ UL',   fmtBytes(p.connection?.totalUL ?? 0), '#f0883e'],
-          ['↓ DL',   fmtBytes(p.connection?.totalDL ?? 0), ACCENT],
+          ['↑ UL',   fmtBytes(p.connection?.totalUL ?? 0), ACCENT],
+          ['↓ DL',   fmtBytes(p.connection?.totalDL ?? 0), '#f0883e'],
           ['Uptime',  fmtUptime(p.connection?.uptime ?? 0), (p.connection?.uptime ?? 0) / 1_000 > 90 ? '#3fb950' : (p.connection?.uptime ?? 0) / 1_000 > 60 ? '#d29922' : '#f85149'],
         ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: '#0d1117', borderRadius: 6, padding: '8px 10px' }}>
           <div style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', marginBottom: 4, textTransform: 'uppercase' }}>{l}</div>

@@ -12,6 +12,7 @@ import { decoder, ErrorMessage, type Query, QueryMessage, ResponseMessageSchema 
 import { type Identity } from '../../protocol/HIP1_Identity'
 import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
 import { FSMap } from '../../storage/FSMap'
+import { isAllowedPeer } from '../utils'
 import { UDP_Client } from './client'
 
 if (!fs.existsSync('./data/')) fs.mkdirSync('./data')
@@ -36,30 +37,26 @@ export type RPCMessage = z.infer<typeof rpcMessageSchema>
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, account: Account, node: Config['node']): boolean => {
   const identity = authenticatedPeers.get(peerHostname)
   if (!identity) {
-    const trace = Trace.start(`[SERVER] Received message from unauthenticated peer ${peerHostname}`)
+    const trace = Trace.start(`[SERVER] Received message ${query.q} from unauthenticated peer ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-        warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       } else {
         trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
         trace.success()
-        debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
       }
     })
     return false
   }
   const connection = udpConnections.get(peerHostname) ?? udpConnections.get(identity.hostname as `${string}:${number}`)
   if (!connection) {
-    const trace = Trace.start(`[SERVER] Couldn't find connection ${peerHostname}`)
+    const trace = Trace.start(`[SERVER] Initiating connection with authenticated peer ${peerHostname}`)
     authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
-        warn('DEVWARN:', `[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       } else {
         trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
         trace.success()
-        debug(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
       }
     })
     return false
@@ -81,7 +78,10 @@ const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${str
 
 const messageHandler = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {
   const peerHostname = `${peer.host}:${peer.port}` as const
-  if (query.y === 'e') return warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`) 
+  if (query.y === 'e') {
+    if (isAllowedPeer(peer.host, peer.port)) return warn('DEVWARN:', `[SERVER] Peer threw ${peerHostname} error - ${query.e.join(' ')}`)
+    return false
+  }
   if (query.y === 'h0' || query.y === 'h1' || query.y === 'h2' || query.y === 'h0r') return await handleHandshake(server, socket, account, query, peerHostname, peer, node, config, apiKey, addPeer)
   if (query.y === 'q') {
     if (!query.q.startsWith(config.prefix)) return false

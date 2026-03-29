@@ -5,7 +5,7 @@ import z from 'zod'
 import type { Config } from '../types/hydrabase'
 import type { Peer } from './Peer'
 
-import { RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
+import { MessageEnvelopeSchema, RequestSchema, type Response, ResponseSchema } from '../types/hydrabase-schemas'
 import { Trace } from '../utils/trace'
 import { Account, generatePrivateKey } from './crypto/Account'
 import { Signature } from './crypto/Signature'
@@ -149,8 +149,8 @@ describe('HIP1', () => {
     expect(await verifyClient(config2, `${config1.hostname}:${config1.port}`, auth, '', trace)).not.toBeArray()
   })
 
-  it('produces server proof that is is verified by client', () => {
-    expect(verifyServer(proveServer(account1, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
+  it('produces server proof that is is verified by client', async () => {
+    expect(verifyServer(await proveServer(account1, config1, trace), `${config1.hostname}:${config1.port}`, trace)).not.toBeArray()
   })
 
   it('peer 1 connected to peer 2 over TCP', async () => {
@@ -328,15 +328,15 @@ describe('HIP1 handshake edge cases', () => {
     expect(code).toBe(500)
   })
 
-  it('verifyServer rejects mismatched hostname', () => {
-    const proof = proveServer(account1, config1, trace)
+  it('verifyServer rejects mismatched hostname', async () => {
+    const proof = await proveServer(account1, config1, trace)
     const result = verifyServer(proof, 'wrong.host:9999', trace)
     expect(result).toBeArray()
     expect((result as [number, string])[1]).toContain('Expected')
   })
 
-  it('verifyServer crashes on tampered signature (no input validation)', () => {
-    const proof = proveServer(account1, config1, trace)
+  it('verifyServer crashes on tampered signature (no input validation)', async () => {
+    const proof = await proveServer(account1, config1, trace)
     proof.signature = 'tampered'
     expect(() => verifyServer(proof, `${config1.hostname}:${config1.port}`, trace)).toThrow()
   })
@@ -429,6 +429,8 @@ describe('HIP2 message parsing', () => {
     expect(identify({ request: { query: 'test', type: 'artists' } })).toBe('request')
     expect(identify({ response: [] })).toBe('response')
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')
+    expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('store_message')
+    expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('deliver_message')
     expect(identify({ ping: { time: 123 } })).toBe('ping')
     expect(identify({ pong: { time: 123 } })).toBe('pong')
     expect(identify({ unknown: true })).toBeNull()
@@ -466,11 +468,36 @@ describe('Schema validation', () => {
     expect(result.success).toBe(false)
   })
 
+  it('MessageEnvelopeSchema validates store-and-forward envelopes', () => {
+    const result = MessageEnvelopeSchema.safeParse({
+      from: account1.address,
+      payload: 'encrypted-payload',
+      sig: account1.sign('encrypted-payload', trace).toString(),
+      timestamp: Date.now(),
+      to: account2.address,
+      ttl: 60_000,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('MessageEnvelopeSchema rejects invalid TTL', () => {
+    const result = MessageEnvelopeSchema.safeParse({
+      from: account1.address,
+      payload: 'encrypted-payload',
+      sig: 'signature',
+      timestamp: Date.now(),
+      to: account2.address,
+      ttl: 0,
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('AuthSchema validates complete auth object', () => {
     const account = new Account(generatePrivateKey())
     const sig = account.sign('I am 127.0.0.1:4545', trace)
     const result = AuthSchema.safeParse({
       address: account.address,
+      bio: 'A test node bio',
       hostname: '127.0.0.1:4545',
       signature: sig.toString(),
       userAgent: 'Hydrabase/test',
@@ -486,6 +513,20 @@ describe('Schema validation', () => {
       signature: 'sig',
       userAgent: 'test',
       username: 'test'
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('AuthSchema rejects bio over 80 characters', () => {
+    const account = new Account(generatePrivateKey())
+    const sig = account.sign('I am 127.0.0.1:4545', trace)
+    const result = AuthSchema.safeParse({
+      address: account.address,
+      bio: 'x'.repeat(81),
+      hostname: '127.0.0.1:4545',
+      signature: sig.toString(),
+      userAgent: 'Hydrabase/test',
+      username: 'TestNode'
     })
     expect(result.success).toBe(false)
   })
@@ -677,7 +718,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(cached).toEqual(testIdentity)
   })
 
-  it('validates server proof correctly for UDP', () => {
+  it('validates server proof correctly for UDP', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       hostname: 'test.example.com',
@@ -688,7 +729,7 @@ describe('UDP Authentication Edge Cases', () => {
       username: 'TestNode'
     }
     
-    const serverProof = proveServer(account, nodeConfig, trace)
+    const serverProof = await proveServer(account, nodeConfig, trace)
     
     expect(serverProof.address).toBe(account.address)
     expect(serverProof.hostname).toBe(`${nodeConfig.hostname}:${nodeConfig.port}`)
@@ -698,7 +739,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(isValid).toBe(true)
   })
 
-  it('detects hostname mismatch in server verification', () => {
+  it('detects hostname mismatch in server verification', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       hostname: 'test.example.com',
@@ -709,7 +750,7 @@ describe('UDP Authentication Edge Cases', () => {
       username: 'TestNode'
     }
     
-    const serverProof = proveServer(account, nodeConfig, trace)
+    const serverProof = await proveServer(account, nodeConfig, trace)
     
 
     const isValid = verifyServer(serverProof, 'wrong.example.com:4545', trace)

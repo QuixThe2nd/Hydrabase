@@ -49,6 +49,16 @@ export const GLOBAL_STYLES = `
   @keyframes fadein { from { opacity: 0; transform: translateY(3px) } to { opacity: 1; transform: none } }
   @keyframes spin { to { transform: rotate(360deg) } }
   @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1) } 50% { opacity: .35; transform: scale(.65) } }
+  @keyframes ticker-up {
+    0% { filter: saturate(1.25); opacity: .85; transform: translateY(6px) }
+    40% { opacity: 1 }
+    100% { filter: none; opacity: 1; transform: translateY(0) }
+  }
+  @keyframes ticker-down {
+    0% { filter: saturate(1.25); opacity: .85; transform: translateY(-6px) }
+    40% { opacity: 1 }
+    100% { filter: none; opacity: 1; transform: translateY(0) }
+  }
   @keyframes row-flash { 0% { background: rgba(0,200,255,.15) } 100% { background: transparent } }
   .peer-row-flash { animation: row-flash .7s ease forwards; }
 `

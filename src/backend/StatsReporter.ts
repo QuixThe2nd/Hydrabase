@@ -1,14 +1,18 @@
-import type { ApiPeer, Config, Connection, NodeStats } from '../types/hydrabase'
+import type { ApiPeer, Config, Connection, NodeStats, StatsPulsePayload, StatsVotesPayload } from '../types/hydrabase'
 import type { MetadataPlugin } from '../types/hydrabase-schemas'
 import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
 import type { DHT_Node } from './networking/dht'
+import type { Peer } from './Peer'
 import type PeerManager from './PeerManager'
 
 import { formatBytes, formatUptime, stats, truncateAddress } from '../utils/log'
 import { Trace } from '../utils/trace'
+import { authenticatedPeers } from './networking/udp/server'
 
 export class StatsReporter {
+  private readonly cachedPeerPlugins = new Map<`0x${string}`, string[]>()
+  private readonly seenDhtNodes = new Set<string>()
   private readonly startTime = Date.now()
 
   constructor(
@@ -18,59 +22,91 @@ export class StatsReporter {
     private readonly peers: PeerManager,
     private readonly dht: DHT_Node,
     private readonly repos: Repositories,
-    private readonly intervalMs = 10_000
+    private readonly peersIntervalMs = 2_000,
+    private readonly votesIntervalMs = 5_000,
+    private readonly dhtIntervalMs = 2_000,
+    private readonly timestampIntervalMs = 1_000
   ) {
-    this.report()
-    setInterval(() => this.report(), this.intervalMs)
+    this.peers.onApiConnected(() => this.reportAll())
+    this.peers.onPeerConnected((peer) => {
+      this.reportPeerConnected(peer.address)
+      this.reportPeers()
+    })
+
+    this.reportAll()
+    setInterval(() => this.reportPeers(), this.peersIntervalMs)
+    setInterval(() => this.reportVotes(), this.votesIntervalMs)
+    setInterval(() => this.reportDhtNodes(), this.dhtIntervalMs)
+    setInterval(() => this.reportTimestamp(), this.timestampIntervalMs)
+
     this.logStatus()
     setInterval(() => this.logStatus(), 60_000)
   }
 
-  private collectStats(): NodeStats {
+  private static asConnection(peer: Peer): Connection {
     return {
-      dhtNodes: this.dht.nodes.map(({ host, port }: { host: string; port: number }) => `${host}:${port}`),
-      peers: {
-        known:   this.knownPeers(),
-        plugins: this.repos.stats.getKnownPlugins(),
-        votes:   this.repos.stats.getPeerVotes(),
+      address: peer.address,
+      bio: peer.bio,
+      confidence: peer.historicConfidence,
+      hostname: peer.hostname,
+      latency: peer.latency,
+      lookupTime: peer.lookupTime,
+      plugins: peer.plugins,
+      totalDL: peer.totalDL,
+      totalUL: peer.totalUL,
+      uptime: peer.uptimeMs,
+      userAgent: peer.userAgent,
+      username: peer.username,
+      votes: {
+        albums: 0,
+        artists: 0,
+        tracks: 0
       },
-      self: {
-        address:  this.account.address,
-        hostname: this.node.hostname,
-        plugins:  this.plugins.map(p => p.id),
-        votes:    this.repos.stats.getSelfVotes(),
-      },
-      timestamp: new Date().toISOString(),
     }
   }
 
+  private getKnownPlugins(address: `0x${string}`, connectedPeer: Peer | undefined): string[] {
+    if (connectedPeer?.plugins.length) {
+      this.cachedPeerPlugins.set(address, [...connectedPeer.plugins])
+      return connectedPeer.plugins
+    }
+    const cached = this.cachedPeerPlugins.get(address)
+    if (cached?.length) return cached
+    const fromDb = this.repos.peer.getPlugins(address)
+    if (fromDb.length) this.cachedPeerPlugins.set(address, fromDb)
+    return fromDb
+  }
+
   private readonly knownPeers = (): ApiPeer[] => {
-    const addresses = this.repos.stats.getKnownAddresses()
-    return addresses.map(address => ({
-      address,
-      connection: ((): Connection | undefined => {
-        const peer = this.peers.connectedPeers.find(peer => peer.address === address)
-        if (!peer) return peer
-        return {
-          address: peer.address,
-          confidence: peer.historicConfidence,
-          hostname: peer.hostname,
-          latency: peer.latency,
-          lookupTime: peer.lookupTime,
-          plugins: peer.plugins,
-          totalDL: peer.totalDL,
-          totalUL: peer.totalUL,
-          uptime: peer.uptimeMs,
-          userAgent: peer.userAgent,
-          username: peer.username,
-          votes: {
-            albums: 0,
-            artists: 0,
-            tracks: 0
+    const connectedByAddress = new Map(this.peers.connectedPeers.map(peer => [peer.address, peer]))
+    const authByAddress = new Map(
+      [...authenticatedPeers.values()]
+        .filter(identity => identity.address !== '0x0')
+        .map(identity => [identity.address, identity])
+    )
+    const addresses = new Set<`0x${string}`>([
+      ...this.repos.stats.getKnownAddresses(),
+      ...connectedByAddress.keys(),
+      ...authByAddress.keys(),
+    ])
+    return [...addresses].map((address) => {
+      const connectedPeer = connectedByAddress.get(address)
+      const knownPlugins = this.getKnownPlugins(address, connectedPeer)
+      const identity = authByAddress.get(address)
+      return {
+        address,
+        ...(knownPlugins.length ? { knownPlugins } : {}),
+        ...(identity ? {
+          auth: {
+            ...(identity.bio ? { bio: identity.bio } : {}),
+            hostname: identity.hostname,
+            userAgent: identity.userAgent,
+            username: identity.username,
           },
-        }
-      })(),
-    } satisfies ApiPeer))
+        } : {}),
+        connection: connectedPeer ? StatsReporter.asConnection(connectedPeer) : undefined,
+      } satisfies ApiPeer
+    })
   }
 
   private logStatus(): void {
@@ -88,16 +124,87 @@ export class StatsReporter {
     }
   }
 
-  private report(): void {
+  private report(send: (client: Peer, trace: Trace) => void): void {
     const client = this.peers.apiPeer
     if (client)  {
       const trace = Trace.start('Sending stats to api client')
       try {
-        client.sendStats(this.collectStats(), trace)
+        send(client, trace)
         trace.success()
       } catch (err) {
         trace.fail('[STATS] Failed to collect/send stats', err)
       }
     }
+  }
+
+  private reportAll(): void {
+    this.reportSelf()
+    this.reportDhtNodes()
+    this.reportPeers()
+    this.reportVotes()
+    this.reportTimestamp()
+  }
+
+  private reportDhtNodes(): void {
+    const nodes = this.dht.nodes.map(({ host, port }: { host: string; port: number }) => `${host}:${port}`)
+    this.report((client, trace) => client.sendStatsDhtNodes(nodes, trace))
+    for (const node of nodes) {
+      if (this.seenDhtNodes.has(node)) continue
+      this.seenDhtNodes.add(node)
+      this.report((client, trace) => client.sendStatsDhtNodeConnected(node, trace))
+    }
+  }
+
+  
+  private reportPeerConnected(address: `0x${string}`): void {
+    const connected = this.knownPeers().find(peer => peer.address === address)
+    if (!connected) return
+    this.report((client, trace) => client.sendStatsPeerConnected(connected, trace))
+  }
+
+  private reportPeers(): void {
+    const knownPeers = this.knownPeers()
+    const pulse = knownPeers.reduce((totals, peer) => ({
+      totalDL: totals.totalDL + (peer.connection?.totalDL ?? 0),
+      totalUL: totals.totalUL + (peer.connection?.totalUL ?? 0),
+    }), { totalDL: 0, totalUL: 0 })
+    const timestamp = new Date().toISOString()
+    const statsPulse: StatsPulsePayload = {
+      intervalMs: this.peersIntervalMs,
+      timestamp,
+      totalDL: pulse.totalDL,
+      totalUL: pulse.totalUL,
+    }
+    this.report((client, trace) => {
+      client.sendStatsPeers(knownPeers, trace)
+      client.sendStatsPulse(statsPulse, trace)
+    })
+  }
+
+  private reportSelf(): void {
+    const statsSelf: NodeStats['self'] = {
+      address: this.account.address,
+      hostname: this.node.hostname,
+      plugins: this.plugins.map(p => p.id),
+      votes: this.repos.stats.getSelfVotes(),
+    }
+    this.report((client, trace) => client.sendStatsSelf(statsSelf, trace))
+  }
+
+  private reportTimestamp(): void {
+    this.report((client, trace) => client.sendStatsTimestamp(new Date().toISOString(), trace))
+  }
+
+  private reportVotes(): void {
+    const statsVotes: StatsVotesPayload = {
+      peers: {
+        plugins: this.repos.stats.getKnownPlugins(),
+        votes: this.repos.stats.getPeerVotes(),
+      },
+      self: {
+        votes: this.repos.stats.getSelfVotes(),
+      },
+    }
+    this.report((client, trace) => client.sendStatsVotes(statsVotes, trace))
   }
 }

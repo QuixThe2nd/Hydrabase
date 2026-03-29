@@ -7,10 +7,10 @@ import type { HydrabaseTelemetryContext } from '../utils/log'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../VERSION' with { type: 'text' }
-import { log } from '../utils/log'
-import { error, warn } from '../utils/log'
+import { error, log, warn } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
 import { BRANCH } from './branch'
+import { getIp } from './networking/utils'
 import { startNode } from './Node'
 
 const applyTelemetryScope = (scope: {
@@ -130,21 +130,6 @@ let port = Number(defaultPort)
 while (await isTCPPortInUse(port) || await isUDPPortInUse(port)) port++
 if (port !== Number(defaultPort)) warn('WARN:', `[SERVER] Port ${defaultPort} in use - Using ${port} instead`)
 
-const ipServers = ['https://icanhazip.com', 'https://api.ipify.org']
-
-const getIp = () => new Promise<string>(resolve => {
-  (async () => {
-    for (const ipServer of ipServers) {
-      try {
-        const response = await fetch(ipServer)
-        resolve((await response.text()).trim())
-      } catch(e) {
-        error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, {e})
-      }
-    }
-  })()
-})
-
 const ip = await getIp()
 
 const CONFIG: Config = {
@@ -161,6 +146,7 @@ const CONFIG: Config = {
     pluginConfidence: 'x / (x + y)',
   },
   node: {
+    ...(process.env['BIO'] ? { bio: process.env['BIO'].slice(0, 80) } : {}),
     hostname: process.env['DOMAIN'] ?? ip,
     ip,
     listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',

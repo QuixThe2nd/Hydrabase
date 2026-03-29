@@ -21,6 +21,7 @@ export class WebSocketServerConnection implements Socket {
   get identity() {
     return {
       address: this.socket.data.address,
+      bio: this.socket.data.bio,
       hostname: this.socket.data.hostname,
       userAgent: this.socket.data.userAgent,
       username: this.socket.data.username
@@ -76,8 +77,8 @@ export const websocketHandlers = (peerManager: PeerManager) => ({
     withTelemetryContext(ws.data.telemetry ?? {}, () => {
       logContext('WS', async () => {
         const conn = new WebSocketServerConnection(ws)
-        if (await peerManager.add(conn, ws.data.trace)) ws.data.trace.success()
         ws.data = { ...ws.data, conn, isOpened: true }
+        if (await peerManager.add(conn, ws.data.trace)) ws.data.trace.success()
       })
     })
   }
@@ -101,7 +102,7 @@ export const handleConnection = async (
 ): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   trace.step(`Client connecting from ${ip.address}:${ip.port}`)
   const headers = Object.fromEntries(req.headers.entries())
-  const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-useragent'] as string, username: headers['x-username'] as string, }
+  const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, bio: headers['x-bio'], hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-useragent'] as string, username: headers['x-username'] as string, }
   const isApiKeyAuth = 'apiKey' in auth
   const hasRequiredHeaders = isApiKeyAuth || Boolean(auth.address && auth.hostname && auth.signature && auth.username)
   if (!hasRequiredHeaders) {
@@ -122,7 +123,7 @@ export const handleConnection = async (
     trace.fail(peer[1])
     return { res: peer }
   }
-  const { address, hostname, userAgent, username } = peer
+  const { address, bio, hostname, userAgent, username } = peer
   const telemetryBase = {
     extras: {
       sentry_session_id: `ws-${trace.traceId}`,
@@ -136,7 +137,7 @@ export const handleConnection = async (
   }
   const telemetry: HydrabaseTelemetryContext = address === '0x0' ? telemetryBase : { ...telemetryBase, user: { id: address, username } }
   trace.step(`[WS] [SERVER] Authenticated connection to ${username} ${address} ${hostname} from ${ip?.address}`)
-  if (server.upgrade(req, { data: { address, hostname, isOpened: false, telemetry, trace, userAgent, username } })) return undefined
+  if (server.upgrade(req, { data: { address, bio, hostname, isOpened: false, telemetry, trace, userAgent, username } })) return undefined
   trace.fail('Upgrade failed')
   return { address, hostname, res: [500, 'Upgrade failed'] }
 }

@@ -17,10 +17,11 @@ import { type Auth, type Identity, proveClient, proveServer, verifyServer } from
 
 export const AuthSchema = z.object({
   address: BinaryString,
+  bio: BinaryString.refine(b => b.length <= 80, { message: 'Bio must be 80 characters or less' }).optional(),
   hostname: BinaryString,
   signature: BinaryString,
   userAgent: BinaryString,
-  username:  BinaryString,
+  username: BinaryString.refine(u => /^[a-zA-Z0-9]{3,20}$/u.test(u), { message: 'Username must be 3-20 alphanumeric characters, no spaces' }),
 }).strict()
 
 export const H0_HandshakeDiscoverySchema = BaseMessage.extend({
@@ -148,9 +149,9 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   const timer = setTimeout(() => {
     server.cancelAwaiter(t)
     resolve([408, '[HIP5] h0 discovery request timed out'])
-  }, 10_000)
+  }, 30_000)
 
-  server.awaitResponse(t, (msg) => {
+  server.awaitResponse(t, msg => {
     if (msg.y !== 'h0r') return false
     clearTimeout(timer)
     trace.step(`h0r received, server identifies as ${msg.h0r.hostname}`)
@@ -193,7 +194,7 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     h0LastSeen.set(peerHostname, now)
     const traceId = Math.random().toString(16).slice(2, 6)
     const trace = new Trace(traceId, `[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
-    const payload: HandshakeDiscoveryResponse = { h0r: proveServer(account, node, trace), t: query.t, tid: traceId, y: 'h0r' }
+    const payload: HandshakeDiscoveryResponse = { h0r: await proveServer(account, node, trace), t: query.t, tid: traceId, y: 'h0r' }
     socket.send(bencode.encode(payload), peer.port, peer.host)
     pendingH0Traces.set(traceId, trace)
     return true
@@ -208,7 +209,7 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     const tid = 'tid' in query && query.tid ? query.tid : undefined
     const existingTrace = tid ? pendingH0Traces.get(tid) : undefined
     const trace = existingTrace
-      ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (correlation tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
+      ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
     if (tid) pendingH0Traces.delete(tid)
     trace.step('Received h1')
     const result = await UDP_Client.connectToUnauthenticatedPeer(account, socket, query, peerHostname, node, config, apiKey, server, trace, addPeer)

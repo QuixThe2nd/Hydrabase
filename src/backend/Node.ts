@@ -1,6 +1,6 @@
 import type { Config } from '../types/hydrabase'
-import type { Request, Response, SearchResult } from '../types/hydrabase-schemas'
-import type { IPeerProvider } from '../types/interfaces'
+import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
+import type { Peer } from './Peer'
 
 import { Trace } from '../utils/trace'
 import { Account, getPrivateKey } from './crypto/Account'
@@ -18,13 +18,40 @@ import { buildWebUI } from './webui'
 
 const {SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET} = process.env
 
+const runPeerWarmupSearches = async (peer: Peer): Promise<void> => {
+  const warmupTrace = Trace.start(`[WARMUP] Running peer warmup searches for ${peer.username} ${peer.address} ${peer.hostname}`)
+  try {
+    const artists = await peer.search('artists', 'jay z', warmupTrace)
+    const albums = await peer.search('albums', 'made in england', warmupTrace)
+    await peer.search('tracks', 'dont stop me now', warmupTrace)
+    if (artists[0]) {
+      await peer.search('artist.tracks', artists[0].soul_id, warmupTrace)
+      await peer.search('artist.albums', artists[0].soul_id, warmupTrace)
+    }
+    if (albums[0]) await peer.search('album.tracks', albums[0].soul_id, warmupTrace)
+    warmupTrace.success()
+  } catch (error) {
+    warmupTrace.caughtError(String(error))
+    warmupTrace.softFail('Warmup searches failed')
+  }
+}
+
 export class Node {
-  private peers?: IPeerProvider
+  private peers?: PeerManager
   constructor(
     private readonly metadataManager: MetadataManager,
 
     private readonly formulas: Config['formulas']
   ) {}
+
+  public readonly relayStoreMessage = (envelope: MessageEnvelope): number => {
+    if (!this.peers) return 0
+    const trace = Trace.start(`[HIP2] Relaying message to ${envelope.to}`)
+    const sent = this.peers.sendStoreMessage(envelope, trace)
+    if (sent > 0) trace.success()
+    else trace.softFail('No eligible peers available to relay message')
+    return sent
+  }
 
   public readonly search = async <T extends Request['type']>(type: T, query: string, searchPeers = true): Promise<Response<T>> => {
     const results = await this.metadataManager.handleRequest({ query, type }, this.getPeerConfidence)
@@ -54,8 +81,7 @@ export class Node {
 
     return [...peerResults.values()] as Response<T>
   }
-
-  public readonly setPeerContext = (peers: IPeerProvider, getPeerConfidence: (address: `0x${string}`) => number) => {
+  public readonly setPeerContext = (peers: PeerManager, getPeerConfidence: (address: `0x${string}`) => number) => {
     this.peers = peers
     this.getPeerConfidence = getPeerConfidence
   }
@@ -85,10 +111,11 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('8/14 Starting peer manager')
   peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
+  peerManager.onPeerConnected(runPeerWarmupSearches)
   trace.step('9/14 Building Web UI')
   await buildWebUI()
   trace.step('10/14 Starting HTTP server')
-  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
+  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, bio: CONFIG.node.bio?.slice(0, 80), hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
   trace.step('11/14 Starting DHT node')
   const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, udpServer)
   trace.step('12/14 Starting stats reporter')
@@ -98,13 +125,5 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('14/14 Loading cached peers')
   await peerManager.loadCache(CONFIG.bootstrapPeers.split(','))
   trace.success()
-  const artists = await node.search('artists', 'jay z')
-  const albums = await node.search('albums', 'made in england')
-  await node.search('tracks', 'dont stop me now')
-  if (artists[0]) {
-    await node.search('artist.tracks', artists[0].soul_id)
-    await node.search('artist.albums', artists[0].soul_id)
-  }
-  if (albums[0]) await node.search('album.tracks', albums[0].soul_id)
   return node
 }

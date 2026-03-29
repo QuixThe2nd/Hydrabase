@@ -36,7 +36,8 @@ const Header = ({ peerVotes, selfVotes }: { peerVotes: Votes, selfVotes: Votes }
 }
 
 export const VotesTab = ({ peers, stats }: Props) => {
-  const onlinePeerCount = peers.filter(peer => peer.connection?.uptime !== 0).length
+  const knownPeerCount = peers.length
+  const getPeerPlugins = (peer: PeerWithCountry): string[] => peer.connection?.plugins ?? peer.knownPlugins ?? []
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
     <Header peerVotes={(peers.map(({connection}) => connection).filter(Boolean) as Connection[]).map(conn => conn.votes).reduce((acc, votes) => ({ albums: acc.albums + votes.albums, artists: acc.artists + votes.artists, tracks: acc.tracks + votes.tracks }), { albums: 0, artists: 0, tracks: 0 })} selfVotes={stats?.self.votes ?? { albums: 0, artists: 0, tracks: 0 }} />
     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
@@ -59,14 +60,14 @@ export const VotesTab = ({ peers, stats }: Props) => {
         <PanelHeader label="Plugin Coverage" />
         <div style={{ padding: '12px 16px' }}>
           {stats?.peers.plugins.map(pl => {
-            const n = peers.filter(p => p.connection?.plugins.includes(pl)).length
+            const n = peers.filter(peer => getPeerPlugins(peer).includes(pl)).length
             return <div key={pl} style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                 <span style={{ fontSize: 12 }}>{pl}</span>
-                <span style={{ color: MUTED, fontSize: 11 }}>{n}/{onlinePeerCount} peers</span>
+                <span style={{ color: MUTED, fontSize: 11 }}>{n}/{knownPeerCount} peers</span>
               </div>
               <div style={{ background: '#21262d', borderRadius: 3, height: 5, overflow: 'hidden' }}>
-                <div style={{ background: ACCENT, borderRadius: 3, height: '100%', width: `${onlinePeerCount > 0 ? (n / onlinePeerCount) * 100 : 0}%` }} />
+                <div style={{ background: ACCENT, borderRadius: 3, height: '100%', width: `${knownPeerCount > 0 ? (n / knownPeerCount) * 100 : 0}%` }} />
               </div>
             </div>
           })}

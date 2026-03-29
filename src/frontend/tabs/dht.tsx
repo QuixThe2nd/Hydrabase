@@ -64,9 +64,19 @@ export const DhtTab = ({ dhtNodeCounts, dhtNodes, socket, tLabels, wsState }: Pr
           </tr>
         </thead>
         <tbody>
-          {dhtNodes.map((node, i) => {
+          {[...dhtNodes].sort((a, b) => {
+            const portA = Number(a.host.split(':')[1])
+            const portB = Number(b.host.split(':')[1])
+            const aLocal = portA >= 4000 && portA <= 5000
+            const bLocal = portB >= 4000 && portB <= 5000
+            if (aLocal && !bLocal) return -1
+            if (!aLocal && bLocal) return 1
+            return 0
+          }).map((node, i) => {
             const [ip, port] = node.host.split(':') as [string, string]
-            return <tr className="rh" key={i} style={{ borderTop: `1px solid ${BORD}` }}>
+            const portNum = Number(port)
+            const isLocal = portNum >= 4000 && portNum <= 5000
+            return <tr className="rh" key={i} style={{ background: isLocal ? '#1c2d3f' : undefined, borderTop: `1px solid ${isLocal ? '#253d52' : BORD}` }}>
               <td style={{ color: MUTED, fontSize: 10, padding: '7px 12px' }}>{i + 1}</td>
               <td style={{ fontFamily: 'monospace', fontSize: 11, padding: '7px 12px' }}>{toEmoji(node.country)}</td>
               <td style={{ fontFamily: 'monospace', fontSize: 11, padding: '7px 12px' }}>{ip}</td>

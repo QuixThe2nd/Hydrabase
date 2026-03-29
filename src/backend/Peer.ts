@@ -1,5 +1,5 @@
-import type { NodeStats, PeerStats, Socket } from '../types/hydrabase'
-import type { Album, Artist, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas'
+import type { ApiPeer, NodeStats, PeerStats, Socket, StatsPulsePayload, StatsVotesPayload } from '../types/hydrabase'
+import type { Album, Artist, MessageEnvelope, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas'
 import type { Repositories } from './db'
 import type PeerManager from './PeerManager'
 
@@ -7,14 +7,21 @@ import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { UDP_Client } from './networking/udp/client'
 import WebSocketClient from './networking/ws/client'
-import { HIP2_Messaging, type Ping } from './protocol/HIP2_Messaging'
+import { HIP2_Messaging, type Ping, type SendMessage } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
 export class Peer {
+  private static readonly PING_INTERVAL_MS = 60_000
+  // Keep timeout comfortably above interval to tolerate network and event-loop jitter.
+  private static readonly PING_TIMEOUT_MS = 90_000
+
   public nonce = 0
   get address() {
     return this.socket.identity.address
+  }
+  get bio() {
+    return this.socket.identity.bio
   }
   get historicConfidence(): number {
     return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
@@ -67,13 +74,18 @@ export class Peer {
   private _ul = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
-  private pendingPings = new Map<number, { time: number; trace: Trace }>()
+  private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
   private readonly requestManager: RequestManager
   private totalLatency = 0
   private totalPongs = 0
 
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
+    deliver_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleDeliverMessage(envelope, this, trace),
+    message_history: (_data: 'get', nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.send({ message_history: this.peers.messageHistory, nonce }, trace)
+    },
     peer_stats: (_data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       const peer_stats = this.repos.peer.collectPeerStats(this.address, this.ownPlugins)
@@ -88,6 +100,7 @@ export class Peer {
         warn('DEVWARN:', '[PEER] Unhandled pong')
         return
       }
+      clearTimeout(pendingPing.timeout)
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
@@ -112,7 +125,12 @@ export class Peer {
         this.repos.searchHistory.remove(data.remove)
         this.send({ nonce, search_history: this.repos.searchHistory.getAll() }, trace)
       }
-    }
+    },
+    send_message: (data: SendMessage, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.peers.createAndSendMessage(data.to, data.payload, trace)
+    },
+    store_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleStoreMessage(envelope, this, trace)
   }
 
   private startTime?: number
@@ -120,34 +138,46 @@ export class Peer {
   // eslint-disable-next-line max-lines-per-function
   constructor(
     public readonly socket: Socket,
-    peers: PeerManager,
+    private readonly peers: PeerManager,
     private readonly repos: Repositories,
     private readonly ownPlugins: MetadataPlugin[],
     private readonly searchNode: <T extends Request['type']>(type: T, query: string, searchPeers: boolean) => Promise<Response<T>>
   ) {
     this.requestManager = new RequestManager()
     this.HIP2_Conn_Message = new HIP2_Messaging(this, this.requestManager)
-    this.HIP4_Conn_Announce = new HIP3_AnnouncePeers(this, peers)
+    this.HIP4_Conn_Announce = new HIP3_AnnouncePeers(this, this.peers)
     this.startTime = Number(new Date())
     const id = setInterval(() => {
+      if (this.pendingPings.size > 0) {
+        const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
+        trace.step('[HIP2] Skipping ping while previous ping is still pending')
+        trace.success()
+        return
+      }
       const nonce = this.nonce++
       const time = Number(new Date())
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
-      this.pendingPings.set(nonce, { time, trace })
+      const timeout = setTimeout(() => {
+        if (!this.pendingPings.has(nonce)) return
+        this.pendingPings.delete(nonce)
+        trace.softFail(`[HIP2] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer`)
+        this.socket.close()
+      }, Peer.PING_TIMEOUT_MS)
+      this.pendingPings.set(nonce, { time, timeout, trace })
       this.send({ nonce, ping: { time } }, trace)
       trace.step(`[HIP2] Waiting for pong ${nonce}`)
-    }, 60_000)
+    }, Peer.PING_INTERVAL_MS)
     this.socket.onClose(() => {
       this.requestManager.close()
       if (id) clearInterval(id)
       for (const ping of this.pendingPings.values()) {
+        clearTimeout(ping.timeout)
         ping.trace.softFail('Peer disconnected before pong')
       }
       this.pendingPings.clear()
     })
     this.socket.onMessage(async message => {
       this._dl += message.length
-
       let parsedMessage: unknown
       try {
         parsedMessage = JSON.parse(message)
@@ -157,9 +187,7 @@ export class Peer {
         return
       }
 
-      const parsedRecord = typeof parsedMessage === 'object' && parsedMessage && !Array.isArray(parsedMessage)
-        ? parsedMessage as Record<string, unknown>
-        : null
+      const parsedRecord = typeof parsedMessage === 'object' && parsedMessage && !Array.isArray(parsedMessage) ? parsedMessage as Record<string, unknown> : null
       if (!parsedRecord) {
         const trace = Trace.start(`Received message from ${socket.identity.hostname}`)
         trace.fail('Failed to parse message')
@@ -167,17 +195,15 @@ export class Peer {
       }
 
       const { nonce: parsedNonce, ...candidatePayload } = parsedRecord
-      const candidateType = HIP2_Messaging.identifyType(candidatePayload)
-      const matchedPongTrace = candidateType === 'pong'
-        && typeof parsedNonce === 'number'
-        && this.pendingPings.has(parsedNonce)
-      const trace = matchedPongTrace
-        ? this.pendingPings.get(parsedNonce)?.trace ?? Trace.start(`Received message from ${socket.identity.hostname}`)
-        : Trace.start(`Received message from ${socket.identity.hostname}`)
-
+      const matchedPongTrace = HIP2_Messaging.identifyType(candidatePayload) === 'pong' && typeof parsedNonce === 'number' && this.pendingPings.has(parsedNonce)
+      const trace = matchedPongTrace ? this.pendingPings.get(parsedNonce)?.trace ?? Trace.start(`Received message from ${socket.identity.hostname}`) : Trace.start(`Received message from ${socket.identity.hostname}`)
       const result = this.HIP2_Conn_Message.parseMessage(message, trace)
       if (!result) {
-        if (matchedPongTrace && typeof parsedNonce === 'number') this.pendingPings.delete(parsedNonce)
+        if (matchedPongTrace && typeof parsedNonce === 'number') {
+          const pendingPing = this.pendingPings.get(parsedNonce)
+          if (pendingPing) clearTimeout(pendingPing.timeout)
+          this.pendingPings.delete(parsedNonce)
+        }
         trace.fail('Failed to parse message')
         return
       }
@@ -185,9 +211,14 @@ export class Peer {
       if (type === 'ping') this.handlers[type](data as Ping, nonce, trace)
       else if (type === 'pong') this.handlers[type](data as Ping, nonce)
       else if (type === 'announce') this.handlers[type](data as Announce)
+      else if (type === 'peer_stats') this.handlers[type](data as { address: `0x${string}` }, nonce, trace)
       else if (type === 'request') await this.handlers[type](data as Request, nonce, trace)
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
+      else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
+      else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
+      else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
+      else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
       if (!matchedPongTrace) trace.success()
     })
@@ -205,7 +236,7 @@ export class Peer {
     return response
   }
 
-  send<T extends Request['type']>(payload: ({ announce: Announce } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request & { type: T } } | { response: Response<T> } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))
@@ -213,5 +244,15 @@ export class Peer {
     this.socket.send(message)
   }
 
+  public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
   public readonly sendStats = (stats: NodeStats, trace: Trace) => this.send({ nonce: this.nonce++, stats }, trace)
+  public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
+  public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)
+  public readonly sendStatsPeerConnected = (stats_peer_connected: ApiPeer, trace: Trace) => this.send({ nonce: this.nonce++, stats_peer_connected }, trace)
+  public readonly sendStatsPeers = (stats_peers: NodeStats['peers']['known'], trace: Trace) => this.send({ nonce: this.nonce++, stats_peers }, trace)
+  public readonly sendStatsPulse = (stats_pulse: StatsPulsePayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_pulse }, trace)
+  public readonly sendStatsSelf = (stats_self: NodeStats['self'], trace: Trace) => this.send({ nonce: this.nonce++, stats_self }, trace)
+  public readonly sendStatsTimestamp = (stats_timestamp: NodeStats['timestamp'], trace: Trace) => this.send({ nonce: this.nonce++, stats_timestamp }, trace)
+  public readonly sendStatsVotes = (stats_votes: StatsVotesPayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_votes }, trace)
+  public readonly sendStoreMessage = (message: MessageEnvelope, trace: Trace) => this.send({ nonce: this.nonce++, store_message: message }, trace)
 }
