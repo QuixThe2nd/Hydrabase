@@ -46,8 +46,11 @@ export class StatsReporter {
   private static asConnection(peer: Peer): Connection {
     return {
       address: peer.address,
+      announcedHostnames: [],
       bio: peer.bio,
       confidence: peer.historicConfidence,
+      connectionCount: 0,
+      connections: [],
       hostname: peer.hostname,
       latency: peer.latency,
       lifetimeDL: peer.lifetimeDL,
@@ -56,6 +59,7 @@ export class StatsReporter {
       plugins: peer.plugins,
       totalDL: peer.totalDL,
       totalUL: peer.totalUL,
+      type: peer.type,
       uptime: peer.uptimeMs,
       userAgent: peer.userAgent,
       username: peer.username,
@@ -65,6 +69,26 @@ export class StatsReporter {
         tracks: 0
       },
     }
+  }
+
+  private asConnectionWithCount(peer: Peer): Connection {
+    const connection = StatsReporter.asConnection(peer)
+    const currentConnections = this.getCurrentAnnouncementConnections(peer.address)
+    connection.connectionCount = currentConnections.length
+    connection.connections = currentConnections
+    connection.announcedHostnames = this.peers.getAnnouncedHostnames(peer.address)
+    return connection
+  }
+
+  private getCurrentAnnouncementConnections(address: `0x${string}`): `0x${string}`[] {
+    const currentlyConnected = new Set(
+      this.peers.connectedPeers
+        .filter(peer => peer.address !== '0x0')
+        .map(peer => peer.address)
+    )
+    return this.peers
+      .getAnnouncementConnections(address)
+      .filter(announcerAddress => currentlyConnected.has(announcerAddress))
   }
 
   private getKnownPlugins(address: `0x${string}`, connectedPeer: Peer | undefined): string[] {
@@ -106,7 +130,7 @@ export class StatsReporter {
             username: identity.username,
           },
         } : {}),
-        connection: connectedPeer ? StatsReporter.asConnection(connectedPeer) : undefined,
+        connection: connectedPeer ? this.asConnectionWithCount(connectedPeer) : undefined,
       } satisfies ApiPeer
     })
   }
@@ -122,7 +146,8 @@ export class StatsReporter {
       const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
       const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
       const uptime = formatUptime(peer.uptimeMs)
-      stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
+      const connectionCount = this.getCurrentAnnouncementConnections(peer.address).length
+      stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}, ${connectionCount} current announcement connection${connectionCount === 1 ? '' : 's'}`)
     }
   }
 
@@ -187,7 +212,9 @@ export class StatsReporter {
     const statsSelf: NodeStats['self'] = {
       address: this.account.address,
       hostname: this.node.hostname,
+      nodeStartTime: this.startTime,
       plugins: this.plugins.map(p => p.id),
+      pluginVotes: this.repos.stats.getSelfVotesByPlugin(),
       votes: this.repos.stats.getSelfVotes(),
     }
     this.report((client, trace) => client.sendStatsSelf(statsSelf, trace))
@@ -201,9 +228,11 @@ export class StatsReporter {
     const statsVotes: StatsVotesPayload = {
       peers: {
         plugins: this.repos.stats.getKnownPlugins(),
+        pluginVotes: this.repos.stats.getPeerVotesByPlugin(),
         votes: this.repos.stats.getPeerVotes(),
       },
       self: {
+        pluginVotes: this.repos.stats.getSelfVotesByPlugin(),
         votes: this.repos.stats.getSelfVotes(),
       },
     }

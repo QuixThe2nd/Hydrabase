@@ -7,7 +7,7 @@ import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { UDP_Client } from './networking/udp/client'
 import WebSocketClient from './networking/ws/client'
-import { HIP2_Messaging, type Ping, type SendMessage } from './protocol/HIP2_Messaging'
+import { type ConnectPeer, HIP2_Messaging, type Ping, type SendMessage } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
@@ -86,6 +86,10 @@ export class Peer {
     private totalPongs = 0
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
+    connect_peer: (data: ConnectPeer, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.peers.handleConnectPeerRequest(data.hostname, this, nonce, trace)
+    },
     deliver_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleDeliverMessage(envelope, this, trace),
     message_history: (_data: 'get', nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
@@ -242,6 +246,7 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
+      else if (type === 'connect_peer') this.handlers[type](data as ConnectPeer, nonce, trace)
       else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
       else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
       else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
@@ -250,7 +255,10 @@ export class Peer {
     })
   }
 
-  public readonly announcePeer = (announce: Announce, trace: Trace) => this.HIP4_Conn_Announce.sendAnnounce(announce, trace)
+  public readonly announcePeer = (peer: Announce | Peer, trace: Trace) => {
+    const announce = typeof peer === 'object' && 'hostname' in peer && 'address' in peer ? { hostname: peer.hostname } : peer as Announce
+    this.HIP4_Conn_Announce.sendAnnounce(announce, trace)
+  }
 
   public async search<T extends Request['type']>(type: T, query: string, trace: Trace): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type }, trace)
@@ -262,7 +270,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { deliver_message: MessageEnvelope } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { deliver_message: MessageEnvelope } | { log_event: import('../types/hydrabase').LogEvent } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))
@@ -270,7 +278,9 @@ export class Peer {
     this.socket.send(message)
   }
 
+  public readonly sendConnectionError = (error: import('../types/hydrabase').PeerConnectionError, nonce: number, trace: Trace) => this.send({ connection_error: error, nonce }, trace)
   public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
+  public readonly sendLogEvent = (log_event: import('../types/hydrabase').LogEvent, trace: Trace) => this.send({ log_event, nonce: this.nonce++ }, trace)
   public readonly sendRefreshUi = (trace: Trace) => this.send({ nonce: this.nonce++, refresh_ui: 'backend_changed' }, trace)
   public readonly sendStats = (stats: NodeStats, trace: Trace) => this.send({ nonce: this.nonce++, stats }, trace)
   public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)

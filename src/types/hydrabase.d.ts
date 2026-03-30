@@ -20,6 +20,7 @@ export interface Config {
   }
   node: {
     bio?: string
+    connectMessage: string
     hostname: string
     ip: string
     listenAddress: string
@@ -39,8 +40,11 @@ export interface Config {
 
 export interface Connection {
   address: `0x${string}`
+  announcedHostnames: `${string}:${number}`[]
   bio?: string
   confidence: number
+  connectionCount: number
+  connections: `0x${string}`[]
   hostname: `${string}:${number}`
   latency: number
   lifetimeDL: number
@@ -49,6 +53,7 @@ export interface Connection {
   plugins: string[]
   totalDL: number
   totalUL: number
+  type: 'CLIENT' | 'SERVER' | 'UDP'
   uptime: number
   userAgent: string
   username: string
@@ -58,22 +63,31 @@ export interface Connection {
 export interface EventEntry {
   lv: string
   m: string
+  stack?: string
   t: string
 }
 
 export type FilterState = 'all' | 'connected' | 'disconnected'
+
+export interface LogEvent {
+  lv: string
+  m: string
+}
 
 export interface NodeStats {
   dhtNodes: string[]
   peers: {
     known: ApiPeer[]
     plugins: string[]
+    pluginVotes: VotesByPlugin
     votes: Votes
   }
   self: {
     address: `0x${string}`
     hostname: string
+    nodeStartTime: number
     plugins: string[]
+    pluginVotes: VotesByPlugin
     votes: Votes
   }
   timestamp: string
@@ -91,6 +105,22 @@ export interface PeerAuthInfo {
   hostname: `${string}:${number}`
   userAgent: string
   username: string
+}
+
+export interface PeerConnectionAttempt {
+  error?: PeerConnectionError
+  hostname: `${string}:${number}`
+  nonce: number
+  startedAt: number
+  state: 'failed' | 'pending'
+  timedOut?: boolean
+}
+
+export interface PeerConnectionError {
+  hostname: `${string}:${number}`
+  message: string
+  stack: string
+  status: number
 }
 
 export interface PeerStats {
@@ -129,8 +159,8 @@ export interface StatsPulsePayload {
 }
 
 export interface StatsVotesPayload {
-  peers: Pick<NodeStats['peers'], 'plugins' | 'votes'>
-  self: Pick<NodeStats['self'], 'votes'>
+  peers: Pick<NodeStats['peers'], 'plugins' | 'pluginVotes' | 'votes'>
+  self: Pick<NodeStats['self'], 'pluginVotes' | 'votes'>
 }
 
 export interface Votes {
@@ -138,5 +168,7 @@ export interface Votes {
   artists: number
   tracks: number
 }
+
+export type VotesByPlugin = Record<string, Votes>
 
 export type WsState = 'closed' | 'connecting' | 'error' | 'open'

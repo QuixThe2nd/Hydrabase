@@ -27,7 +27,7 @@ const isRunningInDocker = (): boolean => {
 
 const isDirectBunHostRun = (): boolean => typeof Bun !== 'undefined' && !isRunningInDocker()
 
-const queueFrontendBuildFactory = () => {
+const queueFrontendBuildFactory = (peerManager: PeerManager) => {
   let frontendBuildTimer: NodeJS.Timeout | undefined
   let frontendBuildChain = Promise.resolve()
 
@@ -39,7 +39,9 @@ const queueFrontendBuildFactory = () => {
           const trace = Trace.start('[DEV] Frontend change detected')
           try {
             await buildWebUI()
-            trace.success()
+            const sent = peerManager.sendRefreshUi(trace)
+            if (sent > 0) trace.success()
+            else trace.softFail('[DEV] No API clients connected for refresh_ui')
           } catch (error) {
             trace.caughtError(String(error))
             trace.fail('[DEV] Frontend rebuild failed')
@@ -96,7 +98,7 @@ export const startDevWatchers = (peerManager: PeerManager): void => {
   if (process.env['NODE_ENV'] === 'production' || process.env['HYDRABASE_DEV_WATCH'] === 'false') return
   if (!isDirectBunHostRun()) return
 
-  const queueFrontendBuild = queueFrontendBuildFactory()
+  const queueFrontendBuild = queueFrontendBuildFactory(peerManager)
   const queueRefresh = queueRefreshFactory(peerManager)
 
   startFrontendWatch(queueFrontendBuild)

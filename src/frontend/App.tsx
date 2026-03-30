@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerStats, PeerWithCountry, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
+import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerConnectionAttempt, PeerConnectionError, PeerStats, PeerWithCountry, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
 import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
 
 import { error, warn } from '../utils/log'
@@ -25,6 +25,8 @@ type SearchType = 'album.tracks' | 'albums' | 'artist.albums' | 'artist.tracks' 
 
 const PULSE_WINDOW_MS = 6 * 60 * 60 * 1000
 const PULSE_MIN_INTERVAL_MS = 500
+const CONNECT_ATTEMPT_TIMEOUT_MS = 30_000
+const MAX_CONNECTION_ATTEMPTS = 20
 
 const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, intervalMs: number): BwPoint[] => {
   const maxPoints = Math.ceil(PULSE_WINDOW_MS / Math.max(intervalMs, PULSE_MIN_INTERVAL_MS)) + 4
@@ -174,6 +176,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [dhtNodes, setDhtNodes] = useState<{ country: string; host: string }[]>([])
   const [eventLog, setEventLog] = useState<EventEntry[]>([])
   const [uptime, setUptime] = useState<number>(0)
+  const nodeStartTimeRef = useRef<number>(0)
   const [bwHistory, setBwHistory] = useState<BwPoint[]>([])
   const prevPulseTotalsRef = useRef<null | { DL: number; UL: number; }>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -185,6 +188,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [playingId, setPlayingId] = useState<null | string>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pendingSearches = useRef(new Map<number, (r: unknown[]) => void>())
+  const pendingConnectAttempts = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
   const [tab, setTab] = useState<Tab>(() => initialLocationState.tab)
   // keep tabRef in sync so the ws message handler can read current tab without stale closure
@@ -198,14 +202,61 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [messages, setMessages] = useState<MessageEnvelope[]>([])
   const [unreadMessages, setUnreadMessages] = useState(0)
   const statsRef = useRef<NodeStats | null>(null)
+  const [connectionAttempts, setConnectionAttempts] = useState<PeerConnectionAttempt[]>([])
+  const connectionAttemptsRef = useRef<PeerConnectionAttempt[]>([])
 
   const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => warn('DEVWARN:', '[WEBUI] onPeerStatsRef not initialised'))
   const wsRef = useRef<undefined | WebSocket>(undefined)
   const tabRef = useRef(tab)
 
-  const addLog = useCallback((lv: string, m: string) => {
-    setEventLog((prev) => [...prev.slice(-199), { lv, m, t: new Date().toISOString().slice(11, 19) }])
+  const addLog = useCallback((lv: string, m: string, stack?: string) => {
+    const entry: EventEntry = { lv, m, t: new Date().toISOString().slice(11, 19) }
+    if (stack !== undefined) entry.stack = stack
+    setEventLog((prev) => [...prev.slice(-199), entry])
   }, [])
+
+  useEffect(() => {
+    connectionAttemptsRef.current = connectionAttempts
+  }, [connectionAttempts])
+
+  const clearConnectAttemptTimeout = useCallback((nonce: number) => {
+    const timeout = pendingConnectAttempts.current.get(nonce)
+    if (!timeout) return
+    clearTimeout(timeout)
+    pendingConnectAttempts.current.delete(nonce)
+  }, [])
+
+  const markAttemptFailed = useCallback((nonce: number, errorPayload: PeerConnectionError): boolean => {
+    const hasPendingNonce = connectionAttemptsRef.current.some((attempt) => attempt.nonce === nonce && attempt.state === 'pending')
+    if (!hasPendingNonce) return false
+    clearConnectAttemptTimeout(nonce)
+    setConnectionAttempts((prev) => prev.map((attempt) => {
+      if (attempt.nonce !== nonce || attempt.state !== 'pending') return attempt
+      return {
+        ...attempt,
+        error: errorPayload,
+        state: 'failed',
+        timedOut: errorPayload.status === 408,
+      }
+    }))
+    return true
+  }, [clearConnectAttemptTimeout])
+
+  const markLatestPendingAttemptForHostname = useCallback((hostname: `${string}:${number}`, errorPayload: PeerConnectionError): boolean => {
+    const latestPendingAttempt = connectionAttemptsRef.current.find((attempt) => attempt.hostname === hostname && attempt.state === 'pending')
+    if (!latestPendingAttempt) return false
+    clearConnectAttemptTimeout(latestPendingAttempt.nonce)
+    setConnectionAttempts((prev) => prev.map((attempt) => {
+      if (attempt.nonce !== latestPendingAttempt.nonce || attempt.state !== 'pending') return attempt
+      return {
+        ...attempt,
+        error: errorPayload,
+        state: 'failed',
+        timedOut: errorPayload.status === 408,
+      }
+    }))
+    return true
+  }, [clearConnectAttemptTimeout])
 
   const applyPulse = useCallback((statsPulse: StatsPulsePayload) => {
     const pointTimestamp = Number(new Date(statsPulse.timestamp)) || Date.now()
@@ -284,6 +335,10 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             const resolve = pendingSearches.current.get(data.nonce)
             if (resolve) { pendingSearches.current.delete(data.nonce); resolve(data.response); return }
           }
+          if (data.ping !== undefined && data.nonce !== undefined) {
+            ws.send(JSON.stringify({ nonce: data.nonce, pong: { time: Date.now() } }))
+            return
+          }
           if (data.search_history !== undefined) {
             setSearchHistory(data.search_history)
           } else if (data.message_history !== undefined) {
@@ -297,8 +352,16 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           } else if (data.deliver_message) {
             setMessages(prev => [...prev, data.deliver_message as MessageEnvelope])
             if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
-          } else if (data.stats) applyStats(data.stats)
-          else if (data.stats_self) applyStats({ self: data.stats_self })
+          } else if (data.stats) {
+            const fullStats = data.stats as NodeStats
+            if (fullStats.self?.nodeStartTime) nodeStartTimeRef.current = fullStats.self.nodeStartTime
+            applyStats(fullStats)
+          }
+          else if (data.stats_self) {
+            const selfStats = data.stats_self as NodeStats['self']
+            if (selfStats.nodeStartTime) nodeStartTimeRef.current = selfStats.nodeStartTime
+            applyStats({ self: selfStats })
+          }
           else if (data.stats_peers) applyStats({ peers: { known: data.stats_peers } })
           else if (data.stats_votes) {
             const statsVotes = data.stats_votes as StatsVotesPayload
@@ -324,6 +387,25 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             addLog('INFO', 'Received refresh_ui from backend. Reloading UI...')
             window.location.reload()
           }
+          else if (data.connection_error) {
+            const connError = data.connection_error as PeerConnectionError
+            const parsedNonce = typeof data.nonce === 'number'
+              ? data.nonce
+              : typeof data.nonce === 'string' && Number.isFinite(Number(data.nonce))
+                ? Number(data.nonce)
+                : null
+            const matchedByNonce = parsedNonce === null ? false : markAttemptFailed(parsedNonce, connError)
+            if (matchedByNonce) {
+              // nonce correlation succeeded
+            } else {
+              markLatestPendingAttemptForHostname(connError.hostname, connError)
+            }
+            addLog('ERROR', `Connection error for ${connError.hostname}: ${connError.message}`, connError.stack || undefined)
+          }
+          else if (data.log_event) {
+            const logEvt = data.log_event as { lv: string; m: string }
+            addLog(logEvt.lv, logEvt.m)
+          }
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
@@ -342,10 +424,18 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
     connect()
     return () => { destroyed = true; wsRef.current?.close() }
-  }, [applyPulse, applyStats, addLog, socket, apiKey])
+  }, [applyPulse, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey])
+
+  useEffect(() => () => {
+      pendingConnectAttempts.current.forEach((timeout) => clearTimeout(timeout))
+      pendingConnectAttempts.current.clear()
+    }, [])
 
   useEffect(() => {
-    const id = setInterval(() => setUptime((u) => u + 1), 1000)
+    const id = setInterval(() => {
+      const start = nodeStartTimeRef.current
+      setUptime(start > 0 ? Math.floor((Date.now() - start) / 1000) : 0)
+    }, 1000)
     return () => clearInterval(id)
   }, [])
 
@@ -419,6 +509,47 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     setMessages(prev => [...prev, { from: stats?.self.address ?? '0x0' as `0x${string}`, payload, sig: '', timestamp: Date.now(), to, ttl: 86_400_000 }])
     ws.send(JSON.stringify({ nonce: nonceRef.current++, send_message: { payload, to } }))
   }, [stats?.self.address])
+
+  const handleRequestConnect = useCallback((hostname: `${string}:${number}`) => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      error('ERROR:', 'WebSocket not connected')
+      return
+    }
+    const requestNonce = nonceRef.current++
+    const pendingAttempt: PeerConnectionAttempt = {
+      hostname,
+      nonce: requestNonce,
+      startedAt: Date.now(),
+      state: 'pending',
+    }
+    setConnectionAttempts((prev) => ([
+      pendingAttempt,
+      ...prev,
+    ].slice(0, MAX_CONNECTION_ATTEMPTS)))
+    const timeout = setTimeout(() => {
+      markAttemptFailed(requestNonce, {
+        hostname,
+        message: `Connection attempt timed out after ${CONNECT_ATTEMPT_TIMEOUT_MS / 1000}s`,
+        stack: '',
+        status: 408,
+      })
+      addLog('ERROR', `Connection timeout for ${hostname}`)
+    }, CONNECT_ATTEMPT_TIMEOUT_MS)
+    pendingConnectAttempts.current.set(requestNonce, timeout)
+    addLog('INFO', `Requesting connection to ${hostname}...`)
+    try {
+      ws.send(JSON.stringify({ connect_peer: { hostname }, nonce: requestNonce }))
+    } catch (err) {
+      markAttemptFailed(requestNonce, {
+        hostname,
+        message: err instanceof Error ? err.message : 'Failed to send connect request',
+        stack: err instanceof Error && err.stack ? err.stack : '',
+        status: 500,
+      })
+      addLog('ERROR', `Failed to send connect request for ${hostname}`)
+    }
+  }, [addLog, markAttemptFailed])
 
   const handleClearHistory = useCallback(() => {
     const ws = wsRef.current
@@ -499,8 +630,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
       {tab === 'peers' && sel
-        ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} ownAddress={stats?.self.address} peer={sel} sendMessage={handleSendMessage} wsRef={wsRef} />
-        : tab === 'peers' && <PeersTab filter={filter} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}
+        ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} ownAddress={stats?.self.address} peer={sel} peers={peers} sendMessage={handleSendMessage} wsRef={wsRef} />
+        : tab === 'peers' && <PeersTab connectionAttempts={connectionAttempts} filter={filter} onRequestConnect={handleRequestConnect} peers={peers} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}

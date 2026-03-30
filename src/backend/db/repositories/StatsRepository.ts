@@ -1,10 +1,14 @@
 import { sql } from 'drizzle-orm'
 
 import type { DB } from '..'
-import type { Votes } from '../../../types/hydrabase'
+import type { Votes, VotesByPlugin } from '../../../types/hydrabase'
 
 export class StatsRepository {
   constructor(private readonly db: DB) {}
+
+  private static initVotes(): Votes {
+    return { albums: 0, artists: 0, tracks: 0 }
+  }
 
   countPeerVotes(table: 'albums' | 'artists' | 'tracks'): number {
     return this.db.all<{ n: number }>(
@@ -42,11 +46,41 @@ export class StatsRepository {
     }
   }
 
+  getPeerVotesByPlugin(): VotesByPlugin {
+    const out: VotesByPlugin = {}
+    for (const table of ['albums', 'artists', 'tracks'] as const) {
+      for (const row of this.countVotesByPlugin(table, "address != '0x0'")) {
+        const pluginVotes = out[row.plugin_id] ?? StatsRepository.initVotes()
+        pluginVotes[table] = row.n
+        out[row.plugin_id] = pluginVotes
+      }
+    }
+    return out
+  }
+
   getSelfVotes(): Votes {
     return {
       albums:  this.countSelfVotes('albums'),
       artists: this.countSelfVotes('artists'),
       tracks:  this.countSelfVotes('tracks'),
     }
+  }
+
+  getSelfVotesByPlugin(): VotesByPlugin {
+    const out: VotesByPlugin = {}
+    for (const table of ['albums', 'artists', 'tracks'] as const) {
+      for (const row of this.countVotesByPlugin(table, "address = '0x0'")) {
+        const pluginVotes = out[row.plugin_id] ?? StatsRepository.initVotes()
+        pluginVotes[table] = row.n
+        out[row.plugin_id] = pluginVotes
+      }
+    }
+    return out
+  }
+
+  private countVotesByPlugin(table: 'albums' | 'artists' | 'tracks', where: string): { n: number; plugin_id: string }[] {
+    return this.db.all<{ n: number; plugin_id: string }>(
+      sql.raw(`SELECT plugin_id, COUNT(*) AS n FROM ${table} WHERE ${where} GROUP BY plugin_id`)
+    )
   }
 }

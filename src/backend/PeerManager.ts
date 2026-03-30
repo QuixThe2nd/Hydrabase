@@ -98,6 +98,8 @@ const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => pe
 
 export default class PeerManager {
   private static readonly HELD_MESSAGE_SWEEP_MS = 10_000
+  private static readonly RECENT_CONNECTION_FAILURE_MAX = 512
+  private static readonly RECENT_CONNECTION_FAILURE_TTL_MS = 3_600_000
   private static readonly RECONNECT_BASE_DELAY_MS = 5_000
   private static readonly RECONNECT_MAX_ATTEMPTS = 10
   private static readonly RECONNECT_MAX_DELAY_MS = 300_000
@@ -116,6 +118,8 @@ export default class PeerManager {
     return this.peers.addresses
   }
 
+  private readonly announcedByPeer = new Map<`0x${string}`, Set<`0x${string}`>>()
+  private readonly announcedHostnamesByPeer = new Map<`0x${string}`, Set<`${string}:${number}`>>()
   private readonly apiConnectedHandlers: (() => void)[] = []
   private readonly connectingPeers = new Set<`${string}:${number}`>()
   private readonly heldMessages = new Map<`0x${string}`, MessageEnvelope[]>()
@@ -123,6 +127,8 @@ export default class PeerManager {
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly localMessageHistory: MessageEnvelope[] = []
   private readonly peerConnectedHandlers: ((peer: Peer) => Promise<void> | void)[] = []
+  private readonly recentConnectionFailures = new Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' }>()
+  private readonly recentPeerAddresses = new Map<`${string}:${number}`, `0x${string}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
 
@@ -138,6 +144,7 @@ export default class PeerManager {
     this.heldMessageSweepTimer = setInterval(() => {
       this.pruneExpiredHeldMessages()
       this.pruneExpiredLocalHistory()
+      this.pruneExpiredConnectionFailures()
     }, PeerManager.HELD_MESSAGE_SWEEP_MS)
     this.heldMessageSweepTimer.unref?.()
   }
@@ -147,6 +154,7 @@ export default class PeerManager {
   }
 
   // TODO: some mechanism to proactively propagate unsolicited votes
+  // eslint-disable-next-line max-lines-per-function
   public async add(_peer: `${string}:${number}` | UDP_Client | WebSocketServerConnection, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
     let connectionKey: `${string}:${number}` | null = null
     if (typeof _peer === 'string') {
@@ -175,6 +183,7 @@ export default class PeerManager {
         const disconnectTrace = Trace.start(`[PEERS] Peer disconnect: ${peer.username} (${truncateAddress(peer.address)})`)
         disconnectTrace.step(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
         disconnectTrace.success()
+        this.removePeerAnnouncements(peer.address)
         this.peers.delete(peer.address)
         this.knownPeers.delete(peer.hostname)
         this.scheduleReconnect(peer.hostname)
@@ -182,11 +191,19 @@ export default class PeerManager {
 
       this.peers.set(peer.address, peer)
       if (peer.address === '0x0') this.apiConnectedHandlers.forEach(handler => handler())
-      else this.notifyPeerConnected(peer)
+      else {
+        this.notifyPeerConnected(peer)
+        const connectTrace = Trace.start(`[PEERS] Sending connect message to ${peer.username}`)
+        this.createAndSendMessage(peer.address, this.nodeConfig.connectMessage, connectTrace)
+        connectTrace.success()
+      }
       cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
       this.announce(peer, trace)
       this.knownPeers.add(peer.hostname)
+      this.recentPeerAddresses.set(PeerManager.normalizeHostname(peer.hostname), peer.address)
+      this.notifyPeerOfRecentConnectionFailure(peer, trace)
       this.forwardHeldMessagesForPeer(peer)
+      this.forwardLocalHistoryToPeer(peer)
       this.syncHeldMessagesToPeer(peer)
 
       return true
@@ -205,10 +222,51 @@ export default class PeerManager {
     this.sendStoreMessage(envelope, trace)
   }
 
+  public getAnnouncedHostnames(announcerAddress: `0x${string}`): `${string}:${number}`[] {
+    const hostnames = this.announcedHostnamesByPeer.get(announcerAddress)
+    if (!hostnames) return []
+    return [...hostnames]
+  }
+
+  public getAnnouncementConnections(announcedAddress: `0x${string}`): `0x${string}`[] {
+    const announcers = this.announcedByPeer.get(announcedAddress)
+    if (!announcers) return []
+    return [...announcers]
+  }
+
   public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
     const peer = this.peers.get(address)
     if (!peer) return 0
     return peer.historicConfidence // TODO: tit for tat
+  }
+  public async handleConnectPeerRequest(hostname: `${string}:${number}`, apiPeer: Peer, nonce: number, trace: Trace): Promise<void> {
+    trace.step(`[PEERS] API requesting connection to ${hostname} (nonce ${nonce})`)
+    try {
+      const success = await this.add(hostname, trace)
+      if (success) {
+        trace.success()
+        apiPeer.send({ nonce, refresh_ui: 'peer_connected' }, trace)
+      } else {
+        this.recordConnectionFailure(hostname, 'Failed to connect to peer', this.nodeConfig.preferTransport)
+        trace.fail('Connection failed')
+        apiPeer.sendConnectionError({
+          hostname,
+          message: 'Failed to connect to peer',
+          stack: trace.getFullTrace(),
+          status: 500
+        }, nonce, trace)
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.recordConnectionFailure(hostname, message, this.nodeConfig.preferTransport)
+      trace.fail(message)
+      apiPeer.sendConnectionError({
+        hostname,
+        message,
+        stack: trace.getFullTrace(),
+        status: 500
+      }, nonce, trace)
+    }
   }
 
   public handleDeliverMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
@@ -224,6 +282,7 @@ export default class PeerManager {
     this.recordLocalMessage(envelope)
     this.apiPeer?.sendDeliverMessage(envelope, trace)
   }
+
   public handleStoreMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
     if (this.isEnvelopeExpired(envelope)) {
       trace.step(`[HIP2] Dropping expired store message for ${envelope.to} from ${peer.address}`)
@@ -270,6 +329,22 @@ export default class PeerManager {
 
   public onPeerConnected(handler: (peer: Peer) => Promise<void> | void): void {
     this.peerConnectedHandlers.push(handler)
+  }
+
+  public recordPeerAnnouncedHostname(announcerAddress: `0x${string}`, announcedHostname: `${string}:${number}`): void {
+    if (announcerAddress === '0x0') return
+    const hostnames = this.announcedHostnamesByPeer.get(announcerAddress) ?? new Set<`${string}:${number}`>()
+    hostnames.add(PeerManager.normalizeHostname(announcedHostname))
+    this.announcedHostnamesByPeer.set(announcerAddress, hostnames)
+  }
+
+  public recordPeerAnnouncement(announcedAddress: `0x${string}`, announcerAddress: `0x${string}`): void {
+    if (announcedAddress === announcerAddress) return
+    if (announcedAddress === '0x0' || announcerAddress === '0x0') return
+
+    const announcers = this.announcedByPeer.get(announcedAddress) ?? new Set<`0x${string}`>()
+    announcers.add(announcerAddress)
+    this.announcedByPeer.set(announcedAddress, announcers)
   }
 
   public async requestAll<T extends Request['type']>(formulas: Config['formulas'], request: Request & { type: T }, confirmedHashes: Set<bigint>, installedPlugins: Set<string>, trace: Trace): Promise<Map<bigint, SearchResult[T]>> {
@@ -333,6 +408,15 @@ export default class PeerManager {
     }
   }
 
+  private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' } {
+    const failure = this.recentConnectionFailures.get(hostname)
+    if (!failure) return null
+    this.recentConnectionFailures.delete(hostname)
+    const now = Number(new Date())
+    if (failure.timestamp + PeerManager.RECENT_CONNECTION_FAILURE_TTL_MS <= now) return null
+    return failure
+  }
+
   private forwardHeldMessagesForPeer(peer: Peer) {
     const held = this.heldMessages.get(peer.address)
     if (!held || held.length === 0) return
@@ -353,6 +437,16 @@ export default class PeerManager {
     trace.success()
   }
 
+  private forwardLocalHistoryToPeer(peer: Peer) {
+    if (peer.address === '0x0') return
+    const now = Number(new Date())
+    const relevant = this.localMessageHistory.filter(m => m.to === peer.address && !this.isEnvelopeExpired(m, now))
+    if (relevant.length === 0) return
+    const trace = Trace.start(`[HIP2] Forwarding ${relevant.length} local history message${relevant.length === 1 ? '' : 's'} to ${peer.username} ${peer.address}`)
+    for (const message of relevant) peer.sendDeliverMessage(message, trace)
+    trace.success()
+  }
+
   // eslint-disable-next-line class-methods-use-this
   private isEnvelopeExpired(envelope: MessageEnvelope, now = Number(new Date())): boolean {
     return envelope.timestamp + envelope.ttl <= now
@@ -364,6 +458,26 @@ export default class PeerManager {
         warn('DEVWARN:', `[PEERS] onPeerConnected handler failed: ${error instanceof Error ? error.message : String(error)}`)
       })
     })
+  }
+
+  private notifyPeerOfRecentConnectionFailure(peer: Peer, trace: Trace): void {
+    if (peer.address === '0x0') return
+
+    const normalizedHostname = PeerManager.normalizeHostname(peer.hostname)
+    const failure = this.consumeConnectionFailure(normalizedHostname)
+    if (!failure) return
+
+    const occurredAt = new Date(failure.timestamp).toISOString()
+    const payload = `system:connection_attempt_failed|hostname=${failure.hostname}|transport=${failure.transport}|at=${occurredAt}|reason=${failure.reason}`
+    this.createAndSendMessage(peer.address, payload, trace)
+    trace.step(`[PEERS] Sent reciprocal failed-connect notification to ${peer.username} (${truncateAddress(peer.address)}) for ${failure.hostname}`)
+  }
+
+  private pruneExpiredConnectionFailures() {
+    const now = Number(new Date())
+    for (const [hostname, failure] of this.recentConnectionFailures.entries()) {
+      if (failure.timestamp + PeerManager.RECENT_CONNECTION_FAILURE_TTL_MS <= now) this.recentConnectionFailures.delete(hostname)
+    }
   }
 
   private pruneExpiredHeldMessages() {
@@ -381,10 +495,61 @@ export default class PeerManager {
     this.localMessageHistory.splice(0, before, ...this.localMessageHistory.filter(m => !this.isEnvelopeExpired(m, now)))
   }
 
+  private recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UDP') {
+    const normalizedHostname = PeerManager.normalizeHostname(hostname)
+    const trimmedReason = reason.replace(/\s+/gu, ' ').trim().slice(0, 240)
+    const timestamp = Number(new Date())
+    if (this.recentConnectionFailures.has(normalizedHostname)) this.recentConnectionFailures.delete(normalizedHostname)
+    this.recentConnectionFailures.set(normalizedHostname, {
+      hostname: normalizedHostname,
+      reason: trimmedReason || 'Connection failed',
+      timestamp,
+      transport,
+    })
+
+    const resolvedAddress = this.resolveKnownPeerAddress(normalizedHostname)
+    if (resolvedAddress) {
+      const occurredAt = new Date(timestamp).toISOString()
+      const payload = `system:connection_attempt_failed|hostname=${normalizedHostname}|transport=${transport}|at=${occurredAt}|reason=${trimmedReason || 'Connection failed'}`
+      const trace = Trace.start(`[PEERS] Emitting immediate failed-connect notification for ${normalizedHostname}`)
+      this.createAndSendMessage(resolvedAddress, payload, trace)
+      trace.success()
+      this.recentConnectionFailures.delete(normalizedHostname)
+    }
+
+    while (this.recentConnectionFailures.size > PeerManager.RECENT_CONNECTION_FAILURE_MAX) {
+      const oldest = this.recentConnectionFailures.keys().next()
+      if (oldest.done) break
+      this.recentConnectionFailures.delete(oldest.value)
+    }
+  }
+
   private recordLocalMessage(envelope: MessageEnvelope) {
     const envelopeHash = Bun.hash(JSON.stringify(envelope))
     if (this.localMessageHistory.some(m => Bun.hash(JSON.stringify(m)) === envelopeHash)) return
     this.localMessageHistory.push(envelope)
+  }
+
+  private removePeerAnnouncements(address: `0x${string}`): void {
+    this.announcedByPeer.delete(address)
+    this.announcedHostnamesByPeer.delete(address)
+    for (const [announcedAddress, announcers] of this.announcedByPeer.entries()) {
+      announcers.delete(address)
+      if (announcers.size === 0) this.announcedByPeer.delete(announcedAddress)
+    }
+  }
+
+  private resolveKnownPeerAddress(hostname: `${string}:${number}`): `0x${string}` | null {
+    const connected = this.connectedPeers.find(peer => peer.address !== '0x0' && PeerManager.normalizeHostname(peer.hostname) === hostname)
+    if (connected) return connected.address
+
+    const recent = this.recentPeerAddresses.get(hostname)
+    if (recent) return recent
+
+    const fromAuthCache = authenticatedPeers.get(hostname)?.address
+    if (fromAuthCache && fromAuthCache.startsWith('0x')) return fromAuthCache as `0x${string}`
+
+    return null
   }
 
   private scheduleReconnect(hostname: `${string}:${number}`) {
@@ -413,6 +578,7 @@ export default class PeerManager {
         trace.success()
         this.reconnectAttempts.delete(hostname)
       } else {
+        this.recordConnectionFailure(hostname, 'Reconnection failed', this.nodeConfig.preferTransport)
         trace.fail('Reconnection failed')
         this.scheduleReconnect(hostname)
       }
@@ -469,30 +635,69 @@ export default class PeerManager {
     trace.step('Creating socket')
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     const shouldAuthenticate = this.shouldAuthenticate(normalizedHostname)
-    if (typeof shouldAuthenticate === 'string') return trace.softFail(shouldAuthenticate)
+    if (typeof shouldAuthenticate === 'string') {
+      trace.step(shouldAuthenticate)
+      return trace.softFail(shouldAuthenticate)
+    }
+
+    trace.step(`[PEERS] Authenticating ${normalizedHostname} using ${preferTransport}`)
     const identity = await authenticatePeer(hostname, preferTransport, trace, this.udpServer, this.account, this.nodeConfig)
-    if (Array.isArray(identity)) return trace.softFail(identity[1])
+    if (Array.isArray(identity)) {
+      trace.step(`[PEERS] Authentication failed for ${normalizedHostname}: ${identity[1]}`)
+      return trace.softFail(identity[1])
+    }
 
     const shouldConnect = this.shouldConnect(normalizedHostname, identity)
-    if (typeof shouldConnect === 'string') return trace.softFail(shouldConnect)
+    if (typeof shouldConnect === 'string') {
+      trace.step(shouldConnect)
+      return trace.softFail(shouldConnect)
+    }
 
-    const firstSocket = await this.toSocket(hostname, preferTransport, trace, identity)
+    const firstSocket = await this.tryTransport(hostname, normalizedHostname, preferTransport, identity, trace, 'Primary')
     if (typeof firstSocket === 'object') {
       trace.success()
       return firstSocket
     }
     if (typeof firstSocket === 'string') return trace.softFail(firstSocket)
-    trace.caughtError('Peer verification failed')
 
-    const socket = await this.toSocket(hostname, preferTransport === 'TCP' ? 'UDP' : 'TCP', trace, identity)
+    const fallbackTransport = preferTransport === 'TCP' ? 'UDP' : 'TCP'
+    trace.step(`[PEERS] Retrying ${normalizedHostname} via ${fallbackTransport}`)
+    const socket = await this.tryTransport(hostname, normalizedHostname, fallbackTransport, identity, trace, 'Fallback')
     if (typeof socket === 'string') return trace.softFail(socket)
+    if (!socket) return trace.caughtError('Peer verification failed')
     trace.success()
     return socket
   }
-  
+
   private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): Promise<false | Socket | string> {
-    trace.step(`PeerManager.add(${hostname}, ${preferTransport})`)
-    if (hostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}` || hostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) return 'Attempted to connect to self'
+    trace.step(`[PEERS] Opening ${preferTransport} socket to ${hostname}`)
+    if (hostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}` || hostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) {
+      trace.step('[PEERS] Socket attempt rejected: attempted to connect to self')
+      return 'Attempted to connect to self'
+    }
     return preferTransport === 'TCP' ? await WebSocketClient.init(identity, this.account, this.nodeConfig) : UDP_Client.connectToAuthenticatedPeer(this.udpServer.socket, identity, this.rpcConfig, DHT_Node.getNodeId(this.nodeConfig), trace) || false
+  }
+  
+  private async tryTransport(
+    hostname: `${string}:${number}`,
+    normalizedHostname: `${string}:${number}`,
+    preferTransport: 'TCP' | 'UDP',
+    identity: Identity,
+    trace: Trace,
+    phase: 'Fallback' | 'Primary',
+  ): Promise<false | Socket | string> {
+    const transportTrace = trace.child(`[PEERS] Transport attempt ${preferTransport} -> ${normalizedHostname}`)
+    const socket = await this.toSocket(hostname, preferTransport, transportTrace, identity)
+    if (typeof socket === 'object') {
+      transportTrace.success()
+      return socket
+    }
+    if (typeof socket === 'string') {
+      transportTrace.step(`[PEERS] ${phase} transport failed: ${socket}`)
+      transportTrace.softFail(socket)
+      return socket
+    }
+    transportTrace.caughtError('Peer verification failed')
+    return false
   }
 }

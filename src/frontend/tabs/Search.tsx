@@ -109,7 +109,7 @@ const SearchResults = ({ onTogglePlay, playingId, searchElapsed, searchLoading, 
     : 0
   return <>
     <div style={{ color: MUTED, fontSize: 11, marginBottom: 2 }}>
-      {searchResults.length} {searchType + (searchResults.length === 1 ? '' : 's')} found · {searchElapsed?.toFixed(0)}ms · avg confidence <span style={{ color: confColor(avgConfidence) }}>{avgConfidence.toFixed(2)}</span>
+      {searchResults.length} {searchType + (searchResults.length === 1 ? '' : 's')} found · {searchElapsed?.toFixed(0)}ms · avg confidence <span style={{ color: confColor(avgConfidence) }}>{(avgConfidence * 100).toFixed(1)}</span>
       {selected && <span> · <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>clear selection</button></span>}
     </div>
     <div style={{ ...panel(), overflow: 'hidden', padding: 0 }}>

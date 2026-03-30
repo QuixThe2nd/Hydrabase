@@ -2,6 +2,7 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks'
 
 export type HydrabaseGlobal = typeof globalThis & {
+  __hydrabaseBroadcastLog__?: (event: { lv: string; m: string }) => void
   __hydrabaseCaptureException__?: (exception: unknown, telemetry?: HydrabaseTelemetryContext) => void
   __hydrabaseLogEvent__?: (event: {
     category: string
@@ -55,6 +56,11 @@ export const logEvent = (event: {
 }): void => {
   const globalWithCapture = globalThis as HydrabaseGlobal
   globalWithCapture.__hydrabaseLogEvent__?.(event)
+}
+
+const broadcastLog = (lv: string, m: string): void => {
+  const g = globalThis as HydrabaseGlobal
+  g.__hydrabaseBroadcastLog__?.({ lv, m })
 }
 
 type Context = `- ${string}` | Event | Record<string, unknown>
@@ -145,6 +151,7 @@ export const error = (level: 'ERROR:', message: string, context?: Context): fals
   logEvent({ category: 'log', context, level: 'error', message: formattedMessage })
   getSentryLogger()?.error(formattedMessage, contextToData(context))
   captureException(exceptionFromContext(formattedMessage, context))
+  broadcastLog('ERROR', formattedMessage)
   return false
 }
 export const warn = (level: 'DEVWARN:' | 'WARN:', message: string, context?: Context): false => {
@@ -153,6 +160,7 @@ export const warn = (level: 'DEVWARN:' | 'WARN:', message: string, context?: Con
   else console.warn(time(), yellow(level), yellow(formattedMessage), context)
   logEvent({ category: 'log', context, level: 'warning', message: formattedMessage })
   getSentryLogger()?.warn(formattedMessage, contextToData(context))
+  broadcastLog('WARN', formattedMessage)
   return false
 }
 export const stats = (message: string, context?: Context): void => {

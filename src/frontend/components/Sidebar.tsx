@@ -89,7 +89,7 @@ const SidebarPeerButton = ({ isActive, onSelectPeer, peer }: { isActive: boolean
 const SidebarPeers = ({ onSelectPeer, peers, selectedPeerAddress, setTab, tab }: { onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; tab: ActiveTab }) => <div style={{ borderTop: `1px solid ${BORD}`, display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0, padding: '10px 6px 12px' }}>
   <button onClick={() => setTab('peers')} style={{ alignItems: 'center', background: 'none', border: 'none', color: tab === 'peers' ? TEXT : MUTED, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', fontSize: 10, fontWeight: 700, justifyContent: 'space-between', letterSpacing: '.08em', padding: '0 10px 8px', textTransform: 'uppercase', width: '100%' }}>
     <span>Peers</span>
-    <span style={{ color: ACCENT, fontFamily: 'monospace', fontSize: 10 }}>{peers.length}</span>
+    <span style={{ color: ACCENT, fontFamily: 'monospace', fontSize: 10 }}>{peers.filter(peer => peer.address !== '0x0').length}</span>
   </button>
 
   <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 4, minHeight: 0, overflowY: 'auto', padding: '0 4px' }}>

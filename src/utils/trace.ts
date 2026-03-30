@@ -73,6 +73,28 @@ export class Trace {
     return false
   }
 
+  getFullTrace(indent = 0): string {
+    const elapsed = (Date.now() - this.startTime.getTime()) / 1000
+    const symbol = this.finished ? '✓' : '✗'
+    const prefix = indent === 0 ? '' : `${'│   '.repeat(indent - 1)  }┌ `
+    const lines: string[] = []
+    
+    lines.push(`${prefix}${symbol} [${this.traceId}] ${this.label} (${elapsed.toFixed(1)}s)`)
+    
+    const stepPrefix = indent === 0 ? '    ' : '│   '.repeat(indent)
+    for (const step of this.steps) {
+      const timeStr = Trace.formatTime(step.time)
+      const marker = 'error' in step ? '[ERROR]' : '[DEBUG]'
+      lines.push(`${stepPrefix}${timeStr} ${marker} ${step.msg}`)
+    }
+    
+    for (const child of this.children) {
+      lines.push(child.getFullTrace(indent + 1))
+    }
+    
+    return lines.join('\n')
+  }
+
   silentFail(reason: string, context?: unknown): false {
     logEvent({
       category: 'trace',

@@ -25,6 +25,7 @@ import { AnnounceSchema } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
 const config1 = {
+  connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
   listenAddress: '127.0.0.1',
@@ -33,6 +34,7 @@ const config1 = {
   username: 'TestNode1'
 } satisfies Config['node']
 const config2 = {
+  connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
   listenAddress: '127.0.0.1',
@@ -41,6 +43,7 @@ const config2 = {
   username: 'TestNode2'
 } satisfies Config['node']
 const config3 = {
+  connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
   listenAddress: '127.0.0.1',
@@ -367,6 +370,98 @@ describe('PeerMap', () => {
   })
 })
 
+describe('PeerManager reciprocal failure notifications', () => {
+  it('emits immediate failed-connect envelope when hostname address is known', () => {
+    const manager = peerManager1 as unknown as {
+      recentPeerAddresses: Map<`${string}:${number}`, `0x${string}`>
+      recordConnectionFailure: (hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UDP') => void
+    }
+    const sent: { payload: string, to: `0x${string}` }[] = []
+    const original = peerManager1.createAndSendMessage.bind(peerManager1)
+    peerManager1.createAndSendMessage = (to, payload) => {
+      sent.push({ payload, to })
+    }
+
+    try {
+      const hostname = '203.0.113.9:4545' as `${string}:${number}`
+      manager.recentPeerAddresses.set(hostname, account2.address)
+
+      manager.recordConnectionFailure(hostname, 'tcp timeout', 'TCP')
+
+      expect(sent.length).toBe(1)
+      expect(sent[0]?.to).toBe(account2.address)
+      expect(sent[0]?.payload).toContain('system:connection_attempt_failed')
+      expect(sent[0]?.payload).toContain(`hostname=${hostname}`)
+      expect(sent[0]?.payload).toContain('reason=tcp timeout')
+    } finally {
+      peerManager1.createAndSendMessage = original
+    }
+  })
+
+  it('sends a single reciprocal notification when matching peer later connects', () => {
+    const manager = peerManager1 as unknown as {
+      notifyPeerOfRecentConnectionFailure: (peer: Peer, trace: Trace) => void
+      recentPeerAddresses: Map<`${string}:${number}`, `0x${string}`>
+      recordConnectionFailure: (hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UDP') => void
+    }
+    const sent: { payload: string, to: `0x${string}` }[] = []
+    const original = peerManager1.createAndSendMessage.bind(peerManager1)
+    peerManager1.createAndSendMessage = (to, payload) => {
+      sent.push({ payload, to })
+    }
+
+    try {
+      const hostname = `${config2.hostname}:${config2.port}` as `${string}:${number}`
+      manager.recentPeerAddresses.delete(hostname)
+      manager.recordConnectionFailure(hostname, 'dial timeout', 'TCP')
+      const mockPeer = { address: account2.address, hostname, username: config2.username } as unknown as Peer
+
+      manager.notifyPeerOfRecentConnectionFailure(mockPeer, trace)
+      manager.notifyPeerOfRecentConnectionFailure(mockPeer, trace)
+
+      expect(sent.length).toBe(1)
+      expect(sent[0]?.to).toBe(account2.address)
+      expect(sent[0]?.payload).toContain('system:connection_attempt_failed')
+      expect(sent[0]?.payload).toContain(`hostname=${hostname}`)
+      expect(sent[0]?.payload).toContain('reason=dial timeout')
+    } finally {
+      peerManager1.createAndSendMessage = original
+    }
+  })
+
+  it('does not send notification after cached failure expires', () => {
+    const manager = peerManager1 as unknown as {
+      notifyPeerOfRecentConnectionFailure: (peer: Peer, trace: Trace) => void
+      recentConnectionFailures: Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' }>
+      recentPeerAddresses: Map<`${string}:${number}`, `0x${string}`>
+      recordConnectionFailure: (hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UDP') => void
+    }
+    const sent: { payload: string, to: `0x${string}` }[] = []
+    const original = peerManager1.createAndSendMessage.bind(peerManager1)
+    peerManager1.createAndSendMessage = (to, payload) => {
+      sent.push({ payload, to })
+    }
+
+    try {
+      const hostname = '198.51.100.77:4545' as `${string}:${number}`
+      manager.recentPeerAddresses.delete(hostname)
+      manager.recordConnectionFailure(hostname, 'handshake failed', 'UDP')
+      const existing = manager.recentConnectionFailures.get(hostname)
+      expect(existing).toBeDefined()
+      if (!existing) return
+      existing.timestamp = 0
+      manager.recentConnectionFailures.set(hostname, existing)
+
+      const mockPeer = { address: account3.address, hostname, username: config3.username } as unknown as Peer
+      manager.notifyPeerOfRecentConnectionFailure(mockPeer, trace)
+
+      expect(sent.length).toBe(0)
+    } finally {
+      peerManager1.createAndSendMessage = original
+    }
+  })
+})
+
 describe('RequestManager', () => {
   it('registers and resolves a request', async () => {
     const rm = new RequestManager(5_000)
@@ -433,6 +528,7 @@ describe('HIP2 message parsing', () => {
     expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('deliver_message')
     expect(identify({ ping: { time: 123 } })).toBe('ping')
     expect(identify({ pong: { time: 123 } })).toBe('pong')
+    expect(identify({ connect_peer: { hostname: 'localhost:14545' } })).toBe('connect_peer')
     expect(identify({ unknown: true })).toBeNull()
   })
 })
@@ -517,12 +613,12 @@ describe('Schema validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('AuthSchema rejects bio over 80 characters', () => {
+  it('AuthSchema rejects bio over 140 characters', () => {
     const account = new Account(generatePrivateKey())
     const sig = account.sign('I am 127.0.0.1:4545', trace)
     const result = AuthSchema.safeParse({
       address: account.address,
-      bio: 'x'.repeat(81),
+      bio: 'x'.repeat(141),
       hostname: '127.0.0.1:4545',
       signature: sig.toString(),
       userAgent: 'Hydrabase/test',
@@ -578,6 +674,7 @@ describe('Peer search integration', () => {
 // TODO: reconnect to a disconnected peer
 
 const mockNode: Config['node'] = {
+  connectMessage: 'Hello!',
   hostname: 'server.example.com',
   ip: '203.0.113.10',
   listenAddress: '0.0.0.0',
@@ -587,6 +684,7 @@ const mockNode: Config['node'] = {
 }
 
 const mockNATClient = {
+  connectMessage: 'Hello!',
   hostname: '49.186.30.234',
   ip: '192.168.1.100',
   listenAddress: '0.0.0.0',
@@ -721,6 +819,7 @@ describe('UDP Authentication Edge Cases', () => {
   it('validates server proof correctly for UDP', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
+      connectMessage: 'Hello!',
       hostname: 'test.example.com',
       ip: '203.0.113.10',
       listenAddress: '0.0.0.0',
@@ -742,6 +841,7 @@ describe('UDP Authentication Edge Cases', () => {
   it('detects hostname mismatch in server verification', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
+      connectMessage: 'Hello!',
       hostname: 'test.example.com',
       ip: '203.0.113.10',
       listenAddress: '0.0.0.0',

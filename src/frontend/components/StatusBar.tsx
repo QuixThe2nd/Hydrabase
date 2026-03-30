@@ -21,20 +21,20 @@ const Item = ({ label, value, valueColor }: { label: string; value: string; valu
 </span>
 
 export const StatusBar = ({ dhtNodes, peers, uptime, wsState }: Props) => {
-  const connCount = peers.filter(p => p.connection !== undefined).length
+  const connCount = peers.filter(p => p.connection !== undefined && p.address !== '0x0').length
   const peerCount = `${connCount}/${peers.length}`
   const totalUL = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
   const totalDL = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
-  const hasGithubDevNode = peers.some((p) => p.connection?.username?.toLowerCase() === 'githubdevnode')
+  const hasGithubNode = peers.some((p) => p.connection?.username?.toLowerCase() === 'GithubNode')
   const hasConnectedNonApiPeer = peers.some((p) => p.connection !== undefined && p.address !== '0x0')
-  const connectability = hasGithubDevNode ? 'Connectable' : hasConnectedNonApiPeer ? 'Restricted Connectivity' : 'Not Connectable'
-  const connectabilityColor = hasGithubDevNode ? '#3fb950' : hasConnectedNonApiPeer ? '#d29922' : '#f85149'
+  const connectability = hasGithubNode ? 'Connectable' : hasConnectedNonApiPeer ? 'Limited Connectivity' : 'Not Connectable'
+  const connectabilityColor = hasGithubNode ? '#3fb950' : hasConnectedNonApiPeer ? '#d29922' : '#f85149'
   return <div style={{ alignItems: 'center', background: '#010409', borderTop: `1px solid ${BORD}`, bottom: 0, display: 'flex', gap: 12, height: 28, left: 0, padding: '0 14px', position: 'fixed', right: 0, zIndex: 48 }}>
     <SocketStatus state={wsState} />
     <Sep />
-    <Item label="peers" value={peerCount} valueColor="#3fb950" />
-    <Sep />
     <Item label="" value={connectability} valueColor={connectabilityColor} />
+    <Sep />
+    <Item label="peers" value={peerCount} valueColor="#3fb950" />
     <Sep />
     <Item label="DHT" value={String(dhtNodes.length)} valueColor={ACCENT} />
     <Sep />

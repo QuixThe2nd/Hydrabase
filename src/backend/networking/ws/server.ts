@@ -121,7 +121,8 @@ export const handleConnection = async (
   ])
   if (Array.isArray(peer)) {
     trace.fail(peer[1])
-    return { res: peer }
+    if (isApiKeyAuth) return { res: peer }
+    return { hostname: auth.hostname, res: peer }
   }
   const { address, bio, hostname, userAgent, username } = peer
   const telemetryBase = {

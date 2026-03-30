@@ -70,5 +70,11 @@ export const peerStats = sqliteTable('peer_stats', {
   lifetime_ul: integer('lifetime_ul').notNull().default(0),
 })
 
-export const schema = { album, artist, peerStats, searchHistory, soul, track } as const
+export const announcedPeers = sqliteTable('announced_peers', {
+  announcedAddress: text('announced_address').notNull(),
+  announcerAddress: text('announcer_address').notNull(),
+  timestamp: integer('timestamp').notNull(),
+}, table => [uniqueIndex('idx_announcer_announced').on(table.announcerAddress, table.announcedAddress)])
+
+export const schema = { album, announcedPeers, artist, peerStats, searchHistory, soul, track } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts

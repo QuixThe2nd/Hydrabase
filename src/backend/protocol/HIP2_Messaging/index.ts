@@ -28,8 +28,14 @@ export const SendMessageSchema = z.object({
 })
 export type SendMessage = z.infer<typeof SendMessageSchema>
 
+export const ConnectPeerSchema = z.object({
+  hostname: z.string().regex(/^.+:\d+$/u).transform(v => v as `${string}:${number}`)
+})
+export type ConnectPeer = z.infer<typeof ConnectPeerSchema>
+
 const MessageSchemas = {
   announce: AnnounceSchema,
+  connect_peer: ConnectPeerSchema,
   deliver_message: MessageEnvelopeSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
@@ -67,6 +73,7 @@ export class HIP2_Messaging {
     : 'deliver_message' in result ? 'deliver_message'
     : 'peer_stats' in result ? 'peer_stats'
     : 'announce' in result ? 'announce'
+    : 'connect_peer' in result ? 'connect_peer'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'
     : 'search_history' in result ? 'search_history'

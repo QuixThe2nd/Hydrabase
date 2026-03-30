@@ -65,6 +65,32 @@ export class PeerRepository {
     )[0]?.n ?? 0
   }
 
+  getConnectionCount(address: `0x${string}`): number {
+    try {
+      const result = this.db.all<{ count: number }>(sql.raw(`
+        SELECT COUNT(DISTINCT announcer_address) AS count FROM announced_peers 
+        WHERE announced_address = '${address}'
+      `))
+      return result[0]?.count ?? 0
+    } catch {
+      // Table might not exist on old databases
+      return 0
+    }
+  }
+
+  getConnections(address: `0x${string}`): `0x${string}`[] {
+    try {
+      const result = this.db.all<{ announcer_address: string }>(sql.raw(`
+        SELECT DISTINCT announcer_address FROM announced_peers 
+        WHERE announced_address = '${address}'
+      `))
+      return result.map(r => r.announcer_address as `0x${string}`)
+    } catch {
+      // Table might not exist on old databases
+      return []
+    }
+  }
+
   getHistoricConfidence(address: `0x${string}`, installedPlugins: MetadataPlugin[]): number {
     const rows = [
       ...this.getMatchStats('tracks',  address),
@@ -118,5 +144,18 @@ export class PeerRepository {
       UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}' AND confidence = 1
       UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}' AND confidence = 1
     `)).map(r => r.plugin_id)
+  }
+
+  recordAnnouncement(announcedAddress: `0x${string}`, announcerAddress: `0x${string}`): void {
+    try {
+      this.db.run(sql.raw(`
+        INSERT INTO announced_peers (announced_address, announcer_address, timestamp) 
+        VALUES ('${announcedAddress}', '${announcerAddress}', ${Date.now()})
+        ON CONFLICT(announcer_address, announced_address) DO UPDATE SET
+          timestamp = ${Date.now()}
+      `))
+    } catch {
+      // Table might not exist on old databases; will be created on next migration
+    }
   }
 }

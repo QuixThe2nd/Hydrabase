@@ -2,6 +2,7 @@ import type { Config } from '../types/hydrabase'
 import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 import type { Peer } from './Peer'
 
+import { type HydrabaseGlobal } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { Account, getPrivateKey } from './crypto/Account'
 import { startDatabase } from './db'
@@ -113,6 +114,12 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)
+  ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m }) => {
+    const {apiPeer} = peerManager
+    if (!apiPeer) return
+    const broadcastTrace = Trace.start('[LOG] Broadcasting log event to API peer')
+    apiPeer.sendLogEvent({ lv, m }, broadcastTrace)
+  }
   trace.step('9/14 Building Web UI')
   await buildWebUI()
   trace.step('10/14 Starting HTTP server')

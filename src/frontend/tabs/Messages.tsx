@@ -27,6 +27,43 @@ const getConversations = (messages: MessageEnvelope[], ownAddress: string | unde
 
 const fmtTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
+const FAILED_CONNECT_PREFIX = 'system:connection_attempt_failed|'
+
+interface ParsedFailedConnectNotice {
+  at?: string
+  hostname?: string
+  reason?: string
+  transport?: 'TCP' | 'UDP'
+}
+
+const getFailedConnectMessageText = (notice: ParsedFailedConnectNotice): string => {
+  const target = notice.hostname ?? 'your node'
+  const via = notice.transport ? ` over ${notice.transport}` : ''
+  return `Hey, I couldn't connect to your node at ${target}${via}.`
+}
+
+const parseFailedConnectNotice = (payload: string): null | ParsedFailedConnectNotice => {
+  if (!payload.startsWith(FAILED_CONNECT_PREFIX)) return null
+  const raw = payload.slice(FAILED_CONNECT_PREFIX.length)
+  const fields = new URLSearchParams(raw.split('|').join('&'))
+  const transport = fields.get('transport')
+  const parsed: ParsedFailedConnectNotice = {}
+  const at = fields.get('at')
+  const hostname = fields.get('hostname')
+  const reason = fields.get('reason')
+  if (at) parsed.at = at
+  if (hostname) parsed.hostname = hostname
+  if (reason) parsed.reason = reason
+  if (transport === 'TCP' || transport === 'UDP') parsed.transport = transport
+  return parsed
+}
+
+const getMessagePreview = (payload: string): string => {
+  const failedConnect = parseFailedConnectNotice(payload)
+  if (!failedConnect) return payload
+  return getFailedConnectMessageText(failedConnect)
+}
+
 // eslint-disable-next-line max-lines-per-function
 export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props) => {
   const [selectedAddress, setSelectedAddress] = useState<`0x${string}` | null>(null)
@@ -93,7 +130,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
             <Identicon address={addr as `0x${string}`} size={28} style={{ borderRadius: 4, flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: hasUnread ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPeerName(addr)}</div>
-              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg?.payload ?? ''}</div>
+              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : ''}</div>
             </div>
           </button>
         })}
@@ -120,9 +157,17 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
               ? <div style={{ color: MUTED, fontSize: 11, paddingTop: 20, textAlign: 'center' }}>No messages yet. Say hello!</div>
               : thread.map((msg, i) => {
                   const isMine = msg.from === ownAddress
+                  const failedConnect = parseFailedConnectNotice(msg.payload)
                   return <div key={i} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
                     <div style={{ background: isMine ? 'rgba(0,200,255,.12)' : BG3, border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : BORD}`, borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', maxWidth: '70%', padding: '8px 12px' }}>
-                      <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>
+                      {failedConnect
+                        ? <>
+                            <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              {getFailedConnectMessageText(failedConnect)}
+                            </div>
+                            {failedConnect.reason && <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.4, marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>I got: {failedConnect.reason}</div>}
+                          </>
+                        : <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>}
                       <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}</div>
                     </div>
                   </div>

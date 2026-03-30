@@ -1,7 +1,14 @@
-import type { Connection, NodeStats, PeerWithCountry, Votes } from '../../types/hydrabase'
+import type { NodeStats, PeerWithCountry, Votes } from '../../types/hydrabase'
 
 import { PanelHeader } from '../components/PanelHeader'
 import { ACCENT, BORD, MUTED, panel } from '../theme'
+
+interface PluginVoteRow {
+  peerTotal: number
+  plugin: string
+  selfTotal: number
+  total: number
+}
 
 interface Props {
   peers: PeerWithCountry[]
@@ -35,11 +42,49 @@ const Header = ({ peerVotes, selfVotes }: { peerVotes: Votes, selfVotes: Votes }
   </div>
 }
 
+const buildPluginVoteRows = (stats: NodeStats | null): PluginVoteRow[] => (stats?.peers.plugins ?? [])
+    .map((plugin) => {
+      const peerVotes = stats?.peers.pluginVotes[plugin] ?? { albums: 0, artists: 0, tracks: 0 }
+      const selfVotes = stats?.self.pluginVotes[plugin] ?? { albums: 0, artists: 0, tracks: 0 }
+      const peerTotal = peerVotes.albums + peerVotes.artists + peerVotes.tracks
+      const selfTotal = selfVotes.albums + selfVotes.artists + selfVotes.tracks
+      return { peerTotal, plugin, selfTotal, total: peerTotal + selfTotal }
+    })
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total)
+
+const PluginVoteBreakdown = ({ rows }: { rows: PluginVoteRow[] }) => <div style={panel()}>
+    <PanelHeader label='Votes By Plugin' />
+    <div style={{ padding: '12px 16px' }}>
+      {rows.length === 0 && (
+        <div style={{ color: MUTED, fontSize: 11 }}>No votes have been recorded yet.</div>
+      )}
+      {rows.map((row) => {
+        const selfPct = row.total > 0 ? (row.selfTotal / row.total) * 100 : 0
+        return <div key={row.plugin} style={{ borderBottom: `1px solid ${BORD}`, marginBottom: 10, paddingBottom: 10 }}>
+          <div style={{ alignItems: 'baseline', display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{row.plugin}</span>
+            <span style={{ color: MUTED, fontSize: 11 }}>{row.selfTotal} / {row.total}</span>
+          </div>
+          <div style={{ background: '#21262d', borderRadius: 3, height: 6, marginBottom: 4, overflow: 'hidden' }}>
+            <div style={{ background: ACCENT, borderRadius: 3, height: '100%', width: `${selfPct}%` }} />
+          </div>
+          <div style={{ color: MUTED, display: 'flex', fontSize: 10, justifyContent: 'space-between' }}>
+            <span>your votes: {row.selfTotal}</span>
+            <span>peer votes: {row.peerTotal}</span>
+          </div>
+        </div>
+      })}
+    </div>
+  </div>
+
 export const VotesTab = ({ peers, stats }: Props) => {
   const knownPeerCount = peers.length
   const getPeerPlugins = (peer: PeerWithCountry): string[] => peer.connection?.plugins ?? peer.knownPlugins ?? []
+  const pluginVoteRows = buildPluginVoteRows(stats)
+
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-    <Header peerVotes={(peers.map(({connection}) => connection).filter(Boolean) as Connection[]).map(conn => conn.votes).reduce((acc, votes) => ({ albums: acc.albums + votes.albums, artists: acc.artists + votes.artists, tracks: acc.tracks + votes.tracks }), { albums: 0, artists: 0, tracks: 0 })} selfVotes={stats?.self.votes ?? { albums: 0, artists: 0, tracks: 0 }} />
+    <Header peerVotes={stats?.peers.votes ?? { albums: 0, artists: 0, tracks: 0 }} selfVotes={stats?.self.votes ?? { albums: 0, artists: 0, tracks: 0 }} />
     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr' }}>
       <div style={panel()}>
         <PanelHeader label="Plugins" />
@@ -74,5 +119,7 @@ export const VotesTab = ({ peers, stats }: Props) => {
         </div>
       </div>
     </div>
+
+    <PluginVoteBreakdown rows={pluginVoteRows} />
   </div>
 }

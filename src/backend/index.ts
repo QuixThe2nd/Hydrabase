@@ -147,6 +147,7 @@ const CONFIG: Config = {
   },
   node: {
     bio: process.env['BIO']?.slice(0, 140) ?? 'Welcome to my part of the internet',
+    connectMessage: process.env['CONNECT_MESSAGE'] ?? 'Hello!',
     hostname: process.env['DOMAIN'] ?? ip,
     ip,
     listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',
