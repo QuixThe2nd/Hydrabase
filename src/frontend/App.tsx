@@ -581,6 +581,12 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     window.history.pushState(null, '', `/peers/${p.address}`)
   }, [])
 
+  const handleRestart = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({ nonce: nonceRef.current++, restart: true }))
+  }, [])
+
   const handlePeerClose = useCallback(() => {
     setSel(null)
     window.history.pushState(null, '', '/peers')
@@ -626,7 +632,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
   return <div style={{ background: BG, color: TEXT, display: 'flex', fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: '100vh' }}>
     <style>{GLOBAL_STYLES}</style>
-    <Sidebar onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
+    <Sidebar onRestart={handleRestart} onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
       {tab === 'peers' && sel

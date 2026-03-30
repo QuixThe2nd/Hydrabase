@@ -1,3 +1,5 @@
+import { spawn } from 'child_process'
+
 import type { ApiPeer, NodeStats, PeerStats, Socket, StatsPulsePayload, StatsVotesPayload } from '../types/hydrabase'
 import type { Album, Artist, MessageEnvelope, MetadataPlugin, Request, Response, SearchHistoryEntry, Track } from '../types/hydrabase-schemas'
 import type { Repositories } from './db'
@@ -17,18 +19,12 @@ export class Peer {
   private static readonly PING_TIMEOUT_MS = 90_000
 
   public nonce = 0
-  get address() {
-    return this.socket.identity.address
-  }
-  get bio() {
-    return this.socket.identity.bio
-  }
+  get address() { return this.socket.identity.address }
+  get bio() { return this.socket.identity.bio }
   get historicConfidence(): number {
     return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
   }
-  get hostname() {
-    return this.socket.identity.hostname
-  }
+  get hostname() { return this.socket.identity.hostname }
   get latency(): number {
     return this.totalLatency/this.totalPongs
   }
@@ -45,13 +41,8 @@ export class Peer {
     return this.repos.peer.getPlugins(this.address)
   }
 
-  get totalDL() {
-    return this._dl
-  }
-
-  get totalUL() {
-    return this._ul
-  }
+  get totalDL() { return this._dl }
+  get totalUL() { return this._ul }
 
   get type() {
     return this.socket instanceof UDP_Client ? 'UDP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
@@ -61,13 +52,8 @@ export class Peer {
     return this.startTime ? Number(new Date()) - this.startTime : 0
   }
 
-  get userAgent() {
-    return this.socket.identity.userAgent
-  }
-
-  get username() {
-    return this.socket.identity.username
-  }
+  get userAgent() { return this.socket.identity.userAgent }
+  get username() { return this.socket.identity.username }
   // get votes(): Votes {
   //   return {
   //     albums: 0,
@@ -123,6 +109,20 @@ export class Peer {
       if (this.address === '0x0') this.repos.searchHistory.add(request.query, request.type, results.length)
     },
     response: (response: Response, nonce: number) => { if (!this.requestManager.resolve(nonce, response)) warn('DEVWARN:', `[HIP2] Unexpected response nonce ${nonce} from ${this.socket.identity.address}`)},
+    restart: (_data: true, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      trace.step('[PEER] API requested restart')
+      this.send({ nonce, restarting: true }, trace)
+      setTimeout(() => {
+        const child = spawn(process.execPath, process.argv.slice(1), {
+          detached: true,
+          env: process.env,
+          stdio: 'inherit',
+        })
+        child.unref()
+        process.exit(0)
+      }, 500)
+    },
     search_history: (data: 'clear' | 'get' | { remove: number }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       if (data === 'get') {
@@ -247,6 +247,7 @@ export class Peer {
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
       else if (type === 'connect_peer') this.handlers[type](data as ConnectPeer, nonce, trace)
+      else if (type === 'restart') this.handlers[type](data as true, nonce, trace)
       else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
       else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
       else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
@@ -270,7 +271,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { deliver_message: MessageEnvelope } | { log_event: import('../types/hydrabase').LogEvent } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { deliver_message: MessageEnvelope } | { log_event: import('../types/hydrabase').LogEvent } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulsePayload } | { stats_self: NodeStats['self'] } | { stats_timestamp: NodeStats['timestamp'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     const keys = Object.keys(JSON.parse(message))

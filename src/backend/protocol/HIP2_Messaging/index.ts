@@ -43,6 +43,7 @@ const MessageSchemas = {
   pong: PingSchema,
   request: RequestSchema,
   response: ResponseSchema,
+  restart: z.literal(true),
   search_history: SearchHistoryDataSchema,
   send_message: SendMessageSchema,
   store_message: MessageEnvelopeSchema
@@ -76,6 +77,7 @@ export class HIP2_Messaging {
     : 'connect_peer' in result ? 'connect_peer'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'
+    : 'restart' in result ? 'restart'
     : 'search_history' in result ? 'search_history'
     : 'send_message' in result ? 'send_message'
     : 'message_history' in result ? 'message_history'
