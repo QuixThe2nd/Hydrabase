@@ -289,6 +289,26 @@ export default class PeerManager {
       return
     }
 
+    // Global chat: record, deliver to local API peer, and gossip to other peers
+    if (envelope.to === '0x0') {
+      const envelopeHash = Bun.hash(JSON.stringify(envelope))
+      if (this.localMessageHistory.some(m => Bun.hash(JSON.stringify(m)) === envelopeHash)) {
+        trace.step(`[HIP2] Duplicate global message ignored from ${peer.address}`)
+        return
+      }
+      this.recordLocalMessage(envelope)
+      this.apiPeer?.sendDeliverMessage(envelope, trace)
+      let forwarded = 0
+      for (const connPeer of this.connectedPeers) {
+        if (connPeer.address === '0x0') continue
+        if (connPeer.address === peer.address) continue
+        connPeer.sendStoreMessage(envelope, trace)
+        forwarded++
+      }
+      trace.step(`[HIP2] Received global message from ${peer.address}; gossiped to ${forwarded} peer${forwarded === 1 ? '' : 's'}`)
+      return
+    }
+
     const recipientPeer = this.peers.get(envelope.to)
     if (recipientPeer) {
       trace.step(`[HIP2] Recipient ${envelope.to} online; forwarding message from intermediary ${peer.address}`)
@@ -374,6 +394,19 @@ export default class PeerManager {
     if (this.isEnvelopeExpired(envelope)) {
       trace.step(`[HIP2] Not sending expired store message for ${envelope.to}`)
       return 0
+    }
+
+    // Global chat: broadcast to all peers and deliver to local API peer
+    if (envelope.to === '0x0') {
+      let sent = 0
+      for (const peer of this.connectedPeers) {
+        if (peer.address === '0x0') continue
+        peer.sendStoreMessage(envelope, trace)
+        sent++
+      }
+      this.apiPeer?.sendDeliverMessage(envelope, trace)
+      trace.step(`[HIP2] Broadcast global message to ${sent} peer${sent === 1 ? '' : 's'}`)
+      return sent
     }
 
     const recipientPeer = this.peers.get(envelope.to)
