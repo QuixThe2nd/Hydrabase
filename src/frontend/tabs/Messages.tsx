@@ -134,7 +134,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
           const isSelected = selectedAddress === GLOBAL_CHAT_ADDRESS
           const lastMsg = globalChatMsgs?.[globalChatMsgs.length - 1]
           return <button onClick={() => setSelectedAddress(GLOBAL_CHAT_ADDRESS)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'rgba(0,200,255,.03)', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'rgba(0,200,255,.3)'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
-            <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: `1px solid rgba(0,200,255,.3)`, borderRadius: 4, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 14, height: 28, justifyContent: 'center', width: 28 }}>#</div>
+            <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: '1px solid rgba(0,200,255,.3)', borderRadius: 4, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 14, height: 28, justifyContent: 'center', width: 28 }}>#</div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Global Chat</div>
               <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : 'Broadcast to all peers'}</div>
@@ -165,7 +165,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
           {/* Thread header */}
           <div style={{ ...panel({ borderRadius: '8px 8px 0 0', overflow: 'visible' }), alignItems: 'center', borderBottom: 'none', display: 'flex', gap: 10, padding: '10px 16px' }}>
             {selectedAddress === GLOBAL_CHAT_ADDRESS
-              ? <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: `1px solid rgba(0,200,255,.3)`, borderRadius: 5, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 16, height: 30, justifyContent: 'center', width: 30 }}>#</div>
+              ? <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: '1px solid rgba(0,200,255,.3)', borderRadius: 5, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 16, height: 30, justifyContent: 'center', width: 30 }}>#</div>
               : <Identicon address={selectedAddress} size={30} style={{ borderRadius: 5, flexShrink: 0 }} />}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPeerName(selectedAddress)}</div>
