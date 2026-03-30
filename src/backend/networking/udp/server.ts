@@ -28,10 +28,14 @@ const isVersionOnlyProbe = (payload: unknown): payload is { v: Uint8Array } => {
   return keys.length === 1 && keys[0] === 'v' && obj['v'] instanceof Uint8Array
 }
 
-export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => ({
-  ...msg,
-  y: decoder.decode(msg.y),
-}), z.discriminatedUnion('y', [
+export const rpcMessageSchema = z.preprocess((msg: Record<string, unknown> & { y: Uint8Array }) => {
+  const type = decoder.decode(msg.y)
+  return {
+    ...msg,
+    // Some peers send rate-limit errors with y='r' and an e tuple; treat them as error messages.
+    y: type === 'r' && msg['e'] !== undefined && msg['r'] === undefined ? 'e' : type,
+  }
+}, z.discriminatedUnion('y', [
   QueryMessage,
   ResponseMessageSchema,
   ErrorMessage,

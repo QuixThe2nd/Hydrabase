@@ -76,17 +76,22 @@ const Section = ({ children, label }: { children: React.ReactNode; label: string
   {children}
 </div>
 
-const Statistics = ({ peer }: { peer: PeerWithCountry }) => <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr', marginBottom: 20 }}>
-  {([
-    ['Latency', peer.connection?.latency ? `${(peer.connection?.latency ?? 0).toFixed(1)}ms` : '—', peer.connection?.latency ? latColor(peer.connection?.latency) : MUTED],
-    ['Uptime', fmtUptime(peer.connection?.uptime ?? 0), '#a5d6ff'],
-    ['↑ UL', fmtBytes(peer.connection?.totalUL ?? 0), ACCENT],
-    ['↓ DL', fmtBytes(peer.connection?.totalDL ?? 0), '#f0883e'],
-  ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: BG, borderRadius: 7, padding: '10px 12px' }}>
+const Statistics = ({ peer }: { peer: PeerWithCountry }) => {
+  const {connection} = peer
+  return <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr', marginBottom: 20 }}>
+    {([
+      ['Latency', connection?.latency ? `${(connection.latency).toFixed(1)}ms` : '—', connection?.latency ? latColor(connection.latency) : MUTED],
+      ['Uptime', fmtUptime(connection?.uptime ?? 0), '#a5d6ff'],
+      ['↑ Session UL', fmtBytes(connection?.totalUL ?? 0), ACCENT],
+      ['↓ Session DL', fmtBytes(connection?.totalDL ?? 0), '#f0883e'],
+      ['↑ Lifetime UL', fmtBytes(connection?.lifetimeUL ?? 0), '#79c0ff'],
+      ['↓ Lifetime DL', fmtBytes(connection?.lifetimeDL ?? 0), '#ffa657'],
+    ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: BG, borderRadius: 7, padding: '10px 12px' }}>
     <div style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', marginBottom: 5, textTransform: 'uppercase' }}>{l}</div>
     <div style={{ color: c, fontSize: 18, fontWeight: 700 }}>{v}</div>
   </div>)}
-</div>
+  </div>
+}
 
 const Reputation = ({ data, peer }: { data: PeerStats; peer: PeerWithCountry }) => {
   const totalVotes = data.votes.tracks + data.votes.artists + data.votes.albums

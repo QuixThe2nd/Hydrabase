@@ -146,7 +146,7 @@ const CONFIG: Config = {
     pluginConfidence: 'x / (x + y)',
   },
   node: {
-    ...(process.env['BIO'] ? { bio: process.env['BIO'].slice(0, 80) } : {}),
+    bio: process.env['BIO']?.slice(0, 80) ?? 'Welcome to my part of the internet',
     hostname: process.env['DOMAIN'] ?? ip,
     ip,
     listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',
