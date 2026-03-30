@@ -14,7 +14,7 @@ import { upgradeHostname } from '../HIP4_HostnameUpgrades'
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: 'Address must start with 0x' }).transform(val => val as `0x${string}`),
-  bio: z.string().max(80, { message: 'Bio must be 80 characters or less' }).optional(),
+  bio: z.string().max(140, { message: 'Bio must be 140 characters or less' }).optional(),
   hostname: z.string().includes(':').transform(h => h as `${string}:${number}`),
   userAgent: z.string(),
   username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u, { message: 'Username must be 3-20 alphanumeric characters, no spaces' })
@@ -30,7 +30,7 @@ export type Identity = z.infer<typeof IdentitySchema>
 export const proveServer = async (account: Account, node: Config['node'], trace: Trace): Promise<Auth> => {
   trace.step('[HIP1] Proving server')
   const hostname = node.hostname === node.ip && !isPeerLocalHostname(node.hostname) ? await getIp() : node.hostname
-  const bio = node.bio?.slice(0, 80)
+  const bio = node.bio?.slice(0, 140)
   return {
     address: account.address,
     ...(bio ? { bio } : {}),
@@ -49,7 +49,7 @@ export const verifyServer = (auth: Auth, hostname: string, trace: Trace): [numbe
 
 export const proveClient = (account: Account, node: Config['node'], hostname: `${string}:${number}`, trace: Trace, x = false): Auth => {
   trace.step(`[HIP1] Proving client to ${hostname}`)
-  const bio = node.bio?.slice(0, 80)
+  const bio = node.bio?.slice(0, 140)
   const result = {
     address: account.address,
     ...(bio ? { bio } : {}),
@@ -76,7 +76,7 @@ export const verifyClient = async (
   if ('apiKey' in auth) {
     trace.step('[HIP1] Verifying API')
     return auth.apiKey === apiKey
-      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 80) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` }
+      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` }
       : [500, 'Invalid API Key']
   }
   trace.step(`[HIP1] Verifying client ${auth.username} running ${auth.userAgent}`)

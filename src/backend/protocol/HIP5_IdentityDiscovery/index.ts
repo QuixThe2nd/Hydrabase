@@ -17,7 +17,7 @@ import { type Auth, type Identity, proveClient, proveServer, verifyServer } from
 
 export const AuthSchema = z.object({
   address: BinaryString,
-  bio: BinaryString.refine(b => b.length <= 80, { message: 'Bio must be 80 characters or less' }).optional(),
+  bio: BinaryString.refine(b => b.length <= 140, { message: 'Bio must be 140 characters or less' }).optional(),
   hostname: BinaryString,
   signature: BinaryString,
   userAgent: BinaryString,

@@ -25,6 +25,7 @@ jobs:
       REQUIRE_DHT_READY: "false"
       HYDRABASE_TELEMETRY: "true"
       PREFER_TRANSPORT: "UDP"
+      BIO: "This node is running in a GitHub action. If you can connect, you can connect to nodes with strict networks."
 
     steps:
       - name: Checkout repo
