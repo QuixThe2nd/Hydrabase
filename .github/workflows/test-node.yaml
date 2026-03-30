@@ -26,6 +26,7 @@ jobs:
       HYDRABASE_TELEMETRY: "true"
       PREFER_TRANSPORT: "UDP"
       BIO: "This node is running in a GitHub action. If you can connect, you can connect to nodes with strict networks."
+      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
 
     steps:
       - name: Checkout repo

@@ -76,5 +76,24 @@ export const announcedPeers = sqliteTable('announced_peers', {
   timestamp: integer('timestamp').notNull(),
 }, table => [uniqueIndex('idx_announcer_announced').on(table.announcerAddress, table.announcedAddress)])
 
-export const schema = { album, announcedPeers, artist, peerStats, searchHistory, soul, track } as const
+export const authenticatedPeer = sqliteTable('authenticated_peers', {
+  address: text('address').notNull(),
+  bio: text('bio'),
+  hostname: text('hostname').notNull().primaryKey(),
+  signature: text('signature'),
+  userAgent: text('user_agent').notNull(),
+  username: text('username').notNull(),
+})
+
+export const dhtNode = sqliteTable('dht_nodes', {
+  host: text('host').notNull(),
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  port: integer('port').notNull(),
+}, table => [uniqueIndex('idx_dht_node').on(table.host, table.port)])
+
+export const wsServer = sqliteTable('ws_servers', {
+  hostname: text('hostname').notNull().primaryKey(),
+})
+
+export const schema = { album, announcedPeers, artist, authenticatedPeer, dhtNode, peerStats, searchHistory, soul, track, wsServer } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts

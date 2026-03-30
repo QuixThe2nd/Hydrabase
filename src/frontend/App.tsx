@@ -271,6 +271,28 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     })
   }, [])
 
+  const applyPulseHistory = useCallback((history: StatsPulsePayload[]) => {
+    if (history.length === 0) return
+    const points: BwPoint[] = []
+    let prevDL = 0
+    let prevUL = 0
+    for (let i = 0; i < history.length; i++) {
+      const entry = history[i]
+      if (!entry) continue
+      const t = Number(new Date(entry.timestamp)) || Date.now()
+      const dl = i > 0 ? Math.max(0, entry.totalDL - prevDL) : 0
+      const ul = i > 0 ? Math.max(0, entry.totalUL - prevUL) : 0
+      prevDL = entry.totalDL
+      prevUL = entry.totalUL
+      points.push({ dl, t, ul })
+    }
+    const last = history[history.length - 1]
+    if (!last || points.length === 0) return
+    prevPulseTotalsRef.current = { DL: last.totalDL, UL: last.totalUL }
+    const latestTimestamp = points[points.length - 1]?.t ?? Date.now()
+    setBwHistory(keepRecentPulsePoints(points, latestTimestamp, last.intervalMs))
+  }, [])
+
   const applyStats = useCallback((fullOrPartialStats: NodeStats | PartialNodeStats) => {
     // Check if it's a full or partial stats object
     const isFull = 'dhtNodes' in fullOrPartialStats && fullOrPartialStats.dhtNodes !== undefined &&
@@ -368,8 +390,16 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             applyStats({ peers: statsVotes.peers, self: statsVotes.self })
           }
           else if (data.stats_dht_nodes) applyStats({ dhtNodes: data.stats_dht_nodes })
-          else if (data.stats_pulse) applyPulse(data.stats_pulse as StatsPulsePayload)
-          else if (data.stats_timestamp) applyStats({ timestamp: data.stats_timestamp })
+          else if (data.stats_pulse) {
+            const bundle = data.stats_pulse as { history: StatsPulsePayload[]; latest: StatsPulsePayload, }
+            // Always apply history first, then latest
+            if (bundle.history && bundle.history.length > 0) {
+              applyPulseHistory(bundle.history)
+            }
+            if (bundle.latest) {
+              applyPulse(bundle.latest)
+            }
+          }
           else if (data.stats_peer_connected) {
             const connectedPeer = data.stats_peer_connected as ApiPeer
             const currentKnown = statsRef.current?.peers.known ?? []
@@ -424,7 +454,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
     connect()
     return () => { destroyed = true; wsRef.current?.close() }
-  }, [applyPulse, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey])
+  }, [applyPulse, applyPulseHistory, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey])
 
   useEffect(() => () => {
       pendingConnectAttempts.current.forEach((timeout) => clearTimeout(timeout))

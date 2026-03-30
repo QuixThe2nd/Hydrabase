@@ -25,7 +25,7 @@ export const StatusBar = ({ dhtNodes, peers, uptime, wsState }: Props) => {
   const peerCount = `${connCount}/${peers.length}`
   const totalUL = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
   const totalDL = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
-  const hasGithubNode = peers.some((p) => p.connection?.username?.toLowerCase() === 'GithubNode')
+  const hasGithubNode = peers.some((p) => p.connection?.address?.toLowerCase() === '0x26cc08d7f906b2e55a06af561f870ec427d0caf7')
   const hasConnectedNonApiPeer = peers.some((p) => p.connection !== undefined && p.address !== '0x0')
   const connectability = hasGithubNode ? 'Connectable' : hasConnectedNonApiPeer ? 'Limited Connectivity' : 'Not Connectable'
   const connectabilityColor = hasGithubNode ? '#3fb950' : hasConnectedNonApiPeer ? '#d29922' : '#f85149'

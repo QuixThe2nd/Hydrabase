@@ -90,14 +90,12 @@ export interface NodeStats {
     pluginVotes: VotesByPlugin
     votes: Votes
   }
-  timestamp: string
 }
 
 export interface PartialNodeStats {
   dhtNodes?: NodeStats['dhtNodes']
   peers?: Partial<NodeStats['peers']>
   self?: Partial<NodeStats['self']>
-  timestamp?: string
 }
 
 export interface PeerAuthInfo {
@@ -149,6 +147,11 @@ export interface Socket {
   readonly onClose: (handler: () => void) => void
   readonly onMessage: (handler: (message: string) => void) => void
   readonly send: (message: string) => void
+}
+
+export interface StatsPulseBundle {
+  history: StatsPulsePayload[]
+  latest: StatsPulsePayload
 }
 
 export interface StatsPulsePayload {

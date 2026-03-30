@@ -25,7 +25,6 @@ import { PeerMap } from './PeerMap'
 import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery'
 import { compareVersions, parseHydrabaseUserAgent } from './versioning'
 
-const cacheFile = Bun.file('./data/ws-servers.json')
 const CURRENT_VERSION = VERSION.trim()
 const avg = (numbers: number[]) => numbers.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / numbers.length
 const warnIfPeerHasNewerBranchVersion = (peer: Peer): void => {
@@ -122,11 +121,13 @@ export default class PeerManager {
   private readonly announcedHostnamesByPeer = new Map<`0x${string}`, Set<`${string}:${number}`>>()
   private readonly apiConnectedHandlers: (() => void)[] = []
   private readonly connectingPeers = new Set<`${string}:${number}`>()
+  private readonly dataTransferHandlers: (() => void)[] = []
   private readonly heldMessages = new Map<`0x${string}`, MessageEnvelope[]>()
   private readonly heldMessageSweepTimer: NodeJS.Timeout
   private readonly knownPeers = new Set<`${string}:${number}`>()
   private readonly localMessageHistory: MessageEnvelope[] = []
   private readonly peerConnectedHandlers: ((peer: Peer) => Promise<void> | void)[] = []
+  private readonly peerDisconnectedHandlers: ((peer: Peer) => void)[] = []
   private readonly recentConnectionFailures = new Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' }>()
   private readonly recentPeerAddresses = new Map<`${string}:${number}`, `0x${string}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
@@ -183,6 +184,7 @@ export default class PeerManager {
         const disconnectTrace = Trace.start(`[PEERS] Peer disconnect: ${peer.username} (${truncateAddress(peer.address)})`)
         disconnectTrace.step(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
         disconnectTrace.success()
+        this.notifyPeerDisconnected(peer)
         this.removePeerAnnouncements(peer.address)
         this.peers.delete(peer.address)
         this.knownPeers.delete(peer.hostname)
@@ -197,8 +199,8 @@ export default class PeerManager {
         this.createAndSendMessage(peer.address, this.nodeConfig.connectMessage, connectTrace)
         connectTrace.success()
       }
-      cacheFile.write(JSON.stringify([...this.peers.values()].map(peer => peer.hostname)))
-      this.announce(peer, trace)
+      this.repos.wsServer.replaceAll([...this.peers.values()].map(peer => peer.hostname))
+      // this.announce(peer, trace) // removed: peer lists are now sent on every ping
       this.knownPeers.add(peer.hostname)
       this.recentPeerAddresses.set(PeerManager.normalizeHostname(peer.hostname), peer.address)
       this.notifyPeerOfRecentConnectionFailure(peer, trace)
@@ -335,20 +337,31 @@ export default class PeerManager {
       const trace = Trace.start(`[PEERS] Connecting to bootstrap peer ${hostname}`)
       await this.add(hostname as `${string}:${number}`, trace)
     }))
-    if (!(await cacheFile.exists())) return
-    const hostnames: `${string}:${number}`[] = await cacheFile.json()
+    const hostnames = this.repos.wsServer.getAll()
     for (const hostname of hostnames) if (hostname && !bootstrapPeers.includes(hostname)) {
       const trace = Trace.start(`[PEERS] Connecting to cached peer ${hostname}`)
       await this.add(hostname, trace)
     }
   } // TODO: time based confidence scores - older peers = more trustworthy
 
+  public notifyDataTransfer(): void {
+    this.dataTransferHandlers.forEach(handler => handler())
+  }
+
   public onApiConnected(handler: () => void): void {
     this.apiConnectedHandlers.push(handler)
   }
 
+  public onDataTransfer(handler: () => void): void {
+    this.dataTransferHandlers.push(handler)
+  }
+
   public onPeerConnected(handler: (peer: Peer) => Promise<void> | void): void {
     this.peerConnectedHandlers.push(handler)
+  }
+
+  public onPeerDisconnected(handler: (peer: Peer) => void): void {
+    this.peerDisconnectedHandlers.push(handler)
   }
 
   public recordPeerAnnouncedHostname(announcerAddress: `0x${string}`, announcedHostname: `${string}:${number}`): void {
@@ -374,10 +387,13 @@ export default class PeerManager {
       const peer = this.peers.get(address)
       if (!isPeer(peer, address)) continue
       if (!isOpened(peer, address)) continue
-      (await searchPeer(formulas, request, peer, results, installedPlugins, confirmedHashes, trace)).entries().map(([hash,item]) => results.set(BigInt(hash), item))
+      const searchResult = await searchPeer(formulas, request, peer, results, installedPlugins, confirmedHashes, trace)
+      for (const [hash, item] of searchResult.entries()) {
+        results.set(BigInt(hash), item)
+      }
     }
     trace.step(`[PEERS] Received ${results.size} results`)
-    return new Map<bigint, SearchResult[T]>(results.entries().map(([hash, result]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
+    return new Map<bigint, SearchResult[T]>(Array.from(results.entries()).map(([hash, result]: [bigint, SearchResult[T] & { confidences: number[] }]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
   public sendRefreshUi(trace: Trace): number {
@@ -427,19 +443,7 @@ export default class PeerManager {
     return sent
   }
 
-  private announce(newPeer: Peer, trace: Trace) {
-    if (newPeer.address === '0x0') return
-    trace.step('[PEERS] Announcing peers')
-    for (const peerAddress of this.peerAddresses) {
-      const existingPeer = this.peers.get(peerAddress)
-      if (!existingPeer) {
-        warn('DEVWARN:', `[PEERS] Peer not found ${peerAddress}`)
-        continue
-      }
-      newPeer.announcePeer(existingPeer, trace)
-      existingPeer.announcePeer(newPeer, trace)
-    }
-  }
+  // announce() removed: peer lists are now sent on every ping, not just on connect
 
   private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' } {
     const failure = this.recentConnectionFailures.get(hostname)
@@ -491,6 +495,10 @@ export default class PeerManager {
         warn('DEVWARN:', `[PEERS] onPeerConnected handler failed: ${error instanceof Error ? error.message : String(error)}`)
       })
     })
+  }
+
+  private notifyPeerDisconnected(peer: Peer): void {
+    this.peerDisconnectedHandlers.forEach(handler => handler(peer))
   }
 
   private notifyPeerOfRecentConnectionFailure(peer: Peer, trace: Trace): void {

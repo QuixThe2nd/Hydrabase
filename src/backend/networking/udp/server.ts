@@ -1,22 +1,36 @@
 import bencode from 'bencode'
 import dgram from 'dgram'
-import fs from 'fs'
 import z from 'zod'
 
 import type { Config } from '../../../types/hydrabase'
 import type { Account } from '../../crypto/Account'
+import type { AuthenticatedPeerRepository } from '../../db/repositories/AuthenticatedPeerRepository'
 
 import { debug, error, log, logContext, warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
 import { decoder, ErrorMessage, type Query, QueryMessage, ResponseMessageSchema } from '../../protocol/DHT'
 import { type Identity } from '../../protocol/HIP1_Identity'
 import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
-import { FSMap } from '../../storage/FSMap'
 import { isAllowedPeer } from '../utils'
 import { UDP_Client } from './client'
 
-if (!fs.existsSync('./data/')) fs.mkdirSync('./data')
-export const authenticatedPeers = new FSMap<`${string}:${number}`, Identity>('./data/authenticated-peers.json')
+let _repo: AuthenticatedPeerRepository | undefined
+
+interface AuthenticatedPeersStore {
+  clear(): void
+  get(hostname: `${string}:${number}`): Identity | undefined
+  init(repo: AuthenticatedPeerRepository): void
+  set(hostname: `${string}:${number}`, identity: Identity): AuthenticatedPeersStore
+  values(): Identity[]
+}
+
+export const authenticatedPeers: AuthenticatedPeersStore = {
+  clear(): void { _repo?.clear() },
+  get(hostname: `${string}:${number}`): Identity | undefined { return _repo?.get(hostname) },
+  init(repo: AuthenticatedPeerRepository): void { _repo = repo },
+  set(hostname: `${string}:${number}`, identity: Identity): AuthenticatedPeersStore { _repo?.set(hostname, identity); return authenticatedPeers },
+  values(): Identity[] { return _repo?.values() ?? [] },
+}
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
 
 type ResponseAwaiter = (msg: RPCMessage, rinfo: { address: string, port: number }) => boolean

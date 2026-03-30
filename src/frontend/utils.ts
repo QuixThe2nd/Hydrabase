@@ -120,7 +120,7 @@ export const mergePartialStats = (current: NodeStats | null, partial: PartialNod
         pluginVotes: partial.self?.pluginVotes ?? {},
         votes: partial.self?.votes ?? { albums: 0, artists: 0, tracks: 0 },
       },
-      timestamp: partial.timestamp ?? new Date().toISOString(),
+
     }
   }
 
@@ -140,6 +140,5 @@ export const mergePartialStats = (current: NodeStats | null, partial: PartialNod
       pluginVotes: partial.self?.pluginVotes ?? current.self.pluginVotes,
       votes: partial.self?.votes ?? current.self.votes,
     },
-    timestamp: partial.timestamp ?? current.timestamp,
   }
 }

@@ -12,7 +12,7 @@ import ITunes from './metadata/plugins/iTunes'
 import Spotify from './metadata/plugins/Spotify'
 import { DHT_Node } from './networking/dht'
 import { startServer } from './networking/http'
-import { UDP_Server } from './networking/udp/server'
+import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { requestPort } from './networking/upnp'
 import PeerManager from './PeerManager'
 import { StatsReporter } from './StatsReporter'
@@ -102,6 +102,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   const account = new Account(key)
   trace.step('4/14 Starting database')
   const repos = await startDatabase(CONFIG.formulas.pluginConfidence)
+  authenticatedPeers.init(repos.authenticatedPeer)
   trace.step('5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos, CONFIG.soulIdCutoff)
   trace.step('6/14 Starting UDP server')
@@ -126,7 +127,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, bio: CONFIG.node.bio?.slice(0, 140), hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
   startDevWatchers(peerManager)
   trace.step('11/14 Starting DHT node')
-  const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, udpServer)
+  const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, udpServer, repos.dhtNode)
   trace.step('12/14 Starting stats reporter')
   new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peerManager, dhtNode, repos)
   trace.step('13/14 Waiting for DHT')

@@ -85,6 +85,13 @@
       "when": 1774833600000,
       "tag": "0011_dapper_darkhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1774878313443,
+      "tag": "0012_brainy_caretaker",
+      "breakpoints": true
     }
   ]
 }

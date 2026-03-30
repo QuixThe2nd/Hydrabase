@@ -1,3 +1,5 @@
+
+ 
 import { useEffect, useRef, useState } from 'react'
 
 import type { PeerWithCountry } from '../../types/hydrabase'
@@ -6,6 +8,7 @@ import type { MessageEnvelope } from '../../types/hydrabase-schemas'
 import { Identicon } from '../components/Identicon'
 import { ACCENT, BG, BG3, BORD, MUTED, panel, SURF, TEXT } from '../theme'
 import { shortAddr } from '../utils'
+import { useLastRead } from './useLastRead'
 
 interface Props {
   messages: MessageEnvelope[]
@@ -69,14 +72,18 @@ const getMessagePreview = (payload: string): string => {
 // eslint-disable-next-line max-lines-per-function
 export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props) => {
   const [selectedAddress, setSelectedAddress] = useState<`0x${string}` | null>(null)
+  const conversations = getConversations(messages, ownAddress)
+  // Per-conversation last-read timestamp
+  const [lastRead] = useLastRead(selectedAddress, conversations)
   const [composeText, setComposeText] = useState('')
   const [newRecipient, setNewRecipient] = useState('')
   const [showNewConv, setShowNewConv] = useState(false)
   const threadEndRef = useRef<HTMLDivElement>(null)
 
-  const conversations = getConversations(messages, ownAddress)
+  // conversations already declared above
   const peerMap = new Map(peers.map(p => [p.address, p]))
   const thread = selectedAddress ? (conversations.get(selectedAddress) ?? []) : []
+
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -146,11 +153,16 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
         {dmConversations.map(([addr, msgs]) => {
           const lastMsg = msgs[msgs.length - 1]
           const isSelected = selectedAddress === addr
-          const hasUnread = lastMsg && lastMsg.from !== ownAddress
+          // Show unread badge if there are messages newer than lastRead
+          const lastReadTime = lastRead[addr] || 0
+          const hasNew = msgs.some(m => m.from !== ownAddress && m.timestamp > lastReadTime)
           return <button key={addr} onClick={() => setSelectedAddress(addr as `0x${string}`)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'none', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'transparent'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
             <Identicon address={addr as `0x${string}`} size={28} style={{ borderRadius: 4, flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: hasUnread ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPeerName(addr)}</div>
+              <div style={{ alignItems: 'center', display: 'flex', fontSize: 12, fontWeight: hasNew ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {getPeerName(addr)}
+                {hasNew && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, marginLeft: 8, padding: '1px 5px' }}>NEW</span>}
+              </div>
               <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : ''}</div>
             </div>
           </button>
@@ -184,10 +196,20 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
                   const isMine = msg.from === ownAddress
                   const isGlobal = selectedAddress === GLOBAL_CHAT_ADDRESS
                   const failedConnect = parseFailedConnectNotice(msg.payload)
+                  // Highlight new messages in the thread
+                  const lastReadTime = lastRead[selectedAddress ?? ''] || 0
+                  const isNew = !isMine && msg.timestamp > lastReadTime
                   return <div key={i} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
                     <div style={{ maxWidth: '70%' }}>
                       {isGlobal && !isMine && <div style={{ color: MUTED, fontSize: 10, marginBottom: 2, paddingLeft: 4 }}>{getPeerName(msg.from)}</div>}
-                      <div style={{ background: isMine ? 'rgba(0,200,255,.12)' : BG3, border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : BORD}`, borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
+                      <div style={{
+                        background: isMine ? 'rgba(0,200,255,.12)' : (isNew ? 'rgba(255,74,94,0.13)' : BG3),
+                        border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : (isNew ? '#ff4a5e' : BORD)}`,
+                        borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                        boxShadow: isNew ? '0 0 0 2px #ff4a5e33' : undefined,
+                        padding: '8px 12px',
+                        position: 'relative',
+                      }}>
                         {failedConnect
                           ? <>
                               <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -196,7 +218,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
                               {failedConnect.reason && <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.4, marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>I got: {failedConnect.reason}</div>}
                             </>
                           : <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>}
-                        <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}</div>
+                        <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}{isNew && <span style={{ color: '#ff4a5e', fontWeight: 700, marginLeft: 6 }}>NEW</span>}</div>
                       </div>
                     </div>
                   </div>

@@ -20,21 +20,26 @@ const map = (row: AlbumRow): Album => ({
 })
 
 export class AlbumRepository {
+  private readonly changedHandlers: (() => void)[] = []
   constructor(private readonly db: DB) {}
 
   lookupByArtistIds(artistIds: Map<string, string>, includePeers = true): Album[] {
     return this.db.select().from(schema.album)
-      .where(and(or(...artistIds.entries().map(([pluginId, artistId]) => and(eq(schema.album.plugin_id, pluginId), eq(schema.album.artist_id, artistId)))), includePeers ? undefined : eq(schema.album.address, '0x0')))
+      .where(and(or(...Array.from(artistIds.entries()).map(([pluginId, artistId]: [string, string]) => and(eq(schema.album.plugin_id, pluginId), eq(schema.album.artist_id, artistId)))), includePeers ? undefined : eq(schema.album.address, '0x0')))
       .all()
       .filter(row => row.name && row.image_url && row.external_urls)
       .map(map)
   }
-  
+
   lookupBySoulId(soulId: string, includePeers = true): Album[] {
     return this.db.select().from(schema.album)
       .where(and(eq(schema.album.soul_id, soulId), includePeers ? undefined : eq(schema.album.address, '0x0')))
       .all()
       .map(map)
+  }
+  
+  onChanged(handler: () => void): void {
+    this.changedHandlers.push(handler)
   }
 
   searchByName(query: string, includePeers = true): Album[] {
@@ -53,6 +58,7 @@ export class AlbumRepository {
       external_urls: JSON.stringify(result.external_urls),
     }
     this.db.insert(schema.album).values(set).onConflictDoUpdate({ set, target: [schema.album.id, schema.album.plugin_id, schema.album.address] }).run()
+    this.changedHandlers.forEach(h => h())
   }
 
   upsertFromPlugin(result: Album) {
@@ -64,5 +70,6 @@ export class AlbumRepository {
       external_urls: JSON.stringify(result.external_urls),
     }
     this.db.insert(schema.album).values(set).onConflictDoUpdate({ set, target: [schema.album.id, schema.album.plugin_id, schema.album.address] }).run()
+    this.changedHandlers.forEach(h => h())
   }
 }

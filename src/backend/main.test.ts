@@ -72,8 +72,9 @@ let server2: Bun.Server<WebSocketData>
 let server3: Bun.Server<WebSocketData>
 
 beforeAll(async () => {
-  authenticatedPeers.clear()
   const repos = await startDatabase(formulas.pluginConfidence)
+  authenticatedPeers.init(repos.authenticatedPeer)
+  authenticatedPeers.clear()
   const metadataManager = new MetadataManager([new ITunes()], repos, 32)
 
   // Start Node 1
@@ -182,7 +183,7 @@ describe('HIP2', () => {
     const peer2 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config2.hostname}:${config2.port}`) as Peer
     expect(peer2).toBeDefined()
     const time = Number(new Date())
-    peer2.send({ nonce: 3, ping: { time } }, trace)
+    peer2.send({ nonce: 3, ping: { peers: [], time } }, trace)
     const pong = await new Promise<Ping>(res => {
       peer2.socket.onMessage(msg => {
         const {data} = z.object({ pong: PingSchema }).safeParse(JSON.parse(msg))
@@ -233,6 +234,7 @@ describe('HIP3', () => {
   it('peers 1 and 3 discovered each other through peer 2', () => {
     const peer3 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config3.hostname}:${config3.port}`) as Peer
     const peer1 = peerManager3.connectedPeers.find(peer => peer.hostname === `${config1.hostname}:${config1.port}`) as Peer
+    // ...existing code...
     expect(peer1).toBeDefined()
     expect(peer3).toBeDefined()
   })
@@ -526,7 +528,7 @@ describe('HIP2 message parsing', () => {
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')
     expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('store_message')
     expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('deliver_message')
-    expect(identify({ ping: { time: 123 } })).toBe('ping')
+    expect(identify({ ping: { peers: [], time: 123 } })).toBe('ping')
     expect(identify({ pong: { time: 123 } })).toBe('pong')
     expect(identify({ connect_peer: { hostname: 'localhost:14545' } })).toBe('connect_peer')
     expect(identify({ unknown: true })).toBeNull()
@@ -555,7 +557,7 @@ describe('Schema validation', () => {
   })
 
   it('PingSchema validates time field', () => {
-    const result = PingSchema.safeParse({ time: Date.now() })
+    const result = PingSchema.safeParse({ peers: [], time: Date.now() })
     expect(result.success).toBe(true)
   })
 
