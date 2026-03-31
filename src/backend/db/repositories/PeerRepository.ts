@@ -10,6 +10,20 @@ const avg = (numbers: number[]) => numbers.reduce((a, b) => a + b, 0) / numbers.
 export class PeerRepository {
   constructor(private readonly db: DB, private readonly pluginConfidenceFormula: string) {}
 
+  accumulateSessionStats(address: `0x${string}`, sessionUL: number, sessionDL: number): void {
+    try {
+      this.db.run(sql.raw(`
+        INSERT INTO peer_stats (address, lifetime_ul, lifetime_dl) 
+        VALUES ('${address}', ${sessionUL}, ${sessionDL})
+        ON CONFLICT(address) DO UPDATE SET
+          lifetime_ul = lifetime_ul + ${sessionUL},
+          lifetime_dl = lifetime_dl + ${sessionDL}
+      `))
+    } catch {
+      // Table might not exist on old databases; will be created on next migration
+    }
+  }
+
   collectPeerStats(address: `0x${string}`, installedPlugins: MetadataPlugin[]): PeerStats {
     const installedPluginIds = new Set(installedPlugins.map(p => p.id))
     const peerPlugins = this.getPlugins(address)
@@ -51,6 +65,32 @@ export class PeerRepository {
     )[0]?.n ?? 0
   }
 
+  getConnectionCount(address: `0x${string}`): number {
+    try {
+      const result = this.db.all<{ count: number }>(sql.raw(`
+        SELECT COUNT(DISTINCT announcer_address) AS count FROM announced_peers 
+        WHERE announced_address = '${address}'
+      `))
+      return result[0]?.count ?? 0
+    } catch {
+      // Table might not exist on old databases
+      return 0
+    }
+  }
+
+  getConnections(address: `0x${string}`): `0x${string}`[] {
+    try {
+      const result = this.db.all<{ announcer_address: string }>(sql.raw(`
+        SELECT DISTINCT announcer_address FROM announced_peers 
+        WHERE announced_address = '${address}'
+      `))
+      return result.map(r => r.announcer_address as `0x${string}`)
+    } catch {
+      // Table might not exist on old databases
+      return []
+    }
+  }
+
   getHistoricConfidence(address: `0x${string}`, installedPlugins: MetadataPlugin[]): number {
     const rows = [
       ...this.getMatchStats('tracks',  address),
@@ -75,6 +115,18 @@ export class PeerRepository {
     return scores.length > 0 ? avg(scores) : 0
   }
 
+  getLifetimeStats(address: `0x${string}`): { lifetimeDL: number; lifetimeUL: number } {
+    try {
+      const [result] = this.db.all<{ lifetime_dl: number; lifetime_ul: number }>(sql.raw(`
+        SELECT lifetime_dl, lifetime_ul FROM peer_stats WHERE address = '${address}'
+      `))
+      return result ? { lifetimeDL: result.lifetime_dl, lifetimeUL: result.lifetime_ul } : { lifetimeDL: 0, lifetimeUL: 0 }
+    } catch {
+      // Table might not exist on old databases; will be created on next migration
+      return { lifetimeDL: 0, lifetimeUL: 0 }
+    }
+  }
+
   getMatchStats(table: 'albums' | 'artists' | 'tracks', address: `0x${string}`): PluginAccuracy[] {
     return this.db.all<PluginAccuracy>(sql`
       SELECT peer.plugin_id, COUNT(local.id) AS match, COUNT(*) - COUNT(local.id) AS mismatch
@@ -92,5 +144,18 @@ export class PeerRepository {
       UNION SELECT DISTINCT plugin_id FROM artists WHERE address = '${address}' AND confidence = 1
       UNION SELECT DISTINCT plugin_id FROM albums WHERE address = '${address}' AND confidence = 1
     `)).map(r => r.plugin_id)
+  }
+
+  recordAnnouncement(announcedAddress: `0x${string}`, announcerAddress: `0x${string}`): void {
+    try {
+      this.db.run(sql.raw(`
+        INSERT INTO announced_peers (announced_address, announcer_address, timestamp) 
+        VALUES ('${announcedAddress}', '${announcerAddress}', ${Date.now()})
+        ON CONFLICT(announcer_address, announced_address) DO UPDATE SET
+          timestamp = ${Date.now()}
+      `))
+    } catch {
+      // Table might not exist on old databases; will be created on next migration
+    }
   }
 }

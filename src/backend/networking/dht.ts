@@ -5,6 +5,7 @@ import krpcSocket from 'k-rpc-socket'
 import net from 'net'
 
 import type { Config } from '../../types/hydrabase'
+import type { DhtNodeRepository } from '../db/repositories/DhtNodeRepository'
 import type PeerManager from '../PeerManager'
 
 import { debug, error, logContext, warn } from '../../utils/log'
@@ -23,8 +24,9 @@ export class DHT_Node {
   private cacheSize = 0
   private readonly dht: DHT
   private readonly knownPeers: Set<`${string}:${number}`> // TODO: prune old peers, mem leak
+  private readonly nodeHandlers: (() => void)[] = []
   private readonly startupTrace = Trace.start('[DHT] Startup')
-  constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], udpServer: UDP_Server, private readonly cacheFile = Bun.file('./data/dht-nodes.json')) {
+  constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], udpServer: UDP_Server, private readonly dhtNodeRepo: DhtNodeRepository) {
     this.knownPeers = new Set<`${string}:${number}`>([`${node.hostname}:${node.port}`,`${node.ip}:${node.port}`])
     const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(udpServer), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
     this.dht = new DHT({ bootstrap: config.bootstrapNodes.split(','), host: net.isIP(node.hostname) ? node.hostname : node.ip, krpc: socket, nodeId: DHT_Node.getNodeId(node) })
@@ -40,7 +42,7 @@ export class DHT_Node {
       this.startupTrace.step(`${resolved}/${resolved+notResolved} Ready with ${this.nodes.length} node${this.nodes.length === 1 ? '' : 's'}`)
     }))
     let lastNodes = 0
-    this.dht.on('node', () => logContext('DHT', async () => {
+    this.dht.on('node', () => logContext('DHT', () => {
       const nodes = this.nodes.length
       if (nodes > 1 && !this.resolved.connected) {
         this.resolved.connected = true
@@ -51,10 +53,11 @@ export class DHT_Node {
         debug(`Connected to ${nodes} nodes`)
         lastNodes = nodes
       }
-      if (nodes > 50 || !(await this.cacheFile.exists()) || (nodes > this.cacheSize && this.cacheSize !== 0)) {
-        this.cacheFile.write(JSON.stringify(this.nodes))
+      if (nodes > 50 || (nodes > this.cacheSize && this.cacheSize !== 0)) {
+        this.dhtNodeRepo.replaceAll(this.nodes)
         this.cacheSize = nodes
       }
+      this.nodeHandlers.forEach(handler => handler())
     }))
     this.dht.on('peer', (peer: { host: string; port: number }) => logContext('DHT', () => {
       const hostname = authenticatedPeers.get(`${peer.host}:${peer.port}`)?.hostname ?? `${peer.host}:${peer.port}`
@@ -87,6 +90,9 @@ export class DHT_Node {
       } // TODO: rate limiting
     }, 1_000)
   })
+  public onNode(handler: () => void): void {
+    this.nodeHandlers.push(handler)
+  }
   private readonly announce = () => {
     const room = DHT_Node.getRoomId(this.config.roomSeed)
     this.dht.announce(room, this.node.port, err => { if (err) warn('WARN:', `An error occurred during announce - ${err.message} ${this.nodes.length}`) })
@@ -97,11 +103,9 @@ export class DHT_Node {
     const notResolved = Object.values(this.resolved).filter(resolved => !resolved).length
     return { notResolved, resolved }
   }
-  private readonly loadCache = async () => {
-    if (await this.cacheFile.exists()) {
-      const peers: DHTNode[] = await this.cacheFile.json()
-      for (const peer of peers) this.add(peer)
-    }
+  private readonly loadCache = () => {
+    const peers = this.dhtNodeRepo.getAll()
+    for (const peer of peers) this.add(peer)
     this.resolved.cacheLoaded = true
     const {notResolved,resolved} = this.countResolved()
     this.startupTrace.step(`${resolved}/${resolved+notResolved} Loaded cached nodes`)

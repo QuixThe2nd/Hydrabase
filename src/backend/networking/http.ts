@@ -53,7 +53,7 @@ export const startServer = (
   apiKey: string,
   preferTransport: 'TCP' | 'UDP' = node.preferTransport,
   udpServer?: UDP_Server,
-  identity: Identity = { address: account.address, bio: node.bio?.slice(0, 80), hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
+  identity: Identity = { address: account.address, bio: node.bio?.slice(0, 140), hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
 ) => logContext('HTTP', () => {
   const server = Bun.serve({
     fetch: async (req, server) => {
@@ -66,8 +66,19 @@ export const startServer = (
         return new Response('Failed to get client IP', { status: 500 })
       }
       const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager, preferTransport, udpServer, account, identity)
-      if (response === undefined) return response
+      if (response === undefined) return new Response(null)
       const {res} = response
+      const {apiPeer} = peerManager
+      if (apiPeer) {
+        const fallbackHostname = `${ip.address}:${ip.port}` as `${string}:${number}`
+        const hostname = response.hostname ?? fallbackHostname
+        apiPeer.sendConnectionError({
+          hostname,
+          message: res[1],
+          stack: trace.getFullTrace(),
+          status: res[0],
+        }, apiPeer.nonce++, trace)
+      }
       trace.fail(res[1])
       return new Response(res[1], { status: res[0] })
     },

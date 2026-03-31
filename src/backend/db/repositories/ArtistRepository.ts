@@ -15,6 +15,7 @@ const map = (row: ArtistRow): Artist => ({
 })
 
 export class ArtistRepository {
+  private readonly changedHandlers: (() => void)[] = []
   constructor(private readonly db: DB) {}
 
   lookupBySoulId(soulId: string, includePeers = true): Artist[] {
@@ -22,6 +23,10 @@ export class ArtistRepository {
       .where(and(eq(schema.artist.soul_id, soulId), includePeers ? undefined : eq(schema.artist.address, '0x0')))
       .all()
       .map(map)
+  }
+
+  onChanged(handler: () => void): void {
+    this.changedHandlers.push(handler)
   }
 
   searchByName(query: string, includePeers = true): Artist[] {
@@ -39,6 +44,7 @@ export class ArtistRepository {
       genres: result.genres.join(','),
     }
     this.db.insert(schema.artist).values(set).onConflictDoUpdate({ set, target: [schema.artist.id, schema.artist.plugin_id, schema.artist.address] }).run()
+    this.changedHandlers.forEach(h => h())
   }
 
   upsertFromPlugin(result: Artist) {
@@ -50,5 +56,6 @@ export class ArtistRepository {
       genres: result.genres.join(','),
     }
     this.db.insert(schema.artist).values(set).onConflictDoUpdate({ set, target: [schema.artist.id, schema.artist.plugin_id, schema.artist.address] }).run()
+    this.changedHandlers.forEach(h => h())
   }
 }

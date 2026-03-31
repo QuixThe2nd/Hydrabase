@@ -1,4 +1,5 @@
-import type { ApiPeer, Config, Connection, NodeStats, StatsPulsePayload, StatsVotesPayload } from '../types/hydrabase'
+
+import type { ApiPeer, Config, Connection, NodeStats, StatsVotesPayload } from '../types/hydrabase'
 import type { MetadataPlugin } from '../types/hydrabase-schemas'
 import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
@@ -9,11 +10,18 @@ import type PeerManager from './PeerManager'
 import { formatBytes, formatUptime, stats, truncateAddress } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { authenticatedPeers } from './networking/udp/server'
+import { StatsPulseHistory } from './StatsPulseHistory'
+
 
 export class StatsReporter {
   private readonly cachedPeerPlugins = new Map<`0x${string}`, string[]>()
+  private readonly debounceMs = 1000
+  private dhtDebounceTimer: NodeJS.Timeout | null = null
+  private readonly pulseHistory: StatsPulseHistory
   private readonly seenDhtNodes = new Set<string>()
   private readonly startTime = Date.now()
+  private statsDebounceTimer: NodeJS.Timeout | null = null
+
 
   constructor(
     private readonly node: Config['node'],
@@ -22,38 +30,43 @@ export class StatsReporter {
     private readonly peers: PeerManager,
     private readonly dht: DHT_Node,
     private readonly repos: Repositories,
-    private readonly peersIntervalMs = 2_000,
-    private readonly votesIntervalMs = 5_000,
-    private readonly dhtIntervalMs = 2_000,
-    private readonly timestampIntervalMs = 1_000
+    private readonly pulseThrottleMs = 2_000,
   ) {
-    this.peers.onApiConnected(() => this.reportAll())
+    this.peers.onApiConnected(() => this.debouncedStatsReport())
     this.peers.onPeerConnected((peer) => {
       this.reportPeerConnected(peer.address)
-      this.reportPeers()
+      this.debouncedStatsReport()
     })
+    this.peers.onPeerDisconnected(() => this.debouncedStatsReport())
+    this.peers.onDataTransfer(() => this.debouncedStatsReport())
+    this.dht.onNode(() => this.debouncedDhtReport())
+    this.repos.onVotesChanged(() => this.debouncedStatsReport())
 
-    this.reportAll()
-    setInterval(() => this.reportPeers(), this.peersIntervalMs)
-    setInterval(() => this.reportVotes(), this.votesIntervalMs)
-    setInterval(() => this.reportDhtNodes(), this.dhtIntervalMs)
-    setInterval(() => this.reportTimestamp(), this.timestampIntervalMs)
+    this.debouncedStatsReport()
 
     this.logStatus()
     setInterval(() => this.logStatus(), 60_000)
+    this.pulseHistory = new StatsPulseHistory(this.pulseThrottleMs)
+    setInterval(() => this.recordPulse(), 30_000)
   }
 
   private static asConnection(peer: Peer): Connection {
     return {
       address: peer.address,
+      announcedHostnames: [],
       bio: peer.bio,
       confidence: peer.historicConfidence,
+      connectionCount: 0,
+      connections: [],
       hostname: peer.hostname,
       latency: peer.latency,
+      lifetimeDL: peer.lifetimeDL,
+      lifetimeUL: peer.lifetimeUL,
       lookupTime: peer.lookupTime,
       plugins: peer.plugins,
       totalDL: peer.totalDL,
       totalUL: peer.totalUL,
+      type: peer.type,
       uptime: peer.uptimeMs,
       userAgent: peer.userAgent,
       username: peer.username,
@@ -63,6 +76,44 @@ export class StatsReporter {
         tracks: 0
       },
     }
+  }
+
+  private asConnectionWithCount(peer: Peer): Connection {
+    const connection = StatsReporter.asConnection(peer)
+    const currentConnections = this.getCurrentAnnouncementConnections(peer.address)
+    connection.connectionCount = currentConnections.length
+    connection.connections = currentConnections
+    connection.announcedHostnames = this.peers.getAnnouncedHostnames(peer.address)
+    return connection
+  }
+
+  // Debounced DHT node reporting
+  private debouncedDhtReport(): void {
+    if (this.dhtDebounceTimer) clearTimeout(this.dhtDebounceTimer)
+    this.dhtDebounceTimer = setTimeout(() => {
+      this.reportDhtNodes()
+      this.dhtDebounceTimer = null
+    }, this.debounceMs)
+  }
+
+  // Debounced stats reporting (covers all stats: peers, votes, pulse, etc)
+  private debouncedStatsReport(): void {
+    if (this.statsDebounceTimer) clearTimeout(this.statsDebounceTimer)
+    this.statsDebounceTimer = setTimeout(() => {
+      this.reportAll()
+      this.statsDebounceTimer = null
+    }, this.debounceMs)
+  }
+
+  private getCurrentAnnouncementConnections(address: `0x${string}`): `0x${string}`[] {
+    const currentlyConnected = new Set(
+      this.peers.connectedPeers
+        .filter(peer => peer.address !== '0x0')
+        .map(peer => peer.address)
+    )
+    return this.peers
+      .getAnnouncementConnections(address)
+      .filter(announcerAddress => currentlyConnected.has(announcerAddress))
   }
 
   private getKnownPlugins(address: `0x${string}`, connectedPeer: Peer | undefined): string[] {
@@ -104,7 +155,7 @@ export class StatsReporter {
             username: identity.username,
           },
         } : {}),
-        connection: connectedPeer ? StatsReporter.asConnection(connectedPeer) : undefined,
+        connection: connectedPeer ? this.asConnectionWithCount(connectedPeer) : undefined,
       } satisfies ApiPeer
     })
   }
@@ -120,8 +171,19 @@ export class StatsReporter {
       const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
       const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
       const uptime = formatUptime(peer.uptimeMs)
-      stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}`)
+      const connectionCount = this.getCurrentAnnouncementConnections(peer.address).length
+      stats(`  • ${peer.username} (${truncateAddress(peer.address)}) on ${peer.userAgent} via ${transport} ${peer.hostname} — ${latency} latency, up ${uptime}, ${connectionCount} current announcement connection${connectionCount === 1 ? '' : 's'}`)
     }
+  }
+
+  private recordPulse(): void {
+    // Only include defined connections for pulse history
+    const connections = this.knownPeers()
+      .map(peer => peer.connection)
+      .filter((conn): conn is Connection => Boolean(conn))
+      .map(conn => ({ connection: conn }))
+    this.pulseHistory.recordPulse(connections)
+      this.pulseHistory.recordPulse(connections)
   }
 
   private report(send: (client: Peer, trace: Trace) => void): void {
@@ -142,7 +204,6 @@ export class StatsReporter {
     this.reportDhtNodes()
     this.reportPeers()
     this.reportVotes()
-    this.reportTimestamp()
   }
 
   private reportDhtNodes(): void {
@@ -163,21 +224,30 @@ export class StatsReporter {
   }
 
   private reportPeers(): void {
-    const knownPeers = this.knownPeers()
-    const pulse = knownPeers.reduce((totals, peer) => ({
-      totalDL: totals.totalDL + (peer.connection?.totalDL ?? 0),
-      totalUL: totals.totalUL + (peer.connection?.totalUL ?? 0),
-    }), { totalDL: 0, totalUL: 0 })
-    const timestamp = new Date().toISOString()
-    const statsPulse: StatsPulsePayload = {
-      intervalMs: this.peersIntervalMs,
-      timestamp,
-      totalDL: pulse.totalDL,
-      totalUL: pulse.totalUL,
-    }
     this.report((client, trace) => {
-      client.sendStatsPeers(knownPeers, trace)
-      client.sendStatsPulse(statsPulse, trace)
+      client.sendStatsPeers(this.knownPeers(), trace)
+    })
+    this.reportPulseBundle()
+  }
+
+  private reportPulseBundle(): void {
+    this.recordPulse()
+    const history = this.pulseHistory.getHistory()
+    if (history.length === 0) return
+    let latest: import('../types/hydrabase').StatsPulsePayload
+    if (history.length > 0 && history[history.length - 1]) {
+      latest = history[history.length - 1] as import('../types/hydrabase').StatsPulsePayload
+    } else {
+      latest = {
+        intervalMs: 0,
+        timestamp: new Date().toISOString(),
+        totalDL: 0,
+        totalUL: 0,
+      }
+    }
+    const bundle: import('../types/hydrabase').StatsPulseBundle = { history, latest }
+    this.report((client, trace) => {
+      client.sendStatsPulseBundle(bundle, trace)
     })
   }
 
@@ -185,26 +255,30 @@ export class StatsReporter {
     const statsSelf: NodeStats['self'] = {
       address: this.account.address,
       hostname: this.node.hostname,
+      nodeStartTime: this.startTime,
       plugins: this.plugins.map(p => p.id),
+      pluginVotes: this.repos.stats.getSelfVotesByPlugin(),
       votes: this.repos.stats.getSelfVotes(),
     }
     this.report((client, trace) => client.sendStatsSelf(statsSelf, trace))
   }
 
-  private reportTimestamp(): void {
-    this.report((client, trace) => client.sendStatsTimestamp(new Date().toISOString(), trace))
-  }
+  // throttledReportPulse is now unused due to unified debouncedStatsReport
 
   private reportVotes(): void {
     const statsVotes: StatsVotesPayload = {
       peers: {
         plugins: this.repos.stats.getKnownPlugins(),
+        pluginVotes: this.repos.stats.getPeerVotesByPlugin(),
         votes: this.repos.stats.getPeerVotes(),
       },
       self: {
+        pluginVotes: this.repos.stats.getSelfVotesByPlugin(),
         votes: this.repos.stats.getSelfVotes(),
       },
     }
     this.report((client, trace) => client.sendStatsVotes(statsVotes, trace))
   }
+
+  // pulse history trimming is handled in StatsPulseHistory
 }

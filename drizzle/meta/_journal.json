@@ -71,6 +71,27 @@
       "when": 1773714087125,
       "tag": "0009_giant_jasper_sitwell",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1743321600000,
+      "tag": "0010_nosy_puck",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1774833600000,
+      "tag": "0011_dapper_darkhawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1774878313443,
+      "tag": "0012_brainy_caretaker",
+      "breakpoints": true
     }
   ]
 }

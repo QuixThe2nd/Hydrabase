@@ -2,7 +2,7 @@
 
 ## Code Quality Workflow
 
-**CRITICAL**: After any major code changes (file edits, refactoring, new features), ALWAYS validate the changes by running type checks and linting:
+**CRITICAL**: Validate incrementally while editing (not only at the end). Run targeted checks after each small batch of changes, fix issues immediately, then do one final full-project verification.
 
 ### Type Checking
 Run TypeScript type checking to catch type errors:
@@ -11,17 +11,28 @@ bunx tsc --noEmit
 ```
 
 ### Linting
-Run ESLint to check for style and logical issues:
+Run ESLint incrementally on changed files first, then run a full lint once before completion:
 ```bash
-bunx eslint .
+bun eslint --fix <changed-files>
+# final verification before completion:
+bun eslint --fix
 ```
+
+### Incremental Validation Loop
+
+For every small edit batch, follow this loop:
+1. Run ESLint only on the files you changed.
+2. Run `bun tsc --project src/backend/tsconfig.json --noEmit` or `bun tsc --project src/frontend/tsconfig.json --noEmit` to catch cross-file type regressions early.
+3. Fix errors immediately before continuing with more edits.
+
+Do not defer lint/type errors until the end of a long multi-file task.
 
 ### When to Run
 
-- **After editing `src/backend/**` files**: Always run both type check and eslint
-- **After editing `src/frontend/**` files**: Always run both type check and eslint
-- **After editing `src/types/**` or shared utilities**: Always run both checks
-- **Before marking changes complete**: Verify no errors exist
+- **After each small change batch in `src/backend/**`**: Run scoped ESLint + type check, then fix issues
+- **After each small change batch in `src/frontend/**`**: Run scoped ESLint + type check, then fix issues
+- **After each small change batch in `src/types/**` or shared utilities**: Run scoped ESLint + type check, then fix issues
+- **Before marking changes complete**: Run final full verification of with eslint and tsc
 
 ### Purpose
 
@@ -41,11 +52,15 @@ Run this once after frontend changes complete and validation passes. This ensure
 
 ### Integration
 
-When you complete major changes:
-1. Run type check and eslint as documented above
-2. Fix any errors that appear
-3. If frontend files were changed, run `bun build-webui` once
-4. Report the results (pass/fail)
-5. Only mark the task complete after validation passes
+During implementation:
+1. Work in small batches
+2. Run scoped ESLint on changed files
+3. Run `bun tsc --noEmit`
+4. Fix issues immediately before continuing
+
+Before completion:
+1. Run final full verification (`bun tsc --noEmit` and `bun eslint .`)
+2. Report the results (pass/fail)
+3. Only mark the task complete after validation passes
 
 This prevents the repeated cycle of changes → type check failures → rework.

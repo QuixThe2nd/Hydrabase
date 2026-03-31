@@ -13,6 +13,15 @@ export const generatePrivateKey = (): Buffer => {
 }
 
 export const getPrivateKey = async (): Promise<Uint8Array> => {
+  const envKey = process.env['PRIVATE_KEY']
+  if (envKey) {
+    const hex = envKey.startsWith('0x') ? envKey.slice(2) : envKey
+    if (!/^[0-9a-f]{64}$/iu.test(hex)) throw new Error('PRIVATE_KEY must be a 64-character hex string')
+    const key = new Uint8Array(Buffer.from(hex, 'hex'))
+    if (!secp256k1.privateKeyVerify(key)) throw new Error('PRIVATE_KEY is not a valid secp256k1 private key')
+    log('[CRYPTO] Using private key from PRIVATE_KEY environment variable')
+    return key
+  }
   const keyFile = Bun.file('data/.key.env')
   if (await keyFile.exists()) return new Uint8Array(await keyFile.arrayBuffer())
   log('[CRYPTO] Generating new private key')

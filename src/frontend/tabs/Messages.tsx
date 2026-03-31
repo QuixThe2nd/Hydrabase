@@ -1,3 +1,5 @@
+
+ 
 import { useEffect, useRef, useState } from 'react'
 
 import type { PeerWithCountry } from '../../types/hydrabase'
@@ -6,6 +8,7 @@ import type { MessageEnvelope } from '../../types/hydrabase-schemas'
 import { Identicon } from '../components/Identicon'
 import { ACCENT, BG, BG3, BORD, MUTED, panel, SURF, TEXT } from '../theme'
 import { shortAddr } from '../utils'
+import { useLastRead } from './useLastRead'
 
 interface Props {
   messages: MessageEnvelope[]
@@ -14,10 +17,12 @@ interface Props {
   sendMessage: (to: `0x${string}`, payload: string) => void
 }
 
+const GLOBAL_CHAT_ADDRESS = '0x0' as `0x${string}`
+
 const getConversations = (messages: MessageEnvelope[], ownAddress: string | undefined): Map<string, MessageEnvelope[]> => {
   const convMap = new Map<string, MessageEnvelope[]>()
   for (const msg of messages) {
-    const partner = msg.from === ownAddress ? msg.to : msg.from
+    const partner = msg.to === GLOBAL_CHAT_ADDRESS ? GLOBAL_CHAT_ADDRESS : (msg.from === ownAddress ? msg.to : msg.from)
     const existing = convMap.get(partner) ?? []
     existing.push(msg)
     convMap.set(partner, existing)
@@ -27,17 +32,58 @@ const getConversations = (messages: MessageEnvelope[], ownAddress: string | unde
 
 const fmtTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
+const FAILED_CONNECT_PREFIX = 'system:connection_attempt_failed|'
+
+interface ParsedFailedConnectNotice {
+  at?: string
+  hostname?: string
+  reason?: string
+  transport?: 'TCP' | 'UDP'
+}
+
+const getFailedConnectMessageText = (notice: ParsedFailedConnectNotice): string => {
+  const target = notice.hostname ?? 'your node'
+  const via = notice.transport ? ` over ${notice.transport}` : ''
+  return `Hey, I couldn't connect to your node at ${target}${via}.`
+}
+
+const parseFailedConnectNotice = (payload: string): null | ParsedFailedConnectNotice => {
+  if (!payload.startsWith(FAILED_CONNECT_PREFIX)) return null
+  const raw = payload.slice(FAILED_CONNECT_PREFIX.length)
+  const fields = new URLSearchParams(raw.split('|').join('&'))
+  const transport = fields.get('transport')
+  const parsed: ParsedFailedConnectNotice = {}
+  const at = fields.get('at')
+  const hostname = fields.get('hostname')
+  const reason = fields.get('reason')
+  if (at) parsed.at = at
+  if (hostname) parsed.hostname = hostname
+  if (reason) parsed.reason = reason
+  if (transport === 'TCP' || transport === 'UDP') parsed.transport = transport
+  return parsed
+}
+
+const getMessagePreview = (payload: string): string => {
+  const failedConnect = parseFailedConnectNotice(payload)
+  if (!failedConnect) return payload
+  return getFailedConnectMessageText(failedConnect)
+}
+
 // eslint-disable-next-line max-lines-per-function
 export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props) => {
   const [selectedAddress, setSelectedAddress] = useState<`0x${string}` | null>(null)
+  const conversations = getConversations(messages, ownAddress)
+  // Per-conversation last-read timestamp
+  const [lastRead] = useLastRead(selectedAddress, conversations)
   const [composeText, setComposeText] = useState('')
   const [newRecipient, setNewRecipient] = useState('')
   const [showNewConv, setShowNewConv] = useState(false)
   const threadEndRef = useRef<HTMLDivElement>(null)
 
-  const conversations = getConversations(messages, ownAddress)
+  // conversations already declared above
   const peerMap = new Map(peers.map(p => [p.address, p]))
   const thread = selectedAddress ? (conversations.get(selectedAddress) ?? []) : []
+
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -51,13 +97,19 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
 
   const handleStartConversation = () => {
     const addr = newRecipient.trim() as `0x${string}`
-    if (!addr.startsWith('0x')) return
+    if (addr !== GLOBAL_CHAT_ADDRESS && !addr.startsWith('0x')) return
     setSelectedAddress(addr)
     setShowNewConv(false)
     setNewRecipient('')
   }
 
-  const getPeerName = (address: string) => peerMap.get(address as `0x${string}`)?.connection?.username ?? shortAddr(address)
+  const getPeerName = (address: string) => {
+    if (address === GLOBAL_CHAT_ADDRESS) return 'Global Chat'
+    return peerMap.get(address as `0x${string}`)?.connection?.username ?? shortAddr(address)
+  }
+
+  const globalChatMsgs = conversations.get(GLOBAL_CHAT_ADDRESS)
+  const dmConversations = [...conversations.entries()].filter(([addr]) => addr !== GLOBAL_CHAT_ADDRESS)
 
   return <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 120px)' }}>
 
@@ -84,16 +136,34 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
       </div>}
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {conversations.size === 0 && <div style={{ color: MUTED, fontSize: 11, padding: '20px 14px', textAlign: 'center' }}>No messages yet.<br />Press + to start one.</div>}
-        {[...conversations.entries()].map(([addr, msgs]) => {
+        {/* Global Chat pinned entry */}
+        {(() => {
+          const isSelected = selectedAddress === GLOBAL_CHAT_ADDRESS
+          const lastMsg = globalChatMsgs?.[globalChatMsgs.length - 1]
+          return <button onClick={() => setSelectedAddress(GLOBAL_CHAT_ADDRESS)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'rgba(0,200,255,.03)', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'rgba(0,200,255,.3)'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
+            <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: '1px solid rgba(0,200,255,.3)', borderRadius: 4, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 14, height: 28, justifyContent: 'center', width: 28 }}>#</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Global Chat</div>
+              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : 'Broadcast to all peers'}</div>
+            </div>
+          </button>
+        })()}
+
+        {dmConversations.length === 0 && !globalChatMsgs && <div style={{ color: MUTED, fontSize: 11, padding: '20px 14px', textAlign: 'center' }}>No messages yet.<br />Press + to start one.</div>}
+        {dmConversations.map(([addr, msgs]) => {
           const lastMsg = msgs[msgs.length - 1]
           const isSelected = selectedAddress === addr
-          const hasUnread = lastMsg && lastMsg.from !== ownAddress
+          // Show unread badge if there are messages newer than lastRead
+          const lastReadTime = lastRead[addr] || 0
+          const hasNew = msgs.some(m => m.from !== ownAddress && m.timestamp > lastReadTime)
           return <button key={addr} onClick={() => setSelectedAddress(addr as `0x${string}`)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'none', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'transparent'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
             <Identicon address={addr as `0x${string}`} size={28} style={{ borderRadius: 4, flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: hasUnread ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPeerName(addr)}</div>
-              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg?.payload ?? ''}</div>
+              <div style={{ alignItems: 'center', display: 'flex', fontSize: 12, fontWeight: hasNew ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {getPeerName(addr)}
+                {hasNew && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, marginLeft: 8, padding: '1px 5px' }}>NEW</span>}
+              </div>
+              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : ''}</div>
             </div>
           </button>
         })}
@@ -106,10 +176,14 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
 
           {/* Thread header */}
           <div style={{ ...panel({ borderRadius: '8px 8px 0 0', overflow: 'visible' }), alignItems: 'center', borderBottom: 'none', display: 'flex', gap: 10, padding: '10px 16px' }}>
-            <Identicon address={selectedAddress} size={30} style={{ borderRadius: 5, flexShrink: 0 }} />
+            {selectedAddress === GLOBAL_CHAT_ADDRESS
+              ? <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: '1px solid rgba(0,200,255,.3)', borderRadius: 5, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 16, height: 30, justifyContent: 'center', width: 30 }}>#</div>
+              : <Identicon address={selectedAddress} size={30} style={{ borderRadius: 5, flexShrink: 0 }} />}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getPeerName(selectedAddress)}</div>
-              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedAddress}</div>
+              <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedAddress === GLOBAL_CHAT_ADDRESS ? 'Messages broadcast to all connected peers' : selectedAddress}
+              </div>
             </div>
             <button className="fbtn" onClick={() => setSelectedAddress(null)} style={{ flexShrink: 0, marginLeft: 'auto' }}>✕</button>
           </div>
@@ -120,10 +194,32 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
               ? <div style={{ color: MUTED, fontSize: 11, paddingTop: 20, textAlign: 'center' }}>No messages yet. Say hello!</div>
               : thread.map((msg, i) => {
                   const isMine = msg.from === ownAddress
+                  const isGlobal = selectedAddress === GLOBAL_CHAT_ADDRESS
+                  const failedConnect = parseFailedConnectNotice(msg.payload)
+                  // Highlight new messages in the thread
+                  const lastReadTime = lastRead[selectedAddress ?? ''] || 0
+                  const isNew = !isMine && msg.timestamp > lastReadTime
                   return <div key={i} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-                    <div style={{ background: isMine ? 'rgba(0,200,255,.12)' : BG3, border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : BORD}`, borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', maxWidth: '70%', padding: '8px 12px' }}>
-                      <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>
-                      <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}</div>
+                    <div style={{ maxWidth: '70%' }}>
+                      {isGlobal && !isMine && <div style={{ color: MUTED, fontSize: 10, marginBottom: 2, paddingLeft: 4 }}>{getPeerName(msg.from)}</div>}
+                      <div style={{
+                        background: isMine ? 'rgba(0,200,255,.12)' : (isNew ? 'rgba(255,74,94,0.13)' : BG3),
+                        border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : (isNew ? '#ff4a5e' : BORD)}`,
+                        borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                        boxShadow: isNew ? '0 0 0 2px #ff4a5e33' : undefined,
+                        padding: '8px 12px',
+                        position: 'relative',
+                      }}>
+                        {failedConnect
+                          ? <>
+                              <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                {getFailedConnectMessageText(failedConnect)}
+                              </div>
+                              {failedConnect.reason && <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.4, marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>I got: {failedConnect.reason}</div>}
+                            </>
+                          : <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>}
+                        <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}{isNew && <span style={{ color: '#ff4a5e', fontWeight: 700, marginLeft: 6 }}>NEW</span>}</div>
+                      </div>
                     </div>
                   </div>
                 })}

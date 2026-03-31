@@ -109,15 +109,18 @@ export const mergePartialStats = (current: NodeStats | null, partial: PartialNod
       peers: {
         known: partial.peers?.known ?? [],
         plugins: partial.peers?.plugins ?? [],
+        pluginVotes: partial.peers?.pluginVotes ?? {},
         votes: partial.peers?.votes ?? { albums: 0, artists: 0, tracks: 0 },
       },
       self: {
         address: partial.self?.address ?? ('0x0' as const),
         hostname: partial.self?.hostname ?? '',
+        nodeStartTime: partial.self?.nodeStartTime ?? Date.now(),
         plugins: partial.self?.plugins ?? [],
+        pluginVotes: partial.self?.pluginVotes ?? {},
         votes: partial.self?.votes ?? { albums: 0, artists: 0, tracks: 0 },
       },
-      timestamp: partial.timestamp ?? new Date().toISOString(),
+
     }
   }
 
@@ -126,14 +129,16 @@ export const mergePartialStats = (current: NodeStats | null, partial: PartialNod
     peers: {
       known: partial.peers?.known ?? current.peers.known,
       plugins: partial.peers?.plugins ?? current.peers.plugins,
+      pluginVotes: partial.peers?.pluginVotes ?? current.peers.pluginVotes,
       votes: partial.peers?.votes ?? current.peers.votes,
     },
     self: {
       address: partial.self?.address ?? current.self.address,
       hostname: partial.self?.hostname ?? current.self.hostname,
+      nodeStartTime: partial.self?.nodeStartTime ?? current.self.nodeStartTime,
       plugins: partial.self?.plugins ?? current.self.plugins,
+      pluginVotes: partial.self?.pluginVotes ?? current.self.pluginVotes,
       votes: partial.self?.votes ?? current.self.votes,
     },
-    timestamp: partial.timestamp ?? current.timestamp,
   }
 }

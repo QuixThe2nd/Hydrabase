@@ -4,7 +4,7 @@ import { formatUptime, stats, truncateAddress } from '../utils/log'
 
 export class PeerMap extends Map<`0x${string}`, Peer> {
   get addresses(): `0x${string}`[] {
-    return [...this.keys().filter(address => address !== '0x0')]
+    return Array.from(this.keys()).filter((address: `0x${string}`) => address !== '0x0')
   }
   get count(): number {
     return this.addresses.length

@@ -15,14 +15,19 @@ const map = (row: TrackRow): Track => ({
 })
 
 export class TrackRepository {
+  private readonly changedHandlers: (() => void)[] = []
   constructor(private readonly db: DB) {}
 
   lookupByArtistIds(artistIds: Map<string, string>, includePeers = true): Track[] {
     return this.db.select().from(schema.track)
-      .where(and(or(...artistIds.entries().map(([pluginId, artistId]) => and(eq(schema.track.plugin_id, pluginId), eq(schema.track.artist_id, artistId)))), includePeers ? undefined : eq(schema.track.address, '0x0')))
+      .where(and(or(...Array.from(artistIds.entries()).map(([pluginId, artistId]: [string, string]) => and(eq(schema.track.plugin_id, pluginId), eq(schema.track.artist_id, artistId)))), includePeers ? undefined : eq(schema.track.address, '0x0')))
       .all()
       .filter(row => row.name && row.image_url && row.external_urls)
       .map(map)
+  }
+
+  onChanged(handler: () => void): void {
+    this.changedHandlers.push(handler)
   }
 
   searchByName(query: string, includePeers = true): Track[] {
@@ -40,6 +45,7 @@ export class TrackRepository {
       external_urls: JSON.stringify(result.external_urls),
     }
     this.db.insert(schema.track).values(set).onConflictDoUpdate({ set, target: [schema.track.id, schema.track.plugin_id, schema.track.address] }).run()
+    this.changedHandlers.forEach(h => h())
   }
     
   upsertFromPlugin(result: Track) {
@@ -51,5 +57,6 @@ export class TrackRepository {
       external_urls: JSON.stringify(result.external_urls),
     }
     this.db.insert(schema.track).values(set).onConflictDoUpdate({ set, target: [schema.track.id, schema.track.plugin_id, schema.track.address] }).run()
+    this.changedHandlers.forEach(h => h())
   }
 }

@@ -34,17 +34,17 @@ echo ""
 
 # ── ESLint ────────────────────────────────────────────────────────────────────
 step "ESLint"
-bun run eslint --fix || fail "ESLint failed. Fix the issues above and try again."
+bun eslint --fix || fail "ESLint failed. Fix the issues above and try again."
 ok "ESLint passed"
 
 # ── TypeScript — backend ──────────────────────────────────────────────────────
 step "TypeScript (backend)"
-bun x tsc --project src/backend/tsconfig.json --noEmit || fail "Backend type-check failed."
+bun tsc --project src/backend/tsconfig.json --noEmit || fail "Backend type-check failed."
 ok "Backend type-check passed"
 
 # ── TypeScript — frontend ─────────────────────────────────────────────────────
 step "TypeScript (frontend)"
-bun x tsc --project src/frontend/tsconfig.json --noEmit || fail "Frontend type-check failed."
+bun tsc --project src/frontend/tsconfig.json --noEmit || fail "Frontend type-check failed."
 ok "Frontend type-check passed"
 
 # ── Unit tests ────────────────────────────────────────────────────────────────

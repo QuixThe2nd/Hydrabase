@@ -11,7 +11,7 @@ services:
       - ./data:/app/data
     environment:
       USERNAME: Anonymous # 3-20 Characters (a-z, A-Z, 0-9)
-      BIO: Welcome to my part of the internet # 80 chars
+      BIO: Welcome to my part of the internet # 140 chars
       # API_KEY: $API_KEY - Use `openssl rand -hex 16` to generate an api key
 
       # Uncomment to enable Spotify plugin:

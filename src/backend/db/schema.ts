@@ -64,5 +64,36 @@ export const searchHistory = sqliteTable('search_history', {
   type: text('type').notNull(),
 })
 
-export const schema = { album, artist, searchHistory, soul, track } as const
+export const peerStats = sqliteTable('peer_stats', {
+  address: text('address').primaryKey().notNull(),
+  lifetime_dl: integer('lifetime_dl').notNull().default(0),
+  lifetime_ul: integer('lifetime_ul').notNull().default(0),
+})
+
+export const announcedPeers = sqliteTable('announced_peers', {
+  announcedAddress: text('announced_address').notNull(),
+  announcerAddress: text('announcer_address').notNull(),
+  timestamp: integer('timestamp').notNull(),
+}, table => [uniqueIndex('idx_announcer_announced').on(table.announcerAddress, table.announcedAddress)])
+
+export const authenticatedPeer = sqliteTable('authenticated_peers', {
+  address: text('address').notNull(),
+  bio: text('bio'),
+  hostname: text('hostname').notNull().primaryKey(),
+  signature: text('signature'),
+  userAgent: text('user_agent').notNull(),
+  username: text('username').notNull(),
+})
+
+export const dhtNode = sqliteTable('dht_nodes', {
+  host: text('host').notNull(),
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  port: integer('port').notNull(),
+}, table => [uniqueIndex('idx_dht_node').on(table.host, table.port)])
+
+export const wsServer = sqliteTable('ws_servers', {
+  hostname: text('hostname').notNull().primaryKey(),
+})
+
+export const schema = { album, announcedPeers, artist, authenticatedPeer, dhtNode, peerStats, searchHistory, soul, track, wsServer } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts

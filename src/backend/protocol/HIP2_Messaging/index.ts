@@ -9,7 +9,9 @@ import { AnnounceSchema } from '../HIP3_AnnouncePeers'
 
 export const PeerStatsRequestSchema = z.object({ address: z.string().regex(/^0x/iu).transform(v => v as `0x${string}`) })
 
+
 export const PingSchema = z.object({
+  peers: z.array(z.string().regex(/^.+:\d+$/u).transform(v => v as `${string}:${number}`)),
   time: z.number()
 })
 export type Ping = z.infer<typeof PingSchema>
@@ -28,8 +30,14 @@ export const SendMessageSchema = z.object({
 })
 export type SendMessage = z.infer<typeof SendMessageSchema>
 
+export const ConnectPeerSchema = z.object({
+  hostname: z.string().regex(/^.+:\d+$/u).transform(v => v as `${string}:${number}`)
+})
+export type ConnectPeer = z.infer<typeof ConnectPeerSchema>
+
 const MessageSchemas = {
   announce: AnnounceSchema,
+  connect_peer: ConnectPeerSchema,
   deliver_message: MessageEnvelopeSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
@@ -37,6 +45,7 @@ const MessageSchemas = {
   pong: PingSchema,
   request: RequestSchema,
   response: ResponseSchema,
+  restart: z.literal(true),
   search_history: SearchHistoryDataSchema,
   send_message: SendMessageSchema,
   store_message: MessageEnvelopeSchema
@@ -67,8 +76,10 @@ export class HIP2_Messaging {
     : 'deliver_message' in result ? 'deliver_message'
     : 'peer_stats' in result ? 'peer_stats'
     : 'announce' in result ? 'announce'
+    : 'connect_peer' in result ? 'connect_peer'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'
+    : 'restart' in result ? 'restart'
     : 'search_history' in result ? 'search_history'
     : 'send_message' in result ? 'send_message'
     : 'message_history' in result ? 'message_history'

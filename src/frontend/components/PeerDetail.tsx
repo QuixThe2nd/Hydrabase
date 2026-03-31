@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { PeerStats, PeerWithCountry } from '../../types/hydrabase'
 import type { MessageEnvelope } from '../../types/hydrabase-schemas'
@@ -9,11 +9,12 @@ import { Identicon } from './Identicon'
 import { StatusDot } from './StatusDot'
 
 interface Props {
-  // callback: (callback: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => void
+  callback: (handler: ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void) => void
   messages: MessageEnvelope[]
   onClose: () => void
   ownAddress: `0x${string}` | undefined
   peer: PeerWithCountry
+  peers: PeerWithCountry[]
   sendMessage: (to: `0x${string}`, payload: string) => void
   wsRef: React.RefObject<undefined | WebSocket>
 }
@@ -76,17 +77,23 @@ const Section = ({ children, label }: { children: React.ReactNode; label: string
   {children}
 </div>
 
-const Statistics = ({ peer }: { peer: PeerWithCountry }) => <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr', marginBottom: 20 }}>
-  {([
-    ['Latency', peer.connection?.latency ? `${(peer.connection?.latency ?? 0).toFixed(1)}ms` : '—', peer.connection?.latency ? latColor(peer.connection?.latency) : MUTED],
-    ['Uptime', fmtUptime(peer.connection?.uptime ?? 0), '#a5d6ff'],
-    ['↑ UL', fmtBytes(peer.connection?.totalUL ?? 0), ACCENT],
-    ['↓ DL', fmtBytes(peer.connection?.totalDL ?? 0), '#f0883e'],
-  ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: BG, borderRadius: 7, padding: '10px 12px' }}>
+const Statistics = ({ peer }: { peer: PeerWithCountry }) => {
+  const {connection} = peer
+  return <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr', marginBottom: 20 }}>
+    {([
+      ['Connections', String(connection?.connectionCount ?? 0), '#79c0ff'],
+      ['Latency', connection?.latency ? `${(connection.latency).toFixed(1)}ms` : '—', connection?.latency ? latColor(connection.latency) : MUTED],
+      ['Uptime', fmtUptime(connection?.uptime ?? 0), '#a5d6ff'],
+      ['↑ Session UL', fmtBytes(connection?.totalUL ?? 0), ACCENT],
+      ['↓ Session DL', fmtBytes(connection?.totalDL ?? 0), '#f0883e'],
+      ['↑ Lifetime UL', fmtBytes(connection?.lifetimeUL ?? 0), '#79c0ff'],
+      ['↓ Lifetime DL', fmtBytes(connection?.lifetimeDL ?? 0), '#ffa657'],
+    ] as [string, string, string][]).map(([l, v, c]) => <div key={l} style={{ background: BG, borderRadius: 7, padding: '10px 12px' }}>
     <div style={{ color: MUTED, fontSize: 9, letterSpacing: '.1em', marginBottom: 5, textTransform: 'uppercase' }}>{l}</div>
     <div style={{ color: c, fontSize: 18, fontWeight: 700 }}>{v}</div>
   </div>)}
-</div>
+  </div>
+}
 
 const Reputation = ({ data, peer }: { data: PeerStats; peer: PeerWithCountry }) => {
   const totalVotes = data.votes.tracks + data.votes.artists + data.votes.albums
@@ -154,12 +161,18 @@ const MessagePanel = ({ messages, onSend, ownAddress, peerAddress }: { messages:
   </Section>
 }
 
-const Peer = ({ data, loading, messages, onClose, onSend, ownAddress, peer, wsError }: { data: null | PeerStats; loading: boolean, messages: MessageEnvelope[]; onClose: () => void, onSend: (payload: string) => void; ownAddress: `0x${string}` | undefined; peer: PeerWithCountry, wsError: null | string }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 10, overflow: 'hidden' }}>
+const getAnnouncedAddresses = (address: `0x${string}`, peers: PeerWithCountry[]): `0x${string}`[] => peers
+  .filter(peer => peer.address !== address && (peer.connection?.connections ?? []).includes(address))
+  .map(peer => peer.address)
+
+const Peer = ({ data, loading, messages, onClose, onSend, ownAddress, peer, peers, wsError }: { data: null | PeerStats; loading: boolean, messages: MessageEnvelope[]; onClose: () => void, onSend: (payload: string) => void; ownAddress: `0x${string}` | undefined; peer: PeerWithCountry, peers: PeerWithCountry[]; wsError: null | string }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 10, overflow: 'hidden' }}>
   <Header onClose={onClose} peer={peer} />
   <div style={{ padding: '16px 20px' }}>
     <MessagePanel messages={messages} onSend={onSend} ownAddress={ownAddress} peerAddress={peer.address} />
     <Statistics peer={peer} />
     <Section label="Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{(peer.connection?.plugins.length ?? 0) > 0 ? peer.connection?.plugins.map((pl) => <Tag active key={pl} label={pl} />) : <span style={{ color: MUTED, fontSize: 11 }}>No plugins reported</span>}</div></Section>
+    {(peer.connection?.connections.length ?? 0) > 0 && <Section label="Announced By"><div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{peer.connection?.connections.map((addr) => <div key={addr} style={{ color: ACCENT, fontFamily: 'monospace', fontSize: 11 }}>{addr}</div>)}</div></Section>}
+    {getAnnouncedAddresses(peer.address, peers).length > 0 && <Section label="Announced"><div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{getAnnouncedAddresses(peer.address, peers).map((addr) => <div key={addr} style={{ color: ACCENT, fontFamily: 'monospace', fontSize: 11 }}>{addr}</div>)}</div></Section>}
     {loading && <div style={{ color: MUTED, fontSize: 11, padding: '20px 0', textAlign: 'center' }}>Loading peer stats…</div>}
     {wsError && !loading && <div style={{ color: '#f85149', fontSize: 11, padding: '20px 0', textAlign: 'center' }}>{wsError}</div>}
     {data && !loading && <>
@@ -199,20 +212,23 @@ const requestPeerStats = (peer: PeerWithCountry, ws: WebSocket, pending: React.R
   ws.send(JSON.stringify({ nonce, peer_stats: { address: peer.address } }))
 }
 
-export const PeerDetail = ({ messages, onClose, ownAddress, peer, sendMessage, wsRef }: Props) => {
+export const PeerDetail = ({ callback, messages, onClose, ownAddress, peer, peers, sendMessage, wsRef }: Props) => {
   const [data, setData] = useState<null | PeerStats>(null)
   const [loading, setLoading] = useState(false)
   const [wsError, setWsError] = useState<null | string>(null)
   const nonceRef = useRef(Math.floor(nonceRoot * 90_000) + 10_000)
   const pending = useRef(new Map<number, (d: PeerStats) => void>())
 
-  // const onPeerStats = ({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats }) => {
-  //   const resolve = pending.current.get(nonce)
-  //   if (!resolve) return
-  //   pending.current.delete(nonce)
-  //   resolve(peer_stats as PeerStats)
-  // }
-  // callback(onPeerStats)
+  const onPeerStats = useCallback(({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats }) => {
+    const resolve = pending.current.get(nonce)
+    if (!resolve) return
+    pending.current.delete(nonce)
+    resolve(peer_stats)
+  }, [])
+
+  useEffect(() => {
+    callback(onPeerStats)
+  }, [callback, onPeerStats])
 
   useEffect(() => {
     if (!wsRef.current) return
@@ -221,5 +237,5 @@ export const PeerDetail = ({ messages, onClose, ownAddress, peer, sendMessage, w
 
   const handleSend = (payload: string) => sendMessage(peer.address, payload)
 
-  return <Peer data={data} loading={loading} messages={messages} onClose={onClose} onSend={handleSend} ownAddress={ownAddress} peer={peer} wsError={wsError}/>
+  return <Peer data={data} loading={loading} messages={messages} onClose={onClose} onSend={handleSend} ownAddress={ownAddress} peer={peer} peers={peers} wsError={wsError}/>
 }

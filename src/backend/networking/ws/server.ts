@@ -101,7 +101,11 @@ export const handleConnection = async (
   identity?: Identity
 ): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   trace.step(`Client connecting from ${ip.address}:${ip.port}`)
-  const headers = Object.fromEntries(req.headers.entries())
+  // Bun's Request.headers does not have .entries() or [Symbol.iterator], so use forEach
+  const headers: Record<string, string> = {}
+  req.headers.forEach((value, key) => {
+    headers[key.toLowerCase()] = value
+  })
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, bio: headers['x-bio'], hostname: headers['x-hostname'] as `${string}:${number}`, signature: headers['x-signature'] as string, userAgent: headers['x-useragent'] as string, username: headers['x-username'] as string, }
   const isApiKeyAuth = 'apiKey' in auth
   const hasRequiredHeaders = isApiKeyAuth || Boolean(auth.address && auth.hostname && auth.signature && auth.username)
@@ -121,7 +125,8 @@ export const handleConnection = async (
   ])
   if (Array.isArray(peer)) {
     trace.fail(peer[1])
-    return { res: peer }
+    if (isApiKeyAuth) return { res: peer }
+    return { hostname: auth.hostname, res: peer }
   }
   const { address, bio, hostname, userAgent, username } = peer
   const telemetryBase = {
