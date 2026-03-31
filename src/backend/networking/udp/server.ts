@@ -1,4 +1,4 @@
-import bencode from 'bencode'
+// import bencode from 'bencode' (moved to helpers)
 import dgram from 'dgram'
 import z from 'zod'
 
@@ -13,6 +13,7 @@ import { type Identity } from '../../protocol/HIP1_Identity'
 import { authenticateServerUDP, H0_HandshakeDiscoverySchema, H0R_HandshakeDiscoveryResponseSchema, H1_HandshakeRequestSchema, H2_HandshakeResponseSchema, handleHandshake } from '../../protocol/HIP5_IdentityDiscovery'
 import { isAllowedPeer } from '../utils'
 import { UDP_Client } from './client'
+import { handleAwaiter, handleInvalidUsernameError, tryDecodeMessage, tryParseError } from './helpers'
 
 let _repo: AuthenticatedPeerRepository | undefined
 
@@ -148,32 +149,7 @@ export class UDP_Server {
       error('ERROR:', `[SERVER] An error was thrown ${err.name} - ${err.message}`)
       socket.close()
     })
-    socket.on('message', (_msg, peer) => logContext('UDP', async () => {
-      if (this.shouldDropInbound(peer.address, peer.port)) return
-      let decoded: unknown
-      try {
-        decoded = bencode.decode(_msg)
-      } catch {
-        return
-      }
-      const result = rpcMessageSchema.safeParse(decoded)
-      if (!result.data) {
-        if (isVersionOnlyProbe(decoded)) return
-        warn('DEVWARN:', '[SERVER] Unexpected payload', { err: JSON.parse(result.error.message), payload: decoded })
-        return
-      }
-      const awaiter = result.data.t ? this.responseAwaiters.get(result.data.t) : undefined
-      if (awaiter && result.data.t) {
-        debug(`[SERVER] Awaiter matched for txnId=${result.data.t}`)
-        const done = awaiter(result.data, { address: peer.address, port: peer.port })
-        if (done) {
-          this.responseAwaiters.delete(result.data.t)
-          return
-        }
-      }
-      if (result.data.y === 'h2') debug(`[SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
-      await messageHandler(this, socket, account, result.data, { host: peer.address, port: peer.port }, node, config, apiKey, addPeer)
-    }))
+    socket.on('message', (_msg, peer) => logContext('UDP', () => this.handleSocketMessage(_msg, peer, account, node, config, apiKey, addPeer, socket)))
   }
 
   static init(account: Account, config: Config['rpc'], node: Config['node'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<UDP_Server> {
@@ -190,8 +166,8 @@ export class UDP_Server {
   }
 
   public readonly awaitResponse = (txnId: string, handler: ResponseAwaiter) => this.responseAwaiters.set(txnId, handler)
+
   public readonly cancelAwaiter = (txnId: string) => this.responseAwaiters.delete(txnId)
-  
   public readonly processChunk = (chunkId: string, chunkIndex: number, totalChunks: number, chunkData: string, connection: UDP_Client): void => {
     if (this.chunkBuffer.size >= this.MAX_CHUNK_GROUPS && !this.chunkBuffer.has(chunkId)) this.evictOldestChunkGroup()
     
@@ -218,7 +194,7 @@ export class UDP_Server {
       connection.messageHandlers.forEach(handler => handler(reassembled))
     }
   }
-
+  
   private readonly evictOldestChunkGroup = () => {
     let oldestKey: null | string = null
     let oldestTime = Infinity
@@ -234,6 +210,32 @@ export class UDP_Server {
       this.chunkBuffer.delete(oldestKey)
       warn('DEVWARN:', `[SERVER] Evicted oldest chunk group ${oldestKey} (buffer full)`)
     }
+  }
+
+
+  private async handleSocketMessage(
+    _msg: Buffer,
+    peer: dgram.RemoteInfo,
+    account: Account,
+    node: Config['node'],
+    config: Config['rpc'],
+    apiKey: string | undefined,
+    addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>,
+    socket: dgram.Socket
+  ) {
+    if (this.shouldDropInbound(peer.address, peer.port)) return
+    const decoded = tryDecodeMessage(_msg)
+    if (decoded === undefined) return
+    const result = rpcMessageSchema.safeParse(decoded)
+    if (!result.data) {
+      if (isVersionOnlyProbe(decoded)) return
+      if (handleInvalidUsernameError(result.error, peer)) return
+      warn('DEVWARN:', '[SERVER] Unexpected payload', { err: tryParseError(result.error), payload: decoded })
+      return
+    }
+    if (handleAwaiter(result.data, peer, this.responseAwaiters)) return
+    if (result.data.y === 'h2') debug(`[SERVER] No awaiter for h2 txnId=${result.data.t}, registered awaiters: ${[...this.responseAwaiters.keys()].join(', ')}`)
+    await messageHandler(this, socket, account, result.data, { host: peer.address, port: peer.port }, node, config, apiKey, addPeer)
   }
 
   private readonly shouldDropInbound = (address: string, port: number): boolean => {
@@ -275,4 +277,6 @@ export class UDP_Server {
     }
     return false
   }
+
+// End of UDP_Server class
 }

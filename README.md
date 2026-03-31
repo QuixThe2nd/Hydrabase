@@ -8,6 +8,8 @@
 <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
 <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
 
+[Skip To Install](#install)
+
 ## Why Hydrabase?
 
 The core problem that Hydrabase aims to solve is making music metadata available to the masses. Currently, music metadata is gatekept and paywalled by certain greedy music companies. Hydrabase solves this by allowing users to distribute information they have access to that others might not. Hydrabase's entire purpose is to estimate the accuracy of metadata you wouldn't normally have access to.
@@ -26,19 +28,13 @@ Hydrabase creates a shared knowledge base that doesn't need finality. Without fi
 
 ## Install
 
-### Port Forwarding
-
-Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
-
-### Config
-
 All config is listed in the docker compose file. Hydrabase works out of the box with 0 config. Though consider setting a username and enabling Spotify.
 
-### Docker
+### Opt 1: Docker
 
 The compose file is available [here](https://raw.githubusercontent.com/QuixThe2nd/Hydrabase/refs/heads/main/compose.yaml).
 
-### Manual
+### Opt 2: Manual
 
 To install:
 
@@ -56,7 +52,7 @@ bun start
 
 ## Networking
 
-Hydrabase uses both TCP & UDP (default: 4545):
+Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
 
 ```
 TCP: 4545 (WebSocket)
