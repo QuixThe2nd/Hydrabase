@@ -4,11 +4,11 @@ import dgram from 'dgram'
 // Use the same type as in server.ts for compatibility
 import type { RPCMessage } from './server'
 
-import { warn } from '../../../../utils/log'
+import { warn } from '../../../utils/log'
 export type ResponseAwaiter = (msg: RPCMessage, rinfo: { address: string, port: number }) => boolean
 
 export const handleAwaiter = function handleAwaiter(
-  data: Record<string, unknown>,
+  data: RPCMessage,
   peer: dgram.RemoteInfo,
   responseAwaiters: Map<string, ResponseAwaiter>
 ): boolean {

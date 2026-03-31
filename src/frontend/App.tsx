@@ -1,4 +1,5 @@
 /* eslint-disable max-lines, max-lines-per-function */
+/* global window */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 

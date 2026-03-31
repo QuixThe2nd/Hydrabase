@@ -49,10 +49,17 @@ export default class WebSocketClient implements Socket {
     }
   }
 
+  // eslint-disable-next-line max-lines-per-function
   private _connect(account: Account) {
     this.trace = Trace.start(`WS client → ${this.identity.hostname}`)
     this.trace.step('Connecting')
-    this.socket = new WebSocket(`ws://${this.identity.hostname}`, { headers: proveClient(account, this.node, this.identity.hostname, this.trace, true) })
+    // Use sec-websocket-protocol for authentication, as 'headers' is not a valid option in browser/WebSocket API
+    const auth = proveClient(account, this.node, this.identity.hostname, this.trace, true)
+    let protocols: string[] | undefined
+    if (typeof auth === 'object' && auth !== null && 'sec-websocket-protocol' in auth && typeof auth['sec-websocket-protocol'] === 'string') {
+      protocols = [auth['sec-websocket-protocol']]
+    }
+    this.socket = new WebSocket(`ws://${this.identity.hostname}`, protocols)
     const openTimeout = setTimeout(() => {
       if (!this.isOpened) {
         this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
