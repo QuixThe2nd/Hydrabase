@@ -179,8 +179,13 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   const [host, port] = hostname.split(':') as [string, `${number}`]
   const payload: HandshakeDiscovery = { t, y: 'h0' }
   if (tid) payload.tid = tid
-  server.socket.send(bencode.encode(payload), Number(port), host)
-  trace.step(`[HIP5] Sent h0 discovery request with txnId=${t}`)
+  if (server.socket && typeof server.socket.send === 'function') {
+    server.socket.send(bencode.encode(payload), Number(port), host)
+    trace.step(`[HIP5] Sent h0 discovery request with txnId=${t}`)
+  } else {
+    warn('DEVWARN:', '[HIP5] server.socket is not available or invalid when attempting to send h0 discovery request', { host, payload, port })
+    resolve([500, '[HIP5] server.socket is not available'])
+  }
 })
 
 export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {

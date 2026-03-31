@@ -673,41 +673,53 @@ export default class PeerManager {
   }
 
   private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<false | Socket> {
-    trace.step('Creating socket')
+    trace.step(`[PEERS][CONNECT] Creating socket to ${hostname} (prefer ${preferTransport})`)
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     const shouldAuthenticate = this.shouldAuthenticate(normalizedHostname)
     if (typeof shouldAuthenticate === 'string') {
-      trace.step(shouldAuthenticate)
+      trace.step(`[PEERS][CONNECT] ${shouldAuthenticate}`)
       return trace.softFail(shouldAuthenticate)
     }
 
-    trace.step(`[PEERS] Authenticating ${normalizedHostname} using ${preferTransport}`)
+    trace.step(`[PEERS][CONNECT] Authenticating ${normalizedHostname} using ${preferTransport}`)
     const identity = await authenticatePeer(hostname, preferTransport, trace, this.udpServer, this.account, this.nodeConfig)
     if (Array.isArray(identity)) {
-      trace.step(`[PEERS] Authentication failed for ${normalizedHostname}: ${identity[1]}`)
+      trace.step(`[PEERS][CONNECT] Authentication failed for ${normalizedHostname} (${preferTransport}): ${identity[1]}`)
       return trace.softFail(identity[1])
     }
 
     const shouldConnect = this.shouldConnect(normalizedHostname, identity)
     if (typeof shouldConnect === 'string') {
-      trace.step(shouldConnect)
+      trace.step(`[PEERS][CONNECT] ${shouldConnect}`)
       return trace.softFail(shouldConnect)
     }
 
+    trace.step(`[PEERS][CONNECT] Attempting primary transport: ${preferTransport}`)
     const firstSocket = await this.tryTransport(hostname, normalizedHostname, preferTransport, identity, trace, 'Primary')
     if (typeof firstSocket === 'object') {
+      trace.step(`[PEERS][CONNECT] Connected using ${preferTransport}`)
       trace.success()
       return firstSocket
     }
-    if (typeof firstSocket === 'string') return trace.softFail(firstSocket)
+    if (typeof firstSocket === 'string') {
+      trace.step(`[PEERS][CONNECT] Primary transport (${preferTransport}) failed: ${firstSocket}`)
+      // continue to fallback
+    }
 
     const fallbackTransport = preferTransport === 'TCP' ? 'UDP' : 'TCP'
-    trace.step(`[PEERS] Retrying ${normalizedHostname} via ${fallbackTransport}`)
+    trace.step(`[PEERS][CONNECT] Retrying ${normalizedHostname} via fallback transport: ${fallbackTransport}`)
     const socket = await this.tryTransport(hostname, normalizedHostname, fallbackTransport, identity, trace, 'Fallback')
-    if (typeof socket === 'string') return trace.softFail(socket)
-    if (!socket) return trace.caughtError('Peer verification failed')
-    trace.success()
-    return socket
+    if (typeof socket === 'object') {
+      trace.step(`[PEERS][CONNECT] Connected using fallback transport: ${fallbackTransport}`)
+      trace.success()
+      return socket
+    }
+    if (typeof socket === 'string') {
+      trace.step(`[PEERS][CONNECT] Fallback transport (${fallbackTransport}) failed: ${socket}`)
+      return trace.softFail(socket)
+    }
+    trace.caughtError('[PEERS][CONNECT] Peer verification failed after all transports')
+    return false
   }
 
   private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): Promise<false | Socket | string> {

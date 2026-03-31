@@ -192,7 +192,8 @@ export class Peer {
       const timeout = setTimeout(() => {
         if (!this.pendingPings.has(nonce)) return
         this.pendingPings.delete(nonce)
-        trace.softFail(`[HIP2] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer`)
+        trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer (${this.type} transport, hostname: ${this.hostname})`)
+        warn('WARN:', `[PEER][TIMEOUT] Ping timeout for peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}. Disconnecting.`)
         this.socket.close()
       }, Peer.PING_TIMEOUT_MS)
       this.pendingPings.set(nonce, { time, timeout, trace })
@@ -296,7 +297,6 @@ export class Peer {
   public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
   public readonly sendLogEvent = (log_event: import('../types/hydrabase').LogEvent, trace: Trace) => this.send({ log_event, nonce: this.nonce++ }, trace)
   public readonly sendRefreshUi = (trace: Trace) => this.send({ nonce: this.nonce++, refresh_ui: 'backend_changed' }, trace)
-  public readonly sendStats = (stats: NodeStats, trace: Trace) => this.send({ nonce: this.nonce++, stats }, trace)
   public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
   public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)
   public readonly sendStatsPeerConnected = (stats_peer_connected: ApiPeer, trace: Trace) => this.send({ nonce: this.nonce++, stats_peer_connected }, trace)
