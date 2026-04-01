@@ -25,7 +25,7 @@ export interface Config {
     ip: string
     listenAddress: string
     port: number
-    preferTransport: 'TCP' | 'UDP'
+    preferTransport: 'TCP' | 'UDP' | 'UTP'
     username: string
   }
   rpc: {

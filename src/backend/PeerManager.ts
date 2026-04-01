@@ -1,4 +1,6 @@
 /* eslint-disable max-lines */
+import type { UTPSocket } from 'utp-native'
+
 import { Parser } from 'expr-eval'
 
 import type { Config, Socket } from '../types/hydrabase'
@@ -18,6 +20,7 @@ import { authenticateServerHTTP } from './networking/http'
 import { UDP_Client } from './networking/udp/client'
 import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { isAllowedPeer } from './networking/utils'
+import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
 import { WebSocketServerConnection } from './networking/ws/server'
 import { Peer } from './Peer'
@@ -45,14 +48,27 @@ const warnIfPeerHasNewerBranchVersion = (peer: Peer): void => {
 const parser = new Parser()
 parser.functions.avg = (...args: number[]) => avg(args)
 
-export const authenticatePeer = async (hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, udpServer: UDP_Server, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
+export const authenticatePeer = async (hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP' | 'UTP', trace: Trace, udpServer: UDP_Server, account: Account, node: Config['node']): Promise<[number, string] | Identity> => {
   trace.step(`Authenticating peer with ${preferTransport}`)
-  const preferredAuth = preferTransport === 'TCP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(udpServer, hostname, account, node, trace)
-  if (!Array.isArray(preferredAuth)) return preferredAuth
-  trace.caughtError(preferredAuth[1])
-  trace.step(`Authenticating peer with ${preferTransport === 'TCP' ? 'UDP' : 'TCP'}`)
-  const fallbackAuth = preferTransport === 'UDP' ? await logContext('HTTP', () => authenticateServerHTTP(hostname, trace)) : await authenticateServerUDP(udpServer, hostname, account, node, trace)
-  return fallbackAuth
+  switch (preferTransport) {
+    case 'TCP': {
+      const preferredAuth = await logContext('HTTP', () => authenticateServerHTTP(hostname, trace))
+      if (!Array.isArray(preferredAuth)) return preferredAuth
+      trace.caughtError(preferredAuth[1])
+      trace.step('Falling back to UDP authentication')
+      return await logContext('UDP', () => authenticateServerUDP(udpServer, hostname, account, node, trace))
+    }
+    case 'UDP': case 'UTP': {
+      const preferredAuth = await logContext('UDP', () => authenticateServerUDP(udpServer, hostname, account, node, trace))
+      if (!Array.isArray(preferredAuth)) return preferredAuth
+      trace.caughtError(preferredAuth[1])
+      trace.step('Falling back to HTTP authentication')
+      return await logContext('HTTP', () => authenticateServerHTTP(hostname, trace))
+    }
+    default:
+      trace.fail(`Unsupported transport preference: ${preferTransport}`)
+      return [500, `Unsupported transport preference: ${preferTransport}`]
+  }
 }
 
 const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHashes: Set<bigint>) => {
@@ -129,7 +145,7 @@ export default class PeerManager {
   private readonly localMessageHistory: MessageEnvelope[] = []
   private readonly peerConnectedHandlers: ((peer: Peer) => Promise<void> | void)[] = []
   private readonly peerDisconnectedHandlers: ((peer: Peer) => void)[] = []
-  private readonly recentConnectionFailures = new Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' }>()
+  private readonly recentConnectionFailures = new Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' | 'UTP' }>()
   private readonly recentPeerAddresses = new Map<`${string}:${number}`, `0x${string}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
@@ -143,6 +159,7 @@ export default class PeerManager {
     public readonly nodeConfig: Config['node'],
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
+    private readonly utpSocket: UTPSocket
   ) {
     this.heldMessageSweepTimer = setInterval(() => {
       this.pruneExpiredHeldMessages()
@@ -454,7 +471,7 @@ export default class PeerManager {
     return this.runtimeSettings.update(update, updatedBy)
   }
 
-  private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' } {
+  private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' | 'UTP' } {
     const failure = this.recentConnectionFailures.get(hostname)
     if (!failure) return null
     this.recentConnectionFailures.delete(hostname)
@@ -545,7 +562,7 @@ export default class PeerManager {
     this.localMessageHistory.splice(0, before, ...this.localMessageHistory.filter(m => !this.isEnvelopeExpired(m, now)))
   }
 
-  private recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UDP') {
+  private recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UDP' | 'UTP') {
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     const trimmedReason = reason.replace(/\s+/gu, ' ').trim().slice(0, 240)
     const timestamp = Number(new Date())
@@ -681,7 +698,7 @@ export default class PeerManager {
     trace.success()
   }
 
-  private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace): Promise<false | Socket> {
+  private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP' | 'UTP', trace: Trace): Promise<false | Socket> {
     trace.step(`[PEERS][CONNECT] Creating socket to ${hostname} (prefer ${preferTransport})`)
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     const shouldAuthenticate = this.shouldAuthenticate(normalizedHostname)
@@ -731,19 +748,28 @@ export default class PeerManager {
     return false
   }
 
-  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP', trace: Trace, identity: Identity): Promise<false | Socket | string> {
+  private async toSocket(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UDP' | 'UTP', trace: Trace, identity: Identity): Promise<false | Socket | string> {
     trace.step(`[PEERS] Opening ${preferTransport} socket to ${hostname}`)
     if (hostname === `${this.nodeConfig.hostname}:${this.nodeConfig.port}` || hostname === `${this.nodeConfig.ip}:${this.nodeConfig.port}`) {
       trace.step('[PEERS] Socket attempt rejected: attempted to connect to self')
       return 'Attempted to connect to self'
     }
-    return preferTransport === 'TCP' ? await WebSocketClient.init(identity, this.account, this.nodeConfig) : UDP_Client.connectToAuthenticatedPeer(this.udpServer.socket, identity, this.rpcConfig, DHT_Node.getNodeId(this.nodeConfig), trace) || false
+    switch (preferTransport) {
+      case 'TCP':
+        return await WebSocketClient.init(identity, this.account, this.nodeConfig)
+      case 'UDP':
+        return UDP_Client.connectToAuthenticatedPeer(this.udpServer.socket, identity, this.rpcConfig, DHT_Node.getNodeId(this.nodeConfig), trace) || 'UDP connection failed'
+      case 'UTP':
+        return UTPClient.connectToAuthenticatedPeer(identity, this.utpSocket, trace) || 'UTP connection failed'
+      default:
+        return 'Invalid transport preference'
+    }
   }
   
   private async tryTransport(
     hostname: `${string}:${number}`,
     normalizedHostname: `${string}:${number}`,
-    preferTransport: 'TCP' | 'UDP',
+    preferTransport: 'TCP' | 'UDP' | 'UTP',
     identity: Identity,
     trace: Trace,
     phase: 'Fallback' | 'Primary',

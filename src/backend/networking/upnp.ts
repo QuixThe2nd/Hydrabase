@@ -6,7 +6,7 @@ import { debug } from '../../utils/log'
 import { Trace } from '../../utils/trace'
 
 const upnp = natUpnp.createClient()
-const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP', trace?: Trace) => new Promise((res, rej) => {
+const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP' | 'UTP', trace?: Trace) => new Promise((res, rej) => {
   upnp.portMapping({ description, private: port, protocol, public: port, ttl }, err => {
     if (err) rej(err)
     else {
@@ -16,7 +16,7 @@ const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP'
     }
   })
 })
-const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP', trace: Trace) => {
+const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP' | 'UTP', trace: Trace) => {
   await mapPort(port, description, ttl, protocol, trace)
   setInterval(() => mapPort(port, description, ttl, protocol), announceInterval)
 }

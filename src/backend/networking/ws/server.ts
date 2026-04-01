@@ -95,7 +95,7 @@ export const handleConnection = async (
   apiKey: string,
   trace: Trace,
   peerManager: PeerManager,
-  preferTransport: 'TCP' | 'UDP' = node.preferTransport,
+  preferTransport: 'TCP' | 'UDP' | 'UTP' = node.preferTransport,
   udpServer?: UDP_Server,
   account?: Account,
   identity?: Identity

@@ -1,6 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import utp from 'utp-native'
 
 import type { Config } from '../types/hydrabase'
 // import type { Peer } from './Peer'
@@ -94,7 +95,8 @@ beforeAll(async () => {
       ttl: 3_600_000,
     },
   }, repos, formula => repos.peer.setPluginConfidenceFormula(formula))
-  peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
+  const utpSocket = utp()
+  peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1, utpSocket)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
 

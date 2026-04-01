@@ -6,13 +6,13 @@ declare module 'upnpjs' {
     externalPort: number;
     internalPort: number;
     ip: string;
-    protocol?: 'TCP' | 'UDP';
+    protocol?: 'TCP' | 'UDP' | 'UTP';
   }
 
   /** Options for deleting a port mapping */
   export interface DeletePortMappingOptions {
     externalPort: number;
-    protocol?: 'TCP' | 'UDP';
+    protocol?: 'TCP' | 'UDP' | 'UTP';
   }
 
   /** Internet Gateway Device returned by discover() */
@@ -35,7 +35,7 @@ declare module 'upnpjs' {
     internalClient: string;
     internalPort: number;
     leaseDuration?: number;
-    protocol: 'TCP' | 'UDP';
+    protocol: 'TCP' | 'UDP' | 'UTP';
   }
 
   /** Discover the Internet Gateway Device */

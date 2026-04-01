@@ -7,7 +7,7 @@ import type { Auth, Identity } from '../HIP1_Identity'
 import { authenticatePeer } from '../../PeerManager'
 
 
-const authenticateHostname = async (claimedHostname: `${string}:${number}`, claimedAddress: `0x${string}`, preferTransport: 'TCP' | 'UDP', udpServer: UDP_Server, account: Account, trace: Trace, node: Config['node'], identity: Identity, ip: { address: string }): Promise<[number, string] | Identity> => {
+const authenticateHostname = async (claimedHostname: `${string}:${number}`, claimedAddress: `0x${string}`, preferTransport: 'TCP' | 'UDP' | 'UTP', udpServer: UDP_Server, account: Account, trace: Trace, node: Config['node'], identity: Identity, ip: { address: string }): Promise<[number, string] | Identity> => {
   const result = await authenticatePeer(claimedHostname, preferTransport, trace, udpServer, account, node)
   if (!Array.isArray(result)) return result
   const actualIP = ip.address
@@ -19,7 +19,7 @@ const authenticateHostname = async (claimedHostname: `${string}:${number}`, clai
   return result
 }
 
-export const upgradeHostname = async (hostname: string, auth: Auth, trace: Trace, preferTransport: 'TCP' | 'UDP', udpServer: UDP_Server, account: Account, node: Config['node'], _identity: Identity, ip: { address: string }) =>
+export const upgradeHostname = async (hostname: string, auth: Auth, trace: Trace, preferTransport: 'TCP' | 'UDP' | 'UTP', udpServer: UDP_Server, account: Account, node: Config['node'], _identity: Identity, ip: { address: string }) =>
   hostname === auth.hostname || await new Promise<[number, string] | true>(resolve => {
     trace.step(`[HIP4] Verifying claimed hostname ${auth.address} ${auth.hostname}`);
     (async () => {

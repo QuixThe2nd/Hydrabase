@@ -1,3 +1,5 @@
+import utp from 'utp-native'
+
 import type { Config } from '../types/hydrabase'
 import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 import type { Peer } from './Peer'
@@ -115,7 +117,8 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('7/14 Starting node')
   const node = new Node(metadataManager, CONFIG.formulas)
   trace.step('8/14 Starting peer manager')
-  peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
+  const utpSocket = utp()
+  peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer, utpSocket)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)
   ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m, stack }) => {

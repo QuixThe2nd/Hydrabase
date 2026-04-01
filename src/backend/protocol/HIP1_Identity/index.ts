@@ -77,7 +77,7 @@ export const verifyClient = async (
   auth: Auth | { apiKey: string },
   apiKey: string | undefined,
   trace: Trace,
-  preferTransport: 'TCP' | 'UDP' = node.preferTransport,
+  preferTransport: 'TCP' | 'UDP' | 'UTP' = node.preferTransport,
   udpServer?: UDP_Server,
   account?: Account,
   identity?: Identity,

@@ -38,7 +38,7 @@ interface ParsedFailedConnectNotice {
   at?: string
   hostname?: string
   reason?: string
-  transport?: 'TCP' | 'UDP'
+  transport?: 'TCP' | 'UDP' | 'UTP'
 }
 
 const getFailedConnectMessageText = (notice: ParsedFailedConnectNotice): string => {
