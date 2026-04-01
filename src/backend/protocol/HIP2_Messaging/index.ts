@@ -1,5 +1,6 @@
 import z from 'zod'
 
+import type { RuntimeConfigUpdate } from '../../../types/hydrabase'
 import type { Trace } from '../../../utils/trace'
 import type { Peer } from '../../Peer'
 import type { RequestManager } from '../../RequestManager'
@@ -23,6 +24,14 @@ const SearchHistoryDataSchema = z.union([
 ])
 
 const MessageHistoryRequestSchema = z.literal('get')
+const GetConfigSchema = z.literal(true)
+const UpdateConfigSchema = z.object({
+  nodeProfile: z.object({
+    bio: z.string().max(140).optional(),
+    connectMessage: z.string().min(1).max(280).optional(),
+    username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u).optional(),
+  }).optional(),
+})
 
 export const SendMessageSchema = z.object({
   payload: z.string(),
@@ -39,6 +48,7 @@ const MessageSchemas = {
   announce: AnnounceSchema,
   connect_peer: ConnectPeerSchema,
   deliver_message: MessageEnvelopeSchema,
+  get_config: GetConfigSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
@@ -48,9 +58,11 @@ const MessageSchemas = {
   restart: z.literal(true),
   search_history: SearchHistoryDataSchema,
   send_message: SendMessageSchema,
-  store_message: MessageEnvelopeSchema
+  store_message: MessageEnvelopeSchema,
+  update_config: UpdateConfigSchema,
 }
 
+export type UpdateConfig = RuntimeConfigUpdate
 type Message<T extends keyof typeof MessageSchemas = keyof typeof MessageSchemas> = z.infer<typeof MessageSchemas[T]>
 type MessageType = keyof typeof MessageSchemas
 
@@ -75,6 +87,7 @@ export class HIP2_Messaging {
     : 'store_message' in result ? 'store_message'
     : 'deliver_message' in result ? 'deliver_message'
     : 'peer_stats' in result ? 'peer_stats'
+    : 'get_config' in result ? 'get_config'
     : 'announce' in result ? 'announce'
     : 'connect_peer' in result ? 'connect_peer'
     : 'ping' in result ? 'ping'
@@ -82,6 +95,7 @@ export class HIP2_Messaging {
     : 'restart' in result ? 'restart'
     : 'search_history' in result ? 'search_history'
     : 'send_message' in result ? 'send_message'
+    : 'update_config' in result ? 'update_config'
     : 'message_history' in result ? 'message_history'
     : null
 

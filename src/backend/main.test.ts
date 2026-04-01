@@ -22,6 +22,7 @@ import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from
 import { HIP2_Messaging } from './protocol/HIP2_Messaging'
 import { AnnounceSchema } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
+import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 
 
 const config1: Config['node'] = {
@@ -75,7 +76,8 @@ beforeAll(async () => {
   account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, formulas)
   const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined, (peer, trace) => peerManager1.add(peer, trace, config1.preferTransport))
-  peerManager1 = new PeerManager(account1, metadataManager, repos, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
+  const runtimeSettings = new RuntimeSettingsManager(config1, repos, false)
+  peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
 

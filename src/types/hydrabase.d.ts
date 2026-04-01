@@ -142,6 +142,33 @@ export interface PluginAccuracy {
   plugin_id: string
 }
 
+export interface RuntimeConfigSnapshot {
+  editable: {
+    nodeProfile: RuntimeNodeProfileConfig
+  }
+  readonly: RuntimeReadonlyConfig
+}
+
+export interface RuntimeConfigUpdate {
+  nodeProfile: Partial<RuntimeNodeProfileConfig>
+}
+
+export interface RuntimeNodeProfileConfig {
+  bio: string
+  connectMessage: string
+  username: string
+}
+
+export interface RuntimeReadonlyConfig {
+  apiKeyConfigured: boolean
+  node: {
+    hostname: string
+    ip: string
+    listenAddress: string
+    port: number
+  }
+}
+
 export interface Socket {
   readonly close: () => void
   readonly identity: Identity

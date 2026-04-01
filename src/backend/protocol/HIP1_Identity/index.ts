@@ -29,7 +29,17 @@ export type Identity = z.infer<typeof IdentitySchema>
 
 export const proveServer = async (account: Account, node: Config['node'], trace: Trace): Promise<Auth> => {
   trace.step('[HIP1] Proving server')
-  const hostname = node.hostname === node.ip && !isPeerLocalHostname(node.hostname) ? await getIp() : node.hostname
+  let {hostname} = node
+  if (node.hostname === node.ip && !isPeerLocalHostname(node.hostname)) {
+    trace.step('[HIP1] Resolving external IP for server proof')
+    try {
+      hostname = await getIp()
+      trace.step(`[HIP1] External IP resolved to ${hostname}`)
+    } catch (e) {
+      trace.step(`[HIP1] External IP lookup failed, using configured hostname ${node.hostname}`)
+      trace.step(`[HIP1] External IP lookup error: ${String(e)}`)
+    }
+  }
   const bio = node.bio?.slice(0, 140)
   return {
     address: account.address,

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerConnectionAttempt, PeerConnectionError, PeerStats, PeerWithCountry, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
+import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerConnectionAttempt, PeerConnectionError, PeerStats, PeerWithCountry, RuntimeConfigSnapshot, RuntimeConfigUpdate, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
 import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
 
 import { error, warn } from '../utils/log'
@@ -17,6 +17,7 @@ import { MessagesTab } from './tabs/Messages'
 import { OverviewTab } from './tabs/Overview'
 import { PeersTab } from './tabs/Peers'
 import { SearchTab } from './tabs/Search'
+import { SettingsTab } from './tabs/Settings'
 import { VotesTab } from './tabs/votes'
 import { BG, GLOBAL_STYLES, TEXT } from './theme'
 import { getCountryForHost, mergePartialStats } from './utils'
@@ -46,6 +47,7 @@ const TAB_PATHS: Record<Tab, string> = {
   overview: '/',
   peers: '/peers',
   search: '/search',
+  settings: '/settings',
   votes: '/votes',
 }
 
@@ -69,6 +71,7 @@ const PATH_TABS: Record<string, Tab> = {
   '/overview': 'overview',
   '/peers': 'peers',
   '/search': 'search',
+  '/settings': 'settings',
   '/votes': 'votes',
 }
 
@@ -78,6 +81,7 @@ const isTab = (value: string): value is Tab => (
   || value === 'overview'
   || value === 'peers'
   || value === 'search'
+  || value === 'settings'
   || value === 'votes'
 )
 
@@ -189,6 +193,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [playingId, setPlayingId] = useState<null | string>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pendingSearches = useRef(new Map<number, (r: unknown[]) => void>())
+  const pendingRuntimeConfig = useRef(new Map<number, (result: { error?: string; snapshot?: RuntimeConfigSnapshot }) => void>())
   const pendingConnectAttempts = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
   const [tab, setTab] = useState<Tab>(() => initialLocationState.tab)
@@ -201,6 +206,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [messages, setMessages] = useState<MessageEnvelope[]>([])
+  const [runtimeConfig, setRuntimeConfig] = useState<null | RuntimeConfigSnapshot>(null)
+  const [runtimeConfigError, setRuntimeConfigError] = useState<null | string>(null)
+  const [runtimeConfigLoading, setRuntimeConfigLoading] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const statsRef = useRef<NodeStats | null>(null)
   const [connectionAttempts, setConnectionAttempts] = useState<PeerConnectionAttempt[]>([])
@@ -242,6 +250,45 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }))
     return true
   }, [clearConnectAttemptTimeout])
+
+  const sendRuntimeConfigRequest = useCallback(async (payload: { get_config?: true; update_config?: RuntimeConfigUpdate }): Promise<RuntimeConfigSnapshot> => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket not connected')
+    const requestNonce = nonceRef.current++
+    const response = await new Promise<{ error?: string; snapshot?: RuntimeConfigSnapshot }>((resolve) => {
+      const timeout = setTimeout(() => {
+        pendingRuntimeConfig.current.delete(requestNonce)
+        resolve({ error: 'Settings request timed out' })
+      }, 10_000)
+      pendingRuntimeConfig.current.set(requestNonce, (result) => {
+        clearTimeout(timeout)
+        resolve(result)
+      })
+      ws.send(JSON.stringify({ nonce: requestNonce, ...payload }))
+    })
+    if (response.error) throw new Error(response.error)
+    if (response.snapshot) return response.snapshot
+    throw new Error('Missing settings payload')
+  }, [])
+
+  const loadRuntimeConfig = useCallback(async () => {
+    setRuntimeConfigLoading(true)
+    setRuntimeConfigError(null)
+    try {
+      const snapshot = await sendRuntimeConfigRequest({ get_config: true })
+      setRuntimeConfig(snapshot)
+    } catch (err) {
+      setRuntimeConfigError(err instanceof Error ? err.message : 'Failed to load settings')
+    } finally {
+      setRuntimeConfigLoading(false)
+    }
+  }, [sendRuntimeConfigRequest])
+
+  const updateRuntimeConfig = useCallback(async (update: RuntimeConfigUpdate) => {
+    setRuntimeConfigError(null)
+    const snapshot = await sendRuntimeConfigRequest({ update_config: update })
+    setRuntimeConfig(snapshot)
+  }, [sendRuntimeConfigRequest])
 
   const markLatestPendingAttemptForHostname = useCallback((hostname: `${string}:${number}`, errorPayload: PeerConnectionError): boolean => {
     const latestPendingAttempt = connectionAttemptsRef.current.find((attempt) => attempt.hostname === hostname && attempt.state === 'pending')
@@ -348,6 +395,9 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         addLog('INFO', 'WebSocket connected')
         ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
         ws.send(JSON.stringify({ message_history: 'get', nonce: nonceRef.current++ }))
+        loadRuntimeConfig().catch((err) => {
+          addLog('WARN', err instanceof Error ? err.message : 'Failed to load settings')
+        })
       }
       ws.onmessage = (e: MessageEvent) => {
         if (destroyed) return
@@ -356,6 +406,15 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           if (data.response !== undefined && data.nonce !== undefined) {
             const resolve = pendingSearches.current.get(data.nonce)
             if (resolve) { pendingSearches.current.delete(data.nonce); resolve(data.response); return }
+          }
+          if ((data.runtime_config !== undefined || data.runtime_config_updated !== undefined || data.config_error !== undefined) && data.nonce !== undefined) {
+            const resolveConfig = pendingRuntimeConfig.current.get(data.nonce)
+            if (resolveConfig) {
+              pendingRuntimeConfig.current.delete(data.nonce)
+              if (data.config_error === undefined) resolveConfig({ snapshot: (data.runtime_config ?? data.runtime_config_updated) as RuntimeConfigSnapshot })
+              else resolveConfig({ error: String(data.config_error) })
+              return
+            }
           }
           if (data.ping !== undefined && data.nonce !== undefined) {
             ws.send(JSON.stringify({ nonce: data.nonce, pong: { time: Date.now() } }))
@@ -436,6 +495,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             const logEvt = data.log_event as { lv: string; m: string; stack?: string }
             addLog(logEvt.lv, logEvt.m, logEvt.stack)
           }
+          else if (data.config_error !== undefined) addLog('ERROR', `Config update failed: ${String(data.config_error)}`)
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)
         } catch (err) {
@@ -454,7 +514,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
     connect()
     return () => { destroyed = true; wsRef.current?.close() }
-  }, [applyPulse, applyPulseHistory, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey])
+  }, [applyPulse, applyPulseHistory, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey, loadRuntimeConfig])
 
   useEffect(() => () => {
       pendingConnectAttempts.current.forEach((timeout) => clearTimeout(timeout))
@@ -671,6 +731,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
+      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} onRefresh={loadRuntimeConfig} onSave={updateRuntimeConfig} />}
       {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
     </div>
     <ActivityFeed eventLog={eventLog} />

@@ -23,6 +23,7 @@ import { WebSocketServerConnection } from './networking/ws/server'
 import { Peer } from './Peer'
 import { PeerMap } from './PeerMap'
 import { authenticateServerUDP } from './protocol/HIP5_IdentityDiscovery'
+import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 import { compareVersions, parseHydrabaseUserAgent } from './versioning'
 
 const CURRENT_VERSION = VERSION.trim()
@@ -137,6 +138,7 @@ export default class PeerManager {
     private readonly account: Account, 
     private readonly metadataManager: MetadataManager, 
     private readonly repos: Repositories,
+    private readonly runtimeSettings: RuntimeSettingsManager,
     private readonly search: <T extends Request['type']>(type: T, query: string, searchPeers?: boolean) => Promise<Response<T>>,
     public readonly nodeConfig: Config['node'],
     private readonly rpcConfig: Config['rpc'],
@@ -241,6 +243,11 @@ export default class PeerManager {
     if (!peer) return 0
     return peer.historicConfidence // TODO: tit for tat
   }
+
+  public getRuntimeConfig() {
+    return this.runtimeSettings.getSnapshot()
+  }
+
   public async handleConnectPeerRequest(hostname: `${string}:${number}`, apiPeer: Peer, nonce: number, trace: Trace): Promise<void> {
     trace.step(`[PEERS] API requesting connection to ${hostname} (nonce ${nonce})`)
     try {
@@ -441,6 +448,10 @@ export default class PeerManager {
     }
     trace.step(`[HIP2] Sent STORE_MESSAGE for ${envelope.to} to ${sent} online peer${sent === 1 ? '' : 's'}`)
     return sent
+  }
+
+  public updateRuntimeConfig(update: import('../types/hydrabase').RuntimeConfigUpdate, updatedBy: string) {
+    return this.runtimeSettings.update(update, updatedBy)
   }
 
   private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' } {

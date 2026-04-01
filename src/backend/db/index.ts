@@ -9,6 +9,7 @@ import { AuthenticatedPeerRepository } from './repositories/AuthenticatedPeerRep
 import { DhtNodeRepository } from './repositories/DhtNodeRepository'
 import { PeerRepository } from './repositories/PeerRepository'
 import { SearchHistoryRepository } from './repositories/SearchHistoryRepository'
+import { SettingsRepository } from './repositories/SettingsRepository'
 import { StatsRepository } from './repositories/StatsRepository'
 import { TrackRepository } from './repositories/TrackRepository'
 import { WsServerRepository } from './repositories/WsServerRepository'
@@ -23,6 +24,7 @@ export interface Repositories {
   onVotesChanged: (handler: () => void) => void
   peer: PeerRepository
   searchHistory: SearchHistoryRepository
+  settings: SettingsRepository
   stats: StatsRepository
   track: TrackRepository
   wsServer: WsServerRepository
@@ -50,6 +52,7 @@ export const startDatabase = async (pluginConfidenceFormula: string): Promise<Re
     onVotesChanged,
     peer: new PeerRepository(db, pluginConfidenceFormula),
     searchHistory: new SearchHistoryRepository(db),
+    settings: new SettingsRepository(db),
     stats: new StatsRepository(db),
     track,
     wsServer: new WsServerRepository(db),

@@ -15,6 +15,7 @@ import { startServer } from './networking/http'
 import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { requestPort } from './networking/upnp'
 import PeerManager from './PeerManager'
+import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 import { StatsReporter } from './StatsReporter'
 import { buildWebUI } from './webui'
 
@@ -102,6 +103,8 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   const account = new Account(key)
   trace.step('4/14 Starting database')
   const repos = await startDatabase(CONFIG.formulas.pluginConfidence)
+  const runtimeSettings = new RuntimeSettingsManager(CONFIG.node, repos, Boolean(CONFIG.apiKey))
+  runtimeSettings.loadFromStorage()
   authenticatedPeers.init(repos.authenticatedPeer)
   trace.step('5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos, CONFIG.soulIdCutoff)
@@ -112,7 +115,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   trace.step('7/14 Starting node')
   const node = new Node(metadataManager, CONFIG.formulas)
   trace.step('8/14 Starting peer manager')
-  peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
+  peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)
   ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m, stack }) => {

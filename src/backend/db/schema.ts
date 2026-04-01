@@ -95,5 +95,12 @@ export const wsServer = sqliteTable('ws_servers', {
   hostname: text('hostname').notNull().primaryKey(),
 })
 
-export const schema = { album, announcedPeers, artist, authenticatedPeer, dhtNode, peerStats, searchHistory, soul, track, wsServer } as const
+export const setting = sqliteTable('settings', {
+  key: text('key').primaryKey().notNull(),
+  updated_at: integer('updated_at').notNull(),
+  updated_by: text('updated_by').notNull(),
+  value: text('value').notNull(),
+})
+
+export const schema = { album, announcedPeers, artist, authenticatedPeer, dhtNode, peerStats, searchHistory, setting, soul, track, wsServer } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts
