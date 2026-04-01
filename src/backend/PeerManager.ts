@@ -443,8 +443,6 @@ export default class PeerManager {
     return sent
   }
 
-  // announce() removed: peer lists are now sent on every ping, not just on connect
-
   private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' } {
     const failure = this.recentConnectionFailures.get(hostname)
     if (!failure) return null

@@ -33,6 +33,7 @@ export const authenticatedPeers: AuthenticatedPeersStore = {
   values(): Identity[] { return _repo?.values() ?? [] },
 }
 export const udpConnections = new Map<`${string}:${number}`, UDP_Client>()
+const pendingAuths = new Map<`${string}:${number}`, Promise<[number, string] | Identity>>()
 
 type ResponseAwaiter = (msg: RPCMessage, rinfo: { address: string, port: number }) => boolean
 
@@ -64,28 +65,34 @@ export type RPCMessage = z.infer<typeof rpcMessageSchema>
 const handleHydraQuery = (server: UDP_Server, query: Query, peerHostname: `${string}:${number}`, account: Account, node: Config['node']): boolean => {
   const identity = authenticatedPeers.get(peerHostname)
   if (!identity) {
+    if (pendingAuths.has(peerHostname)) return false
     const trace = Trace.start(`[SERVER] Received message ${query.q} from unauthenticated peer ${peerHostname}`)
-    authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
+    const authPromise = authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       } else {
         trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
         trace.success()
       }
-    })
+      return result
+    }).finally(() => pendingAuths.delete(peerHostname))
+    pendingAuths.set(peerHostname, authPromise)
     return false
   }
   const connection = udpConnections.get(peerHostname) ?? udpConnections.get(identity.hostname as `${string}:${number}`)
   if (!connection) {
+    if (pendingAuths.has(peerHostname)) return false
     const trace = Trace.start(`[SERVER] Initiating connection with authenticated peer ${peerHostname}`)
-    authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
+    const authPromise = authenticateServerUDP(server, peerHostname, account, node, trace).then(result => {
       if (Array.isArray(result)) {
         trace.softFail(`[SERVER] Re-auth failed for ${peerHostname}: ${result[1]}`)
       } else {
         trace.step(`[SERVER] Re-authenticated ${peerHostname} as ${result.username}`)
         trace.success()
       }
-    })
+      return result
+    }).finally(() => pendingAuths.delete(peerHostname))
+    pendingAuths.set(peerHostname, authPromise)
     return false
   }
   if (!udpConnections.has(peerHostname)) udpConnections.set(peerHostname, connection)

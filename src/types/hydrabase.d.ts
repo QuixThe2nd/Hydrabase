@@ -72,6 +72,7 @@ export type FilterState = 'all' | 'connected' | 'disconnected'
 export interface LogEvent {
   lv: string
   m: string
+  stack?: string
 }
 
 export interface NodeStats {

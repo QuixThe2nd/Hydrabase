@@ -189,7 +189,7 @@ export class StatsReporter {
   private report(send: (client: Peer, trace: Trace) => void): void {
     const client = this.peers.apiPeer
     if (client)  {
-      const trace = Trace.start('Sending stats to api client')
+      const trace = Trace.start('Sending stats to api client', true, true)
       try {
         send(client, trace)
         trace.success()

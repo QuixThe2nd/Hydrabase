@@ -271,9 +271,6 @@ export class Peer {
     })
   }
 
-
-  // announcePeer removed: peer lists are now sent on every ping
-
   public async search<T extends Request['type']>(type: T, query: string, trace: Trace): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type }, trace)
     for (const result of response) {

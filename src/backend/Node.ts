@@ -115,11 +115,13 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)
-  ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m }) => {
+  ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m, stack }) => {
     const {apiPeer} = peerManager
     if (!apiPeer) return
-    const broadcastTrace = Trace.start('[LOG] Broadcasting log event to API peer')
-    apiPeer.sendLogEvent({ lv, m }, broadcastTrace)
+    const broadcastTrace = Trace.start('[LOG] Broadcasting log event to API peer', true, true)
+    const event = stack === undefined ? { lv, m } : { lv, m, stack }
+    apiPeer.sendLogEvent(event, broadcastTrace)
+    broadcastTrace.success()
   }
   trace.step('9/14 Building Web UI')
   await buildWebUI()

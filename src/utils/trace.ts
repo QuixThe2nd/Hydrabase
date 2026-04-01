@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { captureException, exceptionFromContext, getSentryLogger, logEvent } from './log'
+import { broadcastLog, captureException, exceptionFromContext, getSentryLogger, logEvent } from './log'
 
 export class Trace {
   private children: Trace[] = []
@@ -10,7 +10,8 @@ export class Trace {
   constructor(
     public readonly traceId: string,
     public readonly label: string,
-    private readonly noPrint = false
+    private readonly noPrint = false,
+    private readonly noBroadcast = false
   ) {
     this.startTime = new Date()
     logEvent({
@@ -33,7 +34,7 @@ export class Trace {
     return `${hours}:${minutes}:${seconds}.${millis}`
   }
 
-  static readonly start = (label: string, noPrint = false) => new Trace(Math.random().toString(16).slice(2, 6), label, noPrint)
+  static readonly start = (label: string, noPrint = false, noBroadcast = false) => new Trace(Math.random().toString(16).slice(2, 6), label, noPrint, noBroadcast)
 
   caughtError(msg: string): false {
     this.steps.push({ error: true, msg, time: new Date() })
@@ -70,6 +71,7 @@ export class Trace {
       traceId: this.traceId,
     })
     captureException(exceptionFromContext(reason, context))
+    if (!this.noBroadcast) broadcastLog('ERROR', reason, this.getFullTrace())
     return false
   }
 
@@ -145,6 +147,7 @@ export class Trace {
       message: `Trace succeeded: ${this.label}`,
     })
     getSentryLogger()?.info('Trace succeeded', { label: this.label, traceId: this.traceId })
+    if (!this.noBroadcast) broadcastLog('INFO', this.label, this.getFullTrace())
     this.print(true)
   }
 

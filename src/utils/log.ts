@@ -2,7 +2,7 @@
 import type { AsyncLocalStorage as ALS } from 'node:async_hooks'
 
 export type HydrabaseGlobal = typeof globalThis & {
-  __hydrabaseBroadcastLog__?: (event: { lv: string; m: string }) => void
+  __hydrabaseBroadcastLog__?: (event: { lv: string; m: string; stack?: string }) => void
   __hydrabaseCaptureException__?: (exception: unknown, telemetry?: HydrabaseTelemetryContext) => void
   __hydrabaseLogEvent__?: (event: {
     category: string
@@ -58,9 +58,10 @@ export const logEvent = (event: {
   globalWithCapture.__hydrabaseLogEvent__?.(event)
 }
 
-const broadcastLog = (lv: string, m: string): void => {
+export const broadcastLog = (lv: string, m: string, stack?: string): void => {
   const g = globalThis as HydrabaseGlobal
-  g.__hydrabaseBroadcastLog__?.({ lv, m })
+  const event = stack === undefined ? { lv, m } : { lv, m, stack }
+  g.__hydrabaseBroadcastLog__?.(event)
 }
 
 type Context = `- ${string}` | Event | Record<string, unknown>

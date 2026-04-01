@@ -332,8 +332,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         })
     }
 
-    addLog('INFO', isFull ? 'Received full stats' : 'Received stats update')
-  }, [addLog])
+  }, [])
 
   useEffect(() => {
     let destroyed = false
@@ -434,8 +433,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             addLog('ERROR', `Connection error for ${connError.hostname}: ${connError.message}`, connError.stack || undefined)
           }
           else if (data.log_event) {
-            const logEvt = data.log_event as { lv: string; m: string }
-            addLog(logEvt.lv, logEvt.m)
+            const logEvt = data.log_event as { lv: string; m: string; stack?: string }
+            addLog(logEvt.lv, logEvt.m, logEvt.stack)
           }
           else if (data.peer_stats) onPeerStatsRef.current(data)
           else addLog('DEBUG', `WS msg: ${e.data.slice(0, 80)}`)

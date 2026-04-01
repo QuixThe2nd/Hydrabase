@@ -45,6 +45,7 @@
     "react-dom": "^19.2.4",
     "secp256k1": "^5.0.1",
     "superjson": "^2.2.6",
+    "utp-native": "^2.5.3",
     "zod": "^4.3.6"
   },
   "scripts": {
