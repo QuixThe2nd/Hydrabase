@@ -1,7 +1,7 @@
 import ipLookup from '@iplookup/country'
 import { countryCodeEmoji } from 'country-code-emoji'
 
-import type { NodeStats, PartialNodeStats } from '../types/hydrabase'
+import type { Config, NodeStats, PartialNodeStats, RuntimeConfigEnvVar } from '../types/hydrabase'
 
 interface DnsAnswer {
   data?: string
@@ -43,6 +43,32 @@ const IPV6_REGEX = /^[\da-f:]+$/iu
 const isIpAddress = (hostname: string): boolean => IPV4_REGEX.test(hostname) || (hostname.includes(':') && IPV6_REGEX.test(hostname))
 
 const normalizeHostname = (hostname: string): string => hostname.replace(/^\[(?<host>[^\]]+)\]$/u, '$<host>').replace(/\.$/u, '').toLowerCase()
+
+const LEGACY_ENV_ALIASES: Record<string, string[]> = {
+  apiKey: ['API_KEY'],
+  'node.bio': ['BIO'],
+  'node.hostname': ['DOMAIN'],
+  'node.port': ['PORT'],
+  'node.username': ['USERNAME'],
+  telemetry: ['HYDRABASE_TELEMETRY'],
+}
+
+const toEnvKey = (path: string): string => `HYDRABASE_${path.replace(/\./gu, '_').toUpperCase()}`
+
+const collectLeafPaths = (value: unknown, prefix = ''): string[] => {
+  if (typeof value !== 'object' || value === null) return prefix ? [prefix] : []
+
+  const entries = Object.entries(value)
+  if (entries.length === 0) return prefix ? [prefix] : []
+
+  return entries.flatMap(([key, child]) => collectLeafPaths(child, prefix ? `${prefix}.${key}` : key))
+}
+
+export const getConfigurableEnvVarsFromConfig = (config: Config): RuntimeConfigEnvVar[] => collectLeafPaths(config).map(path => ({
+  aliases: LEGACY_ENV_ALIASES[path] ?? [],
+  env: toEnvKey(path),
+  path,
+}))
 
 export const parseEndpoint = (endpoint: string): { hostname: string; port: null | number } => {
   try {

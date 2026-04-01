@@ -21,14 +21,9 @@ services:
       # Defaults:
       # PORT: 4545 # MUST be between 4000-5000
       # domain: [external ip]
-      # LISTEN_ADDRESS: 0.0.0.0
       # PUID: 1000
       # PGID: 1000
 
       # Telemetry is disabled by default. Consider enabling it to help me make Hydrabase more stable.
       # By enabling telemetry, I can notice and fix bugs your node faces without you needing to report it.
       HYDRABASE_TELEMETRY: false
-
-      # Advanced:
-      # REQUIRE_DHT_READY: true
-      # PREFER_TRANSPORT: TCP # TCP or UDP

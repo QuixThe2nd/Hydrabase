@@ -1,4 +1,4 @@
-import utp from 'utp-native'
+import utp from 'utp-socket'
 
 import type { Config } from '../../../types/hydrabase'
 import type { Account } from '../../crypto/Account'

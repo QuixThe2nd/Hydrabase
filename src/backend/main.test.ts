@@ -1,7 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import utp from 'utp-native'
+import utp from 'utp-socket'
 
 import type { Config } from '../types/hydrabase'
 // import type { Peer } from './Peer'
@@ -90,6 +90,7 @@ beforeAll(async () => {
     node: config1,
     rpc: rpcConfig,
     soulIdCutoff: 32,
+    telemetry: false,
     upnp: {
       reannounce: 1_800_000,
       ttl: 3_600_000,
@@ -453,8 +454,9 @@ describe('HIP2 message parsing', () => {
     expect(identify({ request: { query: 'test', type: 'artists' } })).toBe('request')
     expect(identify({ response: [] })).toBe('response')
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')
-    expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('store_message')
-    expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('deliver_message')
+    expect(identify({ message: { envelope: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 }, hops: 0 } })).toBe('message')
+    expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('message')
+    expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('message')
     expect(identify({ ping: { peers: [], time: 123 } })).toBe('ping')
     expect(identify({ pong: { time: 123 } })).toBe('pong')
     expect(identify({ connect_peer: { hostname: 'localhost:14545' } })).toBe('connect_peer')

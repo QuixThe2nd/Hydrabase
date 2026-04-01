@@ -2,6 +2,7 @@ import type { Config, RuntimeConfigPatch, RuntimeConfigSnapshot, RuntimeConfigUp
 import type { Repositories } from './db'
 
 import { warn } from '../utils/log'
+import { CONFIGURABLE_ENV_VARS } from './config'
 
 const KEY_DESIRED_CONFIG = 'runtime.config.desired'
 
@@ -33,6 +34,7 @@ const ALL_CONFIG_PATHS = [
   'node.username',
   'rpc.prefix',
   'soulIdCutoff',
+  'telemetry',
   'upnp.reannounce',
   'upnp.ttl',
 ] as const
@@ -64,13 +66,16 @@ const setIfDefined = <T>(value: T | undefined, updater: (nextValue: T) => void):
 
 export class RuntimeSettingsManager {
   private readonly desiredConfig: Config
+  private readonly envLockedPathSet: ReadonlySet<string>
 
   constructor(
     private readonly activeConfig: Config,
     private readonly repos: Repositories,
     private readonly onPluginConfidenceFormulaChanged: (formula: string) => void,
+    envLockedPaths: string[] = [],
   ) {
     this.desiredConfig = cloneConfig(activeConfig)
+    this.envLockedPathSet = new Set(envLockedPaths)
   }
 
   private static applyPatch(target: Config, patch: RuntimeConfigPatch): void {
@@ -82,6 +87,7 @@ export class RuntimeSettingsManager {
     if (patch.formulas) target.formulas = { ...target.formulas, ...patch.formulas }
     if (patch.node) target.node = { ...target.node, ...patch.node }
     if (patch.rpc) target.rpc = { ...target.rpc, ...patch.rpc }
+    if (patch.telemetry !== undefined) target.telemetry = patch.telemetry
     if (patch.upnp) target.upnp = { ...target.upnp, ...patch.upnp }
   }
 
@@ -94,6 +100,48 @@ export class RuntimeSettingsManager {
       return rest
     }
     return { ...patch, node: nextNode }
+  }
+
+  private static stripEnvLockedFields(patch: null | RuntimeConfigPatch, envLockedPathSet: ReadonlySet<string>): null | RuntimeConfigPatch {
+    if (!patch) return patch
+    const nextPatch: RuntimeConfigPatch = { ...patch }
+
+    if (envLockedPathSet.has('apiKey')) delete nextPatch.apiKey
+    if (envLockedPathSet.has('bootstrapPeers')) delete nextPatch.bootstrapPeers
+    if (envLockedPathSet.has('soulIdCutoff')) delete nextPatch.soulIdCutoff
+    if (envLockedPathSet.has('telemetry')) delete nextPatch.telemetry
+
+    if (nextPatch.dht) {
+      const nextDht = Object.fromEntries(Object.entries(nextPatch.dht).filter(([key]) => !envLockedPathSet.has(`dht.${key}`))) as Partial<Config['dht']>
+      if (Object.keys(nextDht).length === 0) delete nextPatch.dht
+      else nextPatch.dht = nextDht
+    }
+
+    if (nextPatch.formulas) {
+      const nextFormulas = Object.fromEntries(Object.entries(nextPatch.formulas).filter(([key]) => !envLockedPathSet.has(`formulas.${key}`))) as Partial<Config['formulas']>
+      if (Object.keys(nextFormulas).length === 0) delete nextPatch.formulas
+      else nextPatch.formulas = nextFormulas
+    }
+
+    if (nextPatch.node) {
+      const nextNode = Object.fromEntries(Object.entries(nextPatch.node).filter(([key]) => !envLockedPathSet.has(`node.${key}`))) as Partial<Config['node']>
+      if (Object.keys(nextNode).length === 0) delete nextPatch.node
+      else nextPatch.node = nextNode
+    }
+
+    if (nextPatch.rpc) {
+      const nextRpc = Object.fromEntries(Object.entries(nextPatch.rpc).filter(([key]) => !envLockedPathSet.has(`rpc.${key}`))) as Partial<Config['rpc']>
+      if (Object.keys(nextRpc).length === 0) delete nextPatch.rpc
+      else nextPatch.rpc = nextRpc
+    }
+
+    if (nextPatch.upnp) {
+      const nextUpnp = Object.fromEntries(Object.entries(nextPatch.upnp).filter(([key]) => !envLockedPathSet.has(`upnp.${key}`))) as Partial<Config['upnp']>
+      if (Object.keys(nextUpnp).length === 0) delete nextPatch.upnp
+      else nextPatch.upnp = nextUpnp
+    }
+
+    return nextPatch
   }
 
   private static toPersistedPatch(config: Config): RuntimeConfigPatch {
@@ -131,7 +179,7 @@ export class RuntimeSettingsManager {
       if (patch.node.ip !== undefined && typeof patch.node.ip !== 'string') throw new Error('node.ip must be a string')
       if (patch.node.listenAddress !== undefined && typeof patch.node.listenAddress !== 'string') throw new Error('node.listenAddress must be a string')
       if (patch.node.port !== undefined && (!Number.isInteger(patch.node.port) || patch.node.port <= 0 || patch.node.port > 65535)) throw new Error('node.port must be an integer between 1 and 65535')
-      if (patch.node.preferTransport !== undefined && patch.node.preferTransport !== 'TCP' && patch.node.preferTransport !== 'UDP') throw new Error('node.preferTransport must be TCP or UDP')
+      if (patch.node.preferTransport !== undefined && patch.node.preferTransport !== 'TCP' && patch.node.preferTransport !== 'UDP' && patch.node.preferTransport !== 'UTP') throw new Error('node.preferTransport must be TCP, UDP, or UTP')
       if (patch.node.username !== undefined) {
         if (typeof patch.node.username !== 'string') throw new Error('node.username must be a string')
         if (!USERNAME_REGEX.test(patch.node.username.trim())) throw new Error('Username must be 3-20 alphanumeric characters with no spaces')
@@ -142,6 +190,8 @@ export class RuntimeSettingsManager {
 
     if (patch.soulIdCutoff !== undefined && (!Number.isInteger(patch.soulIdCutoff) || patch.soulIdCutoff <= 0)) throw new Error('soulIdCutoff must be a positive integer')
 
+    if (patch.telemetry !== undefined && typeof patch.telemetry !== 'boolean') throw new Error('telemetry must be a boolean')
+
     if (patch.upnp) {
       if (patch.upnp.reannounce !== undefined && (!Number.isFinite(patch.upnp.reannounce) || patch.upnp.reannounce <= 0)) throw new Error('upnp.reannounce must be a positive number')
       if (patch.upnp.ttl !== undefined && (!Number.isFinite(patch.upnp.ttl) || patch.upnp.ttl <= 0)) throw new Error('upnp.ttl must be a positive number')
@@ -151,7 +201,9 @@ export class RuntimeSettingsManager {
   getSnapshot(): RuntimeConfigSnapshot {
     return {
       active: cloneConfig(this.activeConfig),
+      configurableEnvVars: CONFIGURABLE_ENV_VARS.map(entry => ({ aliases: [...entry.aliases], env: entry.env, path: entry.path })),
       desired: cloneConfig(this.desiredConfig),
+      envLockedPaths: [...this.envLockedPathSet],
       liveUpdatePaths: [...LIVE_UPDATE_PATHS],
       pendingRestartPaths: RESTART_REQUIRED_PATHS.filter(path => getPathValue(this.activeConfig, path) !== getPathValue(this.desiredConfig, path)),
     }
@@ -160,7 +212,10 @@ export class RuntimeSettingsManager {
   loadFromStorage(): void {
     const [stored] = this.repos.settings.getByKeys([KEY_DESIRED_CONFIG])
     if (!stored) return
-    const parsed = RuntimeSettingsManager.stripAutoManagedNodeFields(fromSettingValue(stored.value))
+    const parsed = RuntimeSettingsManager.stripEnvLockedFields(
+      RuntimeSettingsManager.stripAutoManagedNodeFields(fromSettingValue(stored.value)),
+      this.envLockedPathSet,
+    )
     if (!parsed) return
 
     try {
@@ -173,7 +228,10 @@ export class RuntimeSettingsManager {
   }
 
   update(update: RuntimeConfigUpdate, updatedBy: string): RuntimeConfigSnapshot {
-    const patch = RuntimeSettingsManager.stripAutoManagedNodeFields(update.config ?? {}) ?? {}
+    const patch = RuntimeSettingsManager.stripEnvLockedFields(
+      RuntimeSettingsManager.stripAutoManagedNodeFields(update.config ?? {}),
+      this.envLockedPathSet,
+    ) ?? {}
     RuntimeSettingsManager.validatePatch(patch)
     RuntimeSettingsManager.applyPatch(this.desiredConfig, patch)
     this.applyLivePatchToActive(patch)
@@ -198,6 +256,7 @@ export class RuntimeSettingsManager {
     this.activeConfig.node = { ...this.desiredConfig.node }
     this.activeConfig.rpc = { ...this.desiredConfig.rpc }
     this.activeConfig.soulIdCutoff = this.desiredConfig.soulIdCutoff
+    this.activeConfig.telemetry = this.desiredConfig.telemetry
     this.activeConfig.upnp = { ...this.desiredConfig.upnp }
     this.onPluginConfidenceFormulaChanged(this.activeConfig.formulas.pluginConfidence)
   }

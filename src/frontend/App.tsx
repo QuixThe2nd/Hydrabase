@@ -209,6 +209,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [runtimeConfig, setRuntimeConfig] = useState<null | RuntimeConfigSnapshot>(null)
   const [runtimeConfigError, setRuntimeConfigError] = useState<null | string>(null)
   const [runtimeConfigLoading, setRuntimeConfigLoading] = useState(false)
+  const [restartPendingReconnect, setRestartPendingReconnect] = useState(false)
+  const restartSawDisconnectRef = useRef(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const statsRef = useRef<NodeStats | null>(null)
   const [connectionAttempts, setConnectionAttempts] = useState<PeerConnectionAttempt[]>([])
@@ -227,6 +229,18 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   useEffect(() => {
     connectionAttemptsRef.current = connectionAttempts
   }, [connectionAttempts])
+
+  useEffect(() => {
+    if (!restartPendingReconnect) return
+    if (wsState !== 'open') {
+      restartSawDisconnectRef.current = true
+      return
+    }
+    if (restartSawDisconnectRef.current) {
+      setRestartPendingReconnect(false)
+      restartSawDisconnectRef.current = false
+    }
+  }, [restartPendingReconnect, wsState])
 
   const clearConnectAttemptTimeout = useCallback((nonce: number) => {
     const timeout = pendingConnectAttempts.current.get(nonce)
@@ -430,9 +444,14 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
               merged.sort((a: MessageEnvelope, b: MessageEnvelope) => a.timestamp - b.timestamp)
               return merged
             })
-          } else if (data.deliver_message) {
-            setMessages(prev => [...prev, data.deliver_message as MessageEnvelope])
-            if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
+          } else if (data.message) {
+            const packet = data.message as { envelope?: MessageEnvelope }
+            const {envelope} = packet
+            const selfAddress = statsRef.current?.self.address
+            if (envelope && (envelope.to === '0x0' || (selfAddress && envelope.to === selfAddress))) {
+              setMessages(prev => [...prev, envelope])
+              if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
+            }
           } else if (data.stats) {
             const fullStats = data.stats as NodeStats
             if (fullStats.self?.nodeStartTime) nodeStartTimeRef.current = fullStats.self.nodeStartTime
@@ -674,6 +693,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const handleRestart = useCallback(() => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
+    restartSawDisconnectRef.current = false
+    setRestartPendingReconnect(true)
     ws.send(JSON.stringify({ nonce: nonceRef.current++, restart: true }))
   }, [])
 
@@ -722,7 +743,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
   return <div style={{ background: BG, color: TEXT, display: 'flex', fontFamily: "'JetBrains Mono','Courier New',monospace", fontSize: 13, minHeight: '100vh' }}>
     <style>{GLOBAL_STYLES}</style>
-    <Sidebar onRestart={handleRestart} onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
+    <Sidebar onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
       {tab === 'peers' && sel
@@ -731,7 +752,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
-      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} onRefresh={loadRuntimeConfig} onSave={updateRuntimeConfig} />}
+      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} isRestarting={restartPendingReconnect} onRefresh={loadRuntimeConfig} onRestart={handleRestart} onSave={updateRuntimeConfig} />}
       {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
     </div>
     <ActivityFeed eventLog={eventLog} />

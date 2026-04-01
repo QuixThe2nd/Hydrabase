@@ -17,9 +17,7 @@ jobs:
     env:
       USERNAME: Github-Conn-Test
       BRANCH: dev
-      REQUIRE_DHT_READY: "false"
       HYDRABASE_TELEMETRY: "true"
-      PREFER_TRANSPORT: UDP
 
     steps:
       - name: Checkout

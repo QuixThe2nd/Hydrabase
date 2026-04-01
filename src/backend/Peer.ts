@@ -11,7 +11,7 @@ import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
 import { UDP_Client } from './networking/udp/client'
 import WebSocketClient from './networking/ws/client'
-import { type ConnectPeer, HIP2_Messaging, type Ping, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
+import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
@@ -78,11 +78,11 @@ export class Peer {
       if (this.address !== '0x0') return
       this.peers.handleConnectPeerRequest(data.hostname, this, nonce, trace)
     },
-    deliver_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleDeliverMessage(envelope, this, trace),
     get_config: (_data: true, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       this.send({ nonce, runtime_config: this.peers.getRuntimeConfig() }, trace)
     },
+    message: (packet: MessagePacket, trace: Trace) => this.peers.handleMessage(packet, this, trace),
     message_history: (_data: 'get', nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       this.send({ message_history: this.peers.messageHistory, nonce }, trace)
@@ -152,8 +152,6 @@ export class Peer {
       if (this.address !== '0x0') return
       this.peers.createAndSendMessage(data.to, data.payload, trace)
     },
-    store_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleStoreMessage(envelope, this, trace)
-    ,
     update_config: (data: UpdateConfig, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       try {
@@ -282,8 +280,7 @@ export class Peer {
         // handled by runtime config router
       }
       else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
-      else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
-      else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
+      else if (type === 'message') this.handlers[type](data as MessagePacket, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
       if (!matchedPongTrace) trace.success()
     })
@@ -299,7 +296,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { deliver_message: MessageEnvelope } | { log_event: import('../types/hydrabase').LogEvent } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     this.peers.notifyDataTransfer()
@@ -310,8 +307,8 @@ export class Peer {
 
   public readonly sendConnectionError = (error: import('../types/hydrabase').PeerConnectionError, nonce: number, trace: Trace) => this.send({ connection_error: error, nonce }, trace)
 
-  public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
   public readonly sendLogEvent = (log_event: import('../types/hydrabase').LogEvent, trace: Trace) => this.send({ log_event, nonce: this.nonce++ }, trace)
+  public readonly sendMessagePacket = (packet: MessagePacket, trace: Trace) => this.send({ message: packet, nonce: this.nonce++ }, trace)
   public readonly sendRefreshUi = (trace: Trace) => this.send({ nonce: this.nonce++, refresh_ui: 'backend_changed' }, trace)
   public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
   public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)
@@ -320,7 +317,6 @@ export class Peer {
   public readonly sendStatsPulseBundle = (bundle: import('../types/hydrabase').StatsPulseBundle, trace: Trace) => this.send({ nonce: this.nonce++, stats_pulse: bundle }, trace)
   public readonly sendStatsSelf = (stats_self: NodeStats['self'], trace: Trace) => this.send({ nonce: this.nonce++, stats_self }, trace)
   public readonly sendStatsVotes = (stats_votes: StatsVotesPayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_votes }, trace)
-  public readonly sendStoreMessage = (message: MessageEnvelope, trace: Trace) => this.send({ nonce: this.nonce++, store_message: message }, trace)
   private handleRuntimeConfigMessage(type: string, data: unknown, nonce: number, trace: Trace): boolean {
     if (type === 'get_config') {
       this.handlers[type](data as true, nonce, trace)

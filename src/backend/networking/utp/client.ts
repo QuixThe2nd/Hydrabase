@@ -1,4 +1,4 @@
-import type { UTPConnection, UTPSocket } from 'utp-native'
+import type { UTPConnection, UTPSocket } from 'utp-socket'
 
 import type { Config } from '../../../types/hydrabase'
 import type { Socket } from '../../../types/hydrabase'

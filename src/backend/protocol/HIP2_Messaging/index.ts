@@ -46,13 +46,16 @@ const UpdateConfigSchema = z.object({
       ip: z.string().optional(),
       listenAddress: z.string().optional(),
       port: z.number().int().min(1).max(65535).optional(),
-      preferTransport: z.union([z.literal('TCP'), z.literal('UDP')]).optional(),
+      preferTransport: z.union([z.literal('TCP'), z.literal('UDP'), z.literal('UTP')]).optional(),
       username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u).optional(),
     }).optional(),
     rpc: z.object({
       prefix: z.string().optional(),
     }).optional(),
     soulIdCutoff: z.number().int().positive().optional(),
+    telemetry: z.object({
+      enabled: z.boolean().optional(),
+    }).optional(),
     upnp: z.object({
       reannounce: z.number().positive().optional(),
       ttl: z.number().positive().optional(),
@@ -71,11 +74,17 @@ export const ConnectPeerSchema = z.object({
 })
 export type ConnectPeer = z.infer<typeof ConnectPeerSchema>
 
+export const MessagePacketSchema = z.object({
+  envelope: MessageEnvelopeSchema,
+  hops: z.number().int().min(0).max(5)
+})
+export type MessagePacket = z.infer<typeof MessagePacketSchema>
+
 const MessageSchemas = {
   announce: AnnounceSchema,
   connect_peer: ConnectPeerSchema,
-  deliver_message: MessageEnvelopeSchema,
   get_config: GetConfigSchema,
+  message: MessagePacketSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
@@ -85,7 +94,6 @@ const MessageSchemas = {
   restart: z.literal(true),
   search_history: SearchHistoryDataSchema,
   send_message: SendMessageSchema,
-  store_message: MessageEnvelopeSchema,
   update_config: UpdateConfigSchema,
 }
 
@@ -111,8 +119,10 @@ export class HIP2_Messaging {
 
   static readonly identifyType = (result: Record<string, unknown>): MessageType | null => 'request' in result ? 'request'
     : 'response' in result ? 'response'
-    : 'store_message' in result ? 'store_message'
-    : 'deliver_message' in result ? 'deliver_message'
+    : 'message' in result ? 'message'
+    // Backward compatibility with older peers; both old packet forms map to unified message handling.
+    : 'store_message' in result ? 'message'
+    : 'deliver_message' in result ? 'message'
     : 'peer_stats' in result ? 'peer_stats'
     : 'get_config' in result ? 'get_config'
     : 'announce' in result ? 'announce'
@@ -132,7 +142,13 @@ export class HIP2_Messaging {
     const type = HIP2_Messaging.identifyType(result)
     if (!type) return trace.caughtError(`[HIP2] Unexpected message ${Object.keys(result)} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)
 
-    const {data,error} = MessageSchemas[type].safeParse(result[type])
+    const legacyRawValue = result.message ?? result.store_message ?? result.deliver_message
+    const parsedValue = type === 'message'
+      ? (legacyRawValue && typeof legacyRawValue === 'object' && !Array.isArray(legacyRawValue) && 'envelope' in legacyRawValue
+          ? legacyRawValue
+          : { envelope: legacyRawValue, hops: 0 })
+      : result[type]
+    const {data,error} = MessageSchemas[type].safeParse(parsedValue)
     if (!data) return trace.caughtError(`[HIP2] Unexpected ${type} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}${error ? `: ${JSON.stringify(error.issues).slice(0, 300)}` : ''}`)
     
     trace.step(`[HIP2] Received ${type}${nonce ? ` ${nonce}` : ''} from ${this.peer.username} ${this.peer.address} ${this.peer.hostname}`)

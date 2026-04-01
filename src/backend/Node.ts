@@ -1,4 +1,4 @@
-import utp from 'utp-native'
+import utp from 'utp-socket'
 
 import type { Config } from '../types/hydrabase'
 import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
@@ -52,7 +52,7 @@ export class Node {
   public readonly relayStoreMessage = (envelope: MessageEnvelope): number => {
     if (!this.peers) return 0
     const trace = Trace.start(`[HIP2] Relaying message to ${envelope.to}`)
-    const sent = this.peers.sendStoreMessage(envelope, trace)
+    const sent = this.peers.sendMessage(envelope, trace)
     if (sent > 0) trace.success()
     else trace.softFail('No eligible peers available to relay message')
     return sent
@@ -95,7 +95,8 @@ export class Node {
   private getPeerConfidence: (address: `0x${string}`) => number = () => 0
 }
 
-export const startNode = async (CONFIG: Config): Promise<Node> => {
+// eslint-disable-next-line max-lines-per-function
+export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): Promise<Node> => {
   const trace = Trace.start('STARTUP')
   trace.step('1/14 Using UPnP')
   await requestPort(CONFIG.node, CONFIG.upnp)
@@ -105,7 +106,7 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   const account = new Account(key)
   trace.step('4/14 Starting database')
   const repos = await startDatabase(CONFIG.formulas.pluginConfidence)
-  const runtimeSettings = new RuntimeSettingsManager(CONFIG, repos, formula => repos.peer.setPluginConfidenceFormula(formula))
+  const runtimeSettings = new RuntimeSettingsManager(CONFIG, repos, formula => repos.peer.setPluginConfidenceFormula(formula), envLockedPaths)
   runtimeSettings.loadFromStorage()
   authenticatedPeers.init(repos.authenticatedPeer)
   trace.step('5/14 Starting metadata manager')
@@ -118,6 +119,10 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   const node = new Node(metadataManager, CONFIG.formulas)
   trace.step('8/14 Starting peer manager')
   const utpSocket = utp()
+  if (!utpSocket && CONFIG.node.preferTransport === 'UTP') {
+    Trace.start('[UTP] Native UTP unavailable, falling back to UDP transport').softFail('UTP disabled for this runtime')
+    CONFIG.node.preferTransport = 'UDP'
+  }
   peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer, utpSocket)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)

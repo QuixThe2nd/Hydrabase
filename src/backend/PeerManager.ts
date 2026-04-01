@@ -1,5 +1,5 @@
 /* eslint-disable max-lines */
-import type { UTPSocket } from 'utp-native'
+import type { UTPSocket } from 'utp-socket'
 
 import { Parser } from 'expr-eval'
 
@@ -9,6 +9,7 @@ import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
 import type MetadataManager from './metadata'
 import type { Identity } from './protocol/HIP1_Identity'
+import type { MessagePacket } from './protocol/HIP2_Messaging'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../VERSION' with { type: 'text' }
@@ -114,6 +115,7 @@ const isOpened = (peer: Peer | undefined, address: `0x${string}`): boolean => pe
 
 export default class PeerManager {
   private static readonly HELD_MESSAGE_SWEEP_MS = 10_000
+  private static readonly MAX_MESSAGE_HOPS = 5
   private static readonly RECENT_CONNECTION_FAILURE_MAX = 512
   private static readonly RECENT_CONNECTION_FAILURE_TTL_MS = 3_600_000
   private static readonly RECONNECT_BASE_DELAY_MS = 5_000
@@ -159,7 +161,7 @@ export default class PeerManager {
     public readonly nodeConfig: Config['node'],
     private readonly rpcConfig: Config['rpc'],
     public readonly udpServer: UDP_Server,
-    private readonly utpSocket: UTPSocket
+    private readonly utpSocket: null | UTPSocket
   ) {
     this.heldMessageSweepTimer = setInterval(() => {
       this.pruneExpiredHeldMessages()
@@ -240,7 +242,7 @@ export default class PeerManager {
     const sig = this.account.sign(`${from}:${to}:${timestamp}:${payload}`, trace).toString()
     const envelope: MessageEnvelope = { from, payload, sig, timestamp, to, ttl }
     this.recordLocalMessage(envelope)
-    this.sendStoreMessage(envelope, trace)
+    this.sendMessage(envelope, trace)
   }
 
   public getAnnouncedHostnames(announcerAddress: `0x${string}`): `${string}:${number}`[] {
@@ -296,61 +298,41 @@ export default class PeerManager {
   }
 
   public handleDeliverMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
+    this.handleMessage({ envelope, hops: 0 }, peer, trace)
+  }
+
+  public handleMessage(packet: MessagePacket, peer: Peer, trace: Trace): void {
+    const { envelope, hops } = packet
     if (this.isEnvelopeExpired(envelope)) {
-      trace.step(`[HIP2] Dropping expired delivered message for ${envelope.to} from ${peer.address}`)
+      trace.step(`[HIP2] Dropping expired message for ${envelope.to} from ${peer.address}`)
       return
     }
-    if (envelope.to !== this.account.address) {
-      trace.step(`[HIP2] Ignoring delivered message not addressed to this node (${envelope.to})`)
+    if (hops > PeerManager.MAX_MESSAGE_HOPS) {
+      trace.step(`[HIP2] Dropping message for ${envelope.to} from ${peer.address}: hop limit exceeded (${hops})`)
       return
     }
-    trace.step(`[HIP2] Received delivered message for ${envelope.to} from ${envelope.from} via ${peer.address}`)
+
+    const before = this.localMessageHistory.length
     this.recordLocalMessage(envelope)
-    this.apiPeer?.sendDeliverMessage(envelope, trace)
+    const isNewEnvelope = this.localMessageHistory.length > before
+    if (!isNewEnvelope) {
+      trace.step(`[HIP2] Duplicate message ignored for recipient ${envelope.to}`)
+      return
+    }
+
+    this.apiPeer?.sendMessagePacket({ envelope, hops }, trace)
+
+    if (hops >= PeerManager.MAX_MESSAGE_HOPS) {
+      trace.step(`[HIP2] Stored message for ${envelope.to}; reached max hops (${hops})`)
+      return
+    }
+
+    const forwarded = this.broadcastMessage(envelope, hops + 1, trace, peer.address)
+    trace.step(`[HIP2] Relayed message for ${envelope.to} to ${forwarded} peer${forwarded === 1 ? '' : 's'} at hop ${hops + 1}`)
   }
 
   public handleStoreMessage(envelope: MessageEnvelope, peer: Peer, trace: Trace): void {
-    if (this.isEnvelopeExpired(envelope)) {
-      trace.step(`[HIP2] Dropping expired store message for ${envelope.to} from ${peer.address}`)
-      return
-    }
-
-    // Global chat: record, deliver to local API peer, and gossip to other peers
-    if (envelope.to === '0x0') {
-      const envelopeHash = Bun.hash(JSON.stringify(envelope))
-      if (this.localMessageHistory.some(m => Bun.hash(JSON.stringify(m)) === envelopeHash)) {
-        trace.step(`[HIP2] Duplicate global message ignored from ${peer.address}`)
-        return
-      }
-      this.recordLocalMessage(envelope)
-      this.apiPeer?.sendDeliverMessage(envelope, trace)
-      let forwarded = 0
-      for (const connPeer of this.connectedPeers) {
-        if (connPeer.address === '0x0') continue
-        if (connPeer.address === peer.address) continue
-        connPeer.sendStoreMessage(envelope, trace)
-        forwarded++
-      }
-      trace.step(`[HIP2] Received global message from ${peer.address}; gossiped to ${forwarded} peer${forwarded === 1 ? '' : 's'}`)
-      return
-    }
-
-    const recipientPeer = this.peers.get(envelope.to)
-    if (recipientPeer) {
-      trace.step(`[HIP2] Recipient ${envelope.to} online; forwarding message from intermediary ${peer.address}`)
-      recipientPeer.sendDeliverMessage(envelope, trace)
-      return
-    }
-
-    const existing = this.heldMessages.get(envelope.to) ?? []
-    const envelopeHash = Bun.hash(JSON.stringify(envelope))
-    if (existing.some(item => Bun.hash(JSON.stringify(item)) === envelopeHash)) {
-      trace.step(`[HIP2] Duplicate store message ignored for recipient ${envelope.to}`)
-      return
-    }
-    existing.push(envelope)
-    this.heldMessages.set(envelope.to, existing)
-    trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}; held=${existing.length}`)
+    this.handleMessage({ envelope, hops: 0 }, peer, trace)
   }
 
   // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
@@ -420,6 +402,18 @@ export default class PeerManager {
     return new Map<bigint, SearchResult[T]>(Array.from(results.entries()).map(([hash, result]: [bigint, SearchResult[T] & { confidences: number[] }]) => ([hash, { ...result, confidence: avg(result.confidences) }])))
   }
 
+  public sendMessage(envelope: MessageEnvelope, trace: Trace): number {
+    if (this.isEnvelopeExpired(envelope)) {
+      trace.step(`[HIP2] Not sending expired message for ${envelope.to}`)
+      return 0
+    }
+
+    this.apiPeer?.sendMessagePacket({ envelope, hops: 0 }, trace)
+    const sent = this.broadcastMessage(envelope, 0, trace)
+    trace.step(`[HIP2] Broadcast message for ${envelope.to} to ${sent} peer${sent === 1 ? '' : 's'} at hop 0`)
+    return sent
+  }
+
   public sendRefreshUi(trace: Trace): number {
     let sent = 0
     for (const peer of this.connectedPeers) {
@@ -431,44 +425,22 @@ export default class PeerManager {
   }
 
   public sendStoreMessage(envelope: MessageEnvelope, trace: Trace): number {
-    if (this.isEnvelopeExpired(envelope)) {
-      trace.step(`[HIP2] Not sending expired store message for ${envelope.to}`)
-      return 0
-    }
-
-    // Global chat: broadcast to all peers and deliver to local API peer
-    if (envelope.to === '0x0') {
-      let sent = 0
-      for (const peer of this.connectedPeers) {
-        if (peer.address === '0x0') continue
-        peer.sendStoreMessage(envelope, trace)
-        sent++
-      }
-      this.apiPeer?.sendDeliverMessage(envelope, trace)
-      trace.step(`[HIP2] Broadcast global message to ${sent} peer${sent === 1 ? '' : 's'}`)
-      return sent
-    }
-
-    const recipientPeer = this.peers.get(envelope.to)
-    if (recipientPeer) {
-      recipientPeer.sendDeliverMessage(envelope, trace)
-      trace.step(`[HIP2] Recipient ${envelope.to} online; sent DELIVER_MESSAGE directly`)
-      return 1
-    }
-
-    let sent = 0
-    for (const peer of this.connectedPeers) {
-      if (peer.address === '0x0') continue
-      if (peer.address === envelope.to) continue
-      peer.sendStoreMessage(envelope, trace)
-      sent++
-    }
-    trace.step(`[HIP2] Sent STORE_MESSAGE for ${envelope.to} to ${sent} online peer${sent === 1 ? '' : 's'}`)
-    return sent
+    return this.sendMessage(envelope, trace)
   }
 
   public updateRuntimeConfig(update: import('../types/hydrabase').RuntimeConfigUpdate, updatedBy: string) {
     return this.runtimeSettings.update(update, updatedBy)
+  }
+
+  private broadcastMessage(envelope: MessageEnvelope, hops: number, trace: Trace, excludeAddress?: `0x${string}`): number {
+    let sent = 0
+    for (const peer of this.connectedPeers) {
+      if (peer.address === '0x0') continue
+      if (excludeAddress && peer.address === excludeAddress) continue
+      peer.sendMessagePacket({ envelope, hops }, trace)
+      sent++
+    }
+    return sent
   }
 
   private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UDP' | 'UTP' } {
@@ -495,7 +467,7 @@ export default class PeerManager {
       return
     }
 
-    for (const message of valid) peer.sendDeliverMessage(message, trace)
+    for (const message of valid) peer.sendMessagePacket({ envelope: message, hops: 0 }, trace)
     this.heldMessages.delete(peer.address)
     trace.success()
   }
@@ -506,7 +478,7 @@ export default class PeerManager {
     const relevant = this.localMessageHistory.filter(m => m.to === peer.address && !this.isEnvelopeExpired(m, now))
     if (relevant.length === 0) return
     const trace = Trace.start(`[HIP2] Forwarding ${relevant.length} local history message${relevant.length === 1 ? '' : 's'} to ${peer.username} ${peer.address}`)
-    for (const message of relevant) peer.sendDeliverMessage(message, trace)
+    for (const message of relevant) peer.sendMessagePacket({ envelope: message, hops: 0 }, trace)
     trace.success()
   }
 
@@ -689,7 +661,7 @@ export default class PeerManager {
       if (valid.length !== messages.length) this.heldMessages.set(recipient, valid)
 
       for (const message of valid) {
-        peer.sendStoreMessage(message, trace)
+        peer.sendMessagePacket({ envelope: message, hops: 0 }, trace)
         sent++
       }
     }
@@ -759,8 +731,10 @@ export default class PeerManager {
         return await WebSocketClient.init(identity, this.account, this.nodeConfig)
       case 'UDP':
         return UDP_Client.connectToAuthenticatedPeer(this.udpServer.socket, identity, this.rpcConfig, DHT_Node.getNodeId(this.nodeConfig), trace) || 'UDP connection failed'
-      case 'UTP':
+      case 'UTP': {
+        if (!this.utpSocket) return 'UTP unavailable in current runtime'
         return UTPClient.connectToAuthenticatedPeer(identity, this.utpSocket, trace) || 'UTP connection failed'
+      }
       default:
         return 'Invalid transport preference'
     }

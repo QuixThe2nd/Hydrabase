@@ -1,4 +1,4 @@
-declare module 'utp-native' {
+declare module 'utp-socket' {
   import { EventEmitter } from 'events'
   import { Duplex } from 'stream'
 

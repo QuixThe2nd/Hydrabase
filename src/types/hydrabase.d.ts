@@ -32,6 +32,7 @@ export interface Config {
     prefix: string
   }
   soulIdCutoff: number
+  telemetry: boolean
   upnp: {
     reannounce: number
     ttl: number
@@ -142,6 +143,12 @@ export interface PluginAccuracy {
   plugin_id: string
 }
 
+export interface RuntimeConfigEnvVar {
+  aliases: string[]
+  env: string
+  path: string
+}
+
 export interface RuntimeConfigPatch {
   apiKey?: string
   bootstrapPeers?: string
@@ -150,12 +157,15 @@ export interface RuntimeConfigPatch {
   node?: Partial<Config['node']>
   rpc?: Partial<Config['rpc']>
   soulIdCutoff?: number
+  telemetry?: Config['telemetry']
   upnp?: Partial<Config['upnp']>
 }
 
 export interface RuntimeConfigSnapshot {
   active: Config
+  configurableEnvVars: RuntimeConfigEnvVar[]
   desired: Config
+  envLockedPaths: string[]
   liveUpdatePaths: string[]
   pendingRestartPaths: string[]
 }
