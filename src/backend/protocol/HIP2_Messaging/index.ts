@@ -26,11 +26,38 @@ const SearchHistoryDataSchema = z.union([
 const MessageHistoryRequestSchema = z.literal('get')
 const GetConfigSchema = z.literal(true)
 const UpdateConfigSchema = z.object({
-  nodeProfile: z.object({
-    bio: z.string().max(140).optional(),
-    connectMessage: z.string().min(1).max(280).optional(),
-    username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u).optional(),
-  }).optional(),
+  config: z.object({
+    apiKey: z.string().optional(),
+    bootstrapPeers: z.string().optional(),
+    dht: z.object({
+      bootstrapNodes: z.string().optional(),
+      reannounce: z.number().positive().optional(),
+      requireReady: z.boolean().optional(),
+      roomSeed: z.string().optional(),
+    }).optional(),
+    formulas: z.object({
+      finalConfidence: z.string().optional(),
+      pluginConfidence: z.string().optional(),
+    }).optional(),
+    node: z.object({
+      bio: z.string().max(140).optional(),
+      connectMessage: z.string().min(1).max(280).optional(),
+      hostname: z.string().optional(),
+      ip: z.string().optional(),
+      listenAddress: z.string().optional(),
+      port: z.number().int().min(1).max(65535).optional(),
+      preferTransport: z.union([z.literal('TCP'), z.literal('UDP')]).optional(),
+      username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u).optional(),
+    }).optional(),
+    rpc: z.object({
+      prefix: z.string().optional(),
+    }).optional(),
+    soulIdCutoff: z.number().int().positive().optional(),
+    upnp: z.object({
+      reannounce: z.number().positive().optional(),
+      ttl: z.number().positive().optional(),
+    }).optional(),
+  }),
 })
 
 export const SendMessageSchema = z.object({

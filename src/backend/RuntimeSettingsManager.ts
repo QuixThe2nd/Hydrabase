@@ -1,115 +1,216 @@
-import type { Config, RuntimeConfigSnapshot, RuntimeConfigUpdate, RuntimeNodeProfileConfig } from '../types/hydrabase'
+import type { Config, RuntimeConfigPatch, RuntimeConfigSnapshot, RuntimeConfigUpdate } from '../types/hydrabase'
 import type { Repositories } from './db'
 
 import { warn } from '../utils/log'
 
-const KEY_BIO = 'node.bio'
-const KEY_CONNECT_MESSAGE = 'node.connectMessage'
-const KEY_USERNAME = 'node.username'
+const KEY_DESIRED_CONFIG = 'runtime.config.desired'
 
 const USERNAME_REGEX = /^[a-zA-Z0-9]{3,20}$/u
+const LIVE_UPDATE_PATHS = [
+  'formulas.finalConfidence',
+  'formulas.pluginConfidence',
+  'node.bio',
+  'node.connectMessage',
+  'node.preferTransport',
+  'node.username',
+] as const
+const ALL_CONFIG_PATHS = [
+  'apiKey',
+  'bootstrapPeers',
+  'dht.bootstrapNodes',
+  'dht.reannounce',
+  'dht.requireReady',
+  'dht.roomSeed',
+  'formulas.finalConfidence',
+  'formulas.pluginConfidence',
+  'node.bio',
+  'node.connectMessage',
+  'node.hostname',
+  'node.ip',
+  'node.listenAddress',
+  'node.port',
+  'node.preferTransport',
+  'node.username',
+  'rpc.prefix',
+  'soulIdCutoff',
+  'upnp.reannounce',
+  'upnp.ttl',
+] as const
+const LIVE_UPDATE_PATH_SET = new Set<string>(LIVE_UPDATE_PATHS)
+const RESTART_REQUIRED_PATHS = ALL_CONFIG_PATHS.filter(path => !LIVE_UPDATE_PATH_SET.has(path))
 
-const toSettingValue = (value: string): string => JSON.stringify(value)
+const cloneConfig = (config: Config): Config => JSON.parse(JSON.stringify(config)) as Config
 
-const fromSettingValue = (value: string): null | string => {
+const toSettingValue = (value: RuntimeConfigPatch): string => JSON.stringify(value)
+
+const fromSettingValue = (value: string): null | RuntimeConfigPatch => {
   try {
     const parsed = JSON.parse(value)
-    if (typeof parsed !== 'string') return null
-    return parsed
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+    return parsed as RuntimeConfigPatch
   } catch {
     return null
   }
 }
 
+const getPathValue = (config: Config, path: string): unknown => path.split('.').reduce<unknown>((current, key) => {
+  if (typeof current !== 'object' || current === null || Array.isArray(current)) return undefined
+  return (current as Record<string, unknown>)[key]
+}, config)
+
+const setIfDefined = <T>(value: T | undefined, updater: (nextValue: T) => void): void => {
+  if (value !== undefined) updater(value)
+}
+
 export class RuntimeSettingsManager {
+  private readonly desiredConfig: Config
+
   constructor(
-    private readonly nodeConfig: Config['node'],
+    private readonly activeConfig: Config,
     private readonly repos: Repositories,
-    private readonly apiKeyConfigured: boolean,
-  ) {}
+    private readonly onPluginConfidenceFormulaChanged: (formula: string) => void,
+  ) {
+    this.desiredConfig = cloneConfig(activeConfig)
+  }
+
+  private static applyPatch(target: Config, patch: RuntimeConfigPatch): void {
+    setIfDefined(patch.apiKey, value => { target.apiKey = value })
+    setIfDefined(patch.bootstrapPeers, value => { target.bootstrapPeers = value })
+    setIfDefined(patch.soulIdCutoff, value => { target.soulIdCutoff = value })
+
+    if (patch.dht) target.dht = { ...target.dht, ...patch.dht }
+    if (patch.formulas) target.formulas = { ...target.formulas, ...patch.formulas }
+    if (patch.node) target.node = { ...target.node, ...patch.node }
+    if (patch.rpc) target.rpc = { ...target.rpc, ...patch.rpc }
+    if (patch.upnp) target.upnp = { ...target.upnp, ...patch.upnp }
+  }
+
+  private static stripAutoManagedNodeFields(patch: null | RuntimeConfigPatch): null | RuntimeConfigPatch {
+    if (!patch?.node) return patch
+    const nextNode = Object.fromEntries(Object.entries(patch.node).filter(([key]) => key !== 'ip')) as Partial<Config['node']>
+    if (Object.keys(nextNode).length === 0) {
+      const rest = { ...patch }
+      delete rest.node
+      return rest
+    }
+    return { ...patch, node: nextNode }
+  }
+
+  private static toPersistedPatch(config: Config): RuntimeConfigPatch {
+    const patch = cloneConfig(config) as unknown as RuntimeConfigPatch
+    return RuntimeSettingsManager.stripAutoManagedNodeFields(patch) ?? {}
+  }
+
+  private static validatePatch(patch: RuntimeConfigPatch): void {
+    if (patch.apiKey !== undefined && typeof patch.apiKey !== 'string') throw new Error('apiKey must be a string')
+    if (patch.bootstrapPeers !== undefined && typeof patch.bootstrapPeers !== 'string') throw new Error('bootstrapPeers must be a string')
+
+    if (patch.dht) {
+      if (patch.dht.bootstrapNodes !== undefined && typeof patch.dht.bootstrapNodes !== 'string') throw new Error('dht.bootstrapNodes must be a string')
+      if (patch.dht.reannounce !== undefined && (!Number.isFinite(patch.dht.reannounce) || patch.dht.reannounce <= 0)) throw new Error('dht.reannounce must be a positive number')
+      if (patch.dht.requireReady !== undefined && typeof patch.dht.requireReady !== 'boolean') throw new Error('dht.requireReady must be a boolean')
+      if (patch.dht.roomSeed !== undefined && typeof patch.dht.roomSeed !== 'string') throw new Error('dht.roomSeed must be a string')
+    }
+
+    if (patch.formulas) {
+      if (patch.formulas.finalConfidence !== undefined && typeof patch.formulas.finalConfidence !== 'string') throw new Error('formulas.finalConfidence must be a string')
+      if (patch.formulas.pluginConfidence !== undefined && typeof patch.formulas.pluginConfidence !== 'string') throw new Error('formulas.pluginConfidence must be a string')
+    }
+
+    if (patch.node) {
+      if (patch.node.bio !== undefined) {
+        if (typeof patch.node.bio !== 'string') throw new Error('node.bio must be a string')
+        if (patch.node.bio.trim().length > 140) throw new Error('node.bio must be 140 characters or less')
+      }
+      if (patch.node.connectMessage !== undefined) {
+        if (typeof patch.node.connectMessage !== 'string') throw new Error('node.connectMessage must be a string')
+        if (patch.node.connectMessage.trim().length === 0) throw new Error('node.connectMessage cannot be empty')
+        if (patch.node.connectMessage.trim().length > 280) throw new Error('node.connectMessage must be 280 characters or less')
+      }
+      if (patch.node.hostname !== undefined && typeof patch.node.hostname !== 'string') throw new Error('node.hostname must be a string')
+      if (patch.node.ip !== undefined && typeof patch.node.ip !== 'string') throw new Error('node.ip must be a string')
+      if (patch.node.listenAddress !== undefined && typeof patch.node.listenAddress !== 'string') throw new Error('node.listenAddress must be a string')
+      if (patch.node.port !== undefined && (!Number.isInteger(patch.node.port) || patch.node.port <= 0 || patch.node.port > 65535)) throw new Error('node.port must be an integer between 1 and 65535')
+      if (patch.node.preferTransport !== undefined && patch.node.preferTransport !== 'TCP' && patch.node.preferTransport !== 'UDP') throw new Error('node.preferTransport must be TCP or UDP')
+      if (patch.node.username !== undefined) {
+        if (typeof patch.node.username !== 'string') throw new Error('node.username must be a string')
+        if (!USERNAME_REGEX.test(patch.node.username.trim())) throw new Error('Username must be 3-20 alphanumeric characters with no spaces')
+      }
+    }
+
+    if (patch.rpc?.prefix !== undefined && typeof patch.rpc.prefix !== 'string') throw new Error('rpc.prefix must be a string')
+
+    if (patch.soulIdCutoff !== undefined && (!Number.isInteger(patch.soulIdCutoff) || patch.soulIdCutoff <= 0)) throw new Error('soulIdCutoff must be a positive integer')
+
+    if (patch.upnp) {
+      if (patch.upnp.reannounce !== undefined && (!Number.isFinite(patch.upnp.reannounce) || patch.upnp.reannounce <= 0)) throw new Error('upnp.reannounce must be a positive number')
+      if (patch.upnp.ttl !== undefined && (!Number.isFinite(patch.upnp.ttl) || patch.upnp.ttl <= 0)) throw new Error('upnp.ttl must be a positive number')
+    }
+  }
 
   getSnapshot(): RuntimeConfigSnapshot {
     return {
-      editable: {
-        nodeProfile: {
-          bio: this.nodeConfig.bio ?? '',
-          connectMessage: this.nodeConfig.connectMessage,
-          username: this.nodeConfig.username,
-        },
-      },
-      readonly: {
-        apiKeyConfigured: this.apiKeyConfigured,
-        node: {
-          hostname: this.nodeConfig.hostname,
-          ip: this.nodeConfig.ip,
-          listenAddress: this.nodeConfig.listenAddress,
-          port: this.nodeConfig.port,
-        },
-      },
+      active: cloneConfig(this.activeConfig),
+      desired: cloneConfig(this.desiredConfig),
+      liveUpdatePaths: [...LIVE_UPDATE_PATHS],
+      pendingRestartPaths: RESTART_REQUIRED_PATHS.filter(path => getPathValue(this.activeConfig, path) !== getPathValue(this.desiredConfig, path)),
     }
   }
 
   loadFromStorage(): void {
-    const stored = this.repos.settings.getByKeys([KEY_USERNAME, KEY_BIO, KEY_CONNECT_MESSAGE])
-    const updates: Partial<RuntimeNodeProfileConfig> = {}
-
-    for (const item of stored) {
-      const value = fromSettingValue(item.value)
-      if (value === null) continue
-      if (item.key === KEY_USERNAME) updates.username = value
-      if (item.key === KEY_BIO) updates.bio = value
-      if (item.key === KEY_CONNECT_MESSAGE) updates.connectMessage = value
-    }
-
-    if (Object.keys(updates).length === 0) return
+    const [stored] = this.repos.settings.getByKeys([KEY_DESIRED_CONFIG])
+    if (!stored) return
+    const parsed = RuntimeSettingsManager.stripAutoManagedNodeFields(fromSettingValue(stored.value))
+    if (!parsed) return
 
     try {
-      this.applyNodeProfileUpdate(updates)
+      RuntimeSettingsManager.validatePatch(parsed)
+      RuntimeSettingsManager.applyPatch(this.desiredConfig, parsed)
+      this.applyDesiredToActive()
     } catch (err) {
       warn('WARN:', `[SETTINGS] Failed to load runtime settings from storage: ${String(err)}`)
     }
   }
 
   update(update: RuntimeConfigUpdate, updatedBy: string): RuntimeConfigSnapshot {
-    const profileUpdate = update.nodeProfile ?? {}
-    this.applyNodeProfileUpdate(profileUpdate)
+    const patch = RuntimeSettingsManager.stripAutoManagedNodeFields(update.config ?? {}) ?? {}
+    RuntimeSettingsManager.validatePatch(patch)
+    RuntimeSettingsManager.applyPatch(this.desiredConfig, patch)
+    this.applyLivePatchToActive(patch)
 
-    const now = Date.now()
-    const records: { key: string; updatedAt: number; updatedBy: string; value: string }[] = []
-    if (profileUpdate.username !== undefined) {
-      records.push({ key: KEY_USERNAME, updatedAt: now, updatedBy, value: toSettingValue(this.nodeConfig.username) })
-    }
-    if (profileUpdate.bio !== undefined) {
-      records.push({ key: KEY_BIO, updatedAt: now, updatedBy, value: toSettingValue(this.nodeConfig.bio ?? '') })
-    }
-    if (profileUpdate.connectMessage !== undefined) {
-      records.push({ key: KEY_CONNECT_MESSAGE, updatedAt: now, updatedBy, value: toSettingValue(this.nodeConfig.connectMessage) })
-    }
-    if (records.length > 0) this.repos.settings.upsertMany(records)
+    this.repos.settings.upsertMany([
+      {
+        key: KEY_DESIRED_CONFIG,
+        updatedAt: Date.now(),
+        updatedBy,
+        value: toSettingValue(RuntimeSettingsManager.toPersistedPatch(this.desiredConfig)),
+      },
+    ])
 
     return this.getSnapshot()
   }
 
-  private applyNodeProfileUpdate(update: Partial<RuntimeNodeProfileConfig>): void {
-    if (update.username !== undefined) {
-      const username = update.username.trim()
-      if (!USERNAME_REGEX.test(username)) {
-        throw new Error('Username must be 3-20 alphanumeric characters with no spaces')
-      }
-      this.nodeConfig.username = username
-    }
+  private applyDesiredToActive(): void {
+    this.activeConfig.apiKey = this.desiredConfig.apiKey
+    this.activeConfig.bootstrapPeers = this.desiredConfig.bootstrapPeers
+    this.activeConfig.dht = { ...this.desiredConfig.dht }
+    this.activeConfig.formulas = { ...this.desiredConfig.formulas }
+    this.activeConfig.node = { ...this.desiredConfig.node }
+    this.activeConfig.rpc = { ...this.desiredConfig.rpc }
+    this.activeConfig.soulIdCutoff = this.desiredConfig.soulIdCutoff
+    this.activeConfig.upnp = { ...this.desiredConfig.upnp }
+    this.onPluginConfidenceFormulaChanged(this.activeConfig.formulas.pluginConfidence)
+  }
 
-    if (update.bio !== undefined) {
-      const bio = update.bio.trim()
-      if (bio.length > 140) throw new Error('Bio must be 140 characters or less')
-      this.nodeConfig.bio = bio
+  private applyLivePatchToActive(patch: RuntimeConfigPatch): void {
+    if (patch.formulas?.finalConfidence !== undefined) this.activeConfig.formulas.finalConfidence = patch.formulas.finalConfidence
+    if (patch.formulas?.pluginConfidence !== undefined) {
+      this.activeConfig.formulas.pluginConfidence = patch.formulas.pluginConfidence
+      this.onPluginConfidenceFormulaChanged(patch.formulas.pluginConfidence)
     }
-
-    if (update.connectMessage !== undefined) {
-      const connectMessage = update.connectMessage.trim()
-      if (connectMessage.length === 0) throw new Error('Connect message cannot be empty')
-      if (connectMessage.length > 280) throw new Error('Connect message must be 280 characters or less')
-      this.nodeConfig.connectMessage = connectMessage
-    }
+    if (patch.node?.bio !== undefined) this.activeConfig.node.bio = patch.node.bio
+    if (patch.node?.connectMessage !== undefined) this.activeConfig.node.connectMessage = patch.node.connectMessage
+    if (patch.node?.preferTransport !== undefined) this.activeConfig.node.preferTransport = patch.node.preferTransport
+    if (patch.node?.username !== undefined) this.activeConfig.node.username = patch.node.username
   }
 }

@@ -142,31 +142,26 @@ export interface PluginAccuracy {
   plugin_id: string
 }
 
+export interface RuntimeConfigPatch {
+  apiKey?: string
+  bootstrapPeers?: string
+  dht?: Partial<Config['dht']>
+  formulas?: Partial<Config['formulas']>
+  node?: Partial<Config['node']>
+  rpc?: Partial<Config['rpc']>
+  soulIdCutoff?: number
+  upnp?: Partial<Config['upnp']>
+}
+
 export interface RuntimeConfigSnapshot {
-  editable: {
-    nodeProfile: RuntimeNodeProfileConfig
-  }
-  readonly: RuntimeReadonlyConfig
+  active: Config
+  desired: Config
+  liveUpdatePaths: string[]
+  pendingRestartPaths: string[]
 }
 
 export interface RuntimeConfigUpdate {
-  nodeProfile: Partial<RuntimeNodeProfileConfig>
-}
-
-export interface RuntimeNodeProfileConfig {
-  bio: string
-  connectMessage: string
-  username: string
-}
-
-export interface RuntimeReadonlyConfig {
-  apiKeyConfigured: boolean
-  node: {
-    hostname: string
-    ip: string
-    listenAddress: string
-    port: number
-  }
+  config: RuntimeConfigPatch
 }
 
 export interface Socket {

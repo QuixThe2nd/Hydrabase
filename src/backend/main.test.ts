@@ -76,7 +76,24 @@ beforeAll(async () => {
   account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, formulas)
   const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined, (peer, trace) => peerManager1.add(peer, trace, config1.preferTransport))
-  const runtimeSettings = new RuntimeSettingsManager(config1, repos, false)
+  const runtimeSettings = new RuntimeSettingsManager({
+    apiKey: undefined,
+    bootstrapPeers: '',
+    dht: {
+      bootstrapNodes: '',
+      reannounce: 1_000,
+      requireReady: true,
+      roomSeed: 'hydrabase',
+    },
+    formulas,
+    node: config1,
+    rpc: rpcConfig,
+    soulIdCutoff: 32,
+    upnp: {
+      reannounce: 1_800_000,
+      ttl: 3_600_000,
+    },
+  }, repos, formula => repos.peer.setPluginConfidenceFormula(formula))
   peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
