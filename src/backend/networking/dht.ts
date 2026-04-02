@@ -80,9 +80,15 @@ export class DHT_Node {
   public readonly add = (node: DHTNode) => this.dht.addNode(node)
   public readonly isReady = () => new Promise<undefined>(res => {
     const id = setInterval(() => {
+      // #region agent log
+      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{cacheLoaded:this.resolved.cacheLoaded,connected:this.resolved.connected,nodeCount:this.nodes.length,ready:this.resolved.ready,requireReady:this.config.requireReady},hypothesisId:'H1',location:'src/backend/networking/dht.ts:82',message:'DHT readiness poll',runId:'pre-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
+      // #endregion
       if (!this.config.requireReady) this.resolved.ready = true
       if (this.countResolved().notResolved === 0) {
         clearInterval(id)
+        // #region agent log
+        fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{cacheLoaded:this.resolved.cacheLoaded,connected:this.resolved.connected,nodeCount:this.nodes.length,ready:this.resolved.ready},hypothesisId:'H1',location:'src/backend/networking/dht.ts:86',message:'DHT readiness resolved',runId:'pre-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
+        // #endregion
         this.announce()
         setInterval(() => this.announce(), this.config.reannounce)
         this.startupTrace.success()
@@ -105,6 +111,9 @@ export class DHT_Node {
   }
   private readonly loadCache = () => {
     const peers = this.dhtNodeRepo.getAll()
+    // #region agent log
+    fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{cachedNodeCount:peers.length},hypothesisId:'H1',location:'src/backend/networking/dht.ts:108',message:'DHT cache loaded',runId:'pre-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
+    // #endregion
     for (const peer of peers) this.add(peer)
     this.resolved.cacheLoaded = true
     const {notResolved,resolved} = this.countResolved()

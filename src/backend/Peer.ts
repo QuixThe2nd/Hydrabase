@@ -19,6 +19,7 @@ export class Peer {
   private static readonly PING_INTERVAL_MS = 60_000
   // Keep timeout comfortably above interval to tolerate network and event-loop jitter.
   private static readonly PING_TIMEOUT_MS = 90_000
+  private static readonly UDP_PING_TIMEOUT_THRESHOLD = 2
 
   public nonce = 0
   get address() { return this.socket.identity.address }
@@ -66,12 +67,13 @@ export class Peer {
 
   private _dl = 0
   private _ul = 0 
+  private consecutivePingTimeouts = 0
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
-    private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
-    private readonly requestManager: RequestManager
-    private totalLatency = 0
-    private totalPongs = 0
+  private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
+  private readonly requestManager: RequestManager
+  private totalLatency = 0
+  private totalPongs = 0
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
     connect_peer: (data: ConnectPeer, nonce: number, trace: Trace) => {
@@ -112,6 +114,10 @@ export class Peer {
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
+      // #region agent log
+      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{address:this.address,hostname:this.hostname,latency,nonce,pendingPingsBeforeDelete:this.pendingPings.size,transport:this.type},hypothesisId:'H2',location:'src/backend/Peer.ts:115',message:'Pong received',runId:'pre-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
+      // #endregion
+      this.consecutivePingTimeouts = 0
       pendingPing.trace.step(`[HIP2] Received pong ${nonce} in ${latency}ms`)
       pendingPing.trace.success()
       this.pendingPings.delete(nonce)
@@ -201,11 +207,25 @@ export class Peer {
       const nonce = this.nonce++
       const time = Number(new Date())
       const trace = Trace.start(`Pinging ${socket.identity.hostname}`)
+      // #region agent log
+      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{address:this.address,hostname:this.hostname,nonce,pendingPings:this.pendingPings.size,transport:this.type},hypothesisId:'H2',location:'src/backend/Peer.ts:203',message:'Ping scheduled',runId:'pre-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
+      // #endregion
       const timeout = setTimeout(() => {
         if (!this.pendingPings.has(nonce)) return
         this.pendingPings.delete(nonce)
-        trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer (${this.type} transport, hostname: ${this.hostname})`)
-        warn('WARN:', `[PEER][TIMEOUT] Ping timeout for peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}. Disconnecting.`)
+        this.consecutivePingTimeouts += 1
+        const timeoutThreshold = this.type === 'UDP' ? Peer.UDP_PING_TIMEOUT_THRESHOLD : 1
+        // #region agent log
+        fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{address:this.address,hostname:this.hostname,nonce,pendingPingsAfterDelete:this.pendingPings.size,transport:this.type},hypothesisId:'H2',location:'src/backend/Peer.ts:208',message:'Ping timeout disconnect',runId:'pre-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
+        // #endregion
+        if (this.consecutivePingTimeouts < timeoutThreshold) {
+          trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; keeping peer connected (${this.type} transport, hostname: ${this.hostname}, strike ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
+          warn('WARN:', `[PEER][TIMEOUT] Missed pong from peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}; keeping connection (${this.consecutivePingTimeouts}/${timeoutThreshold}).`)
+          return
+        }
+
+        trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer (${this.type} transport, hostname: ${this.hostname}, strikes ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
+        warn('WARN:', `[PEER][TIMEOUT] Ping timeout threshold reached for peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}. Disconnecting.`)
         this.socket.close()
       }, Peer.PING_TIMEOUT_MS)
       this.pendingPings.set(nonce, { time, timeout, trace })

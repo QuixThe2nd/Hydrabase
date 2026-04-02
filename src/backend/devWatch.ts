@@ -41,7 +41,10 @@ const queueFrontendBuildFactory = (peerManager: PeerManager) => {
             await buildWebUI()
             const sent = peerManager.sendRefreshUi(trace)
             if (sent > 0) trace.success()
-            else trace.softFail('[DEV] No API clients connected for refresh_ui')
+            else {
+              trace.step('[DEV] Frontend rebuilt (no API clients connected for refresh_ui)')
+              trace.success()
+            }
           } catch (error) {
             trace.caughtError(String(error))
             trace.fail('[DEV] Frontend rebuild failed')
@@ -63,7 +66,10 @@ const queueRefreshFactory = (peerManager: PeerManager) => {
       const trace = Trace.start('[DEV] Backend change detected')
       const sent = peerManager.sendRefreshUi(trace)
       if (sent > 0) trace.success()
-      else trace.softFail('[DEV] No API clients connected for refresh_ui')
+      else {
+        trace.step('[DEV] Backend refresh skipped (no API clients connected for refresh_ui)')
+        trace.success()
+      }
     }, BACKEND_REFRESH_DEBOUNCE_MS)
   }
 }

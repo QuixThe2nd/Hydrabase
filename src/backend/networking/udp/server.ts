@@ -19,6 +19,7 @@ let _repo: AuthenticatedPeerRepository | undefined
 
 interface AuthenticatedPeersStore {
   clear(): void
+  delete(hostname: `${string}:${number}`): void
   get(hostname: `${string}:${number}`): Identity | undefined
   init(repo: AuthenticatedPeerRepository): void
   set(hostname: `${string}:${number}`, identity: Identity): AuthenticatedPeersStore
@@ -27,6 +28,7 @@ interface AuthenticatedPeersStore {
 
 export const authenticatedPeers: AuthenticatedPeersStore = {
   clear(): void { _repo?.clear() },
+  delete(hostname: `${string}:${number}`): void { _repo?.delete(hostname) },
   get(hostname: `${string}:${number}`): Identity | undefined { return _repo?.get(hostname) },
   init(repo: AuthenticatedPeerRepository): void { _repo = repo },
   set(hostname: `${string}:${number}`, identity: Identity): AuthenticatedPeersStore { _repo?.set(hostname, identity); return authenticatedPeers },

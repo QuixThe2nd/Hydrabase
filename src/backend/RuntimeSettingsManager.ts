@@ -64,6 +64,26 @@ const setIfDefined = <T>(value: T | undefined, updater: (nextValue: T) => void):
   if (value !== undefined) updater(value)
 }
 
+const normalizeLoadedPatch = (patch: RuntimeConfigPatch): { normalizedPatch: RuntimeConfigPatch; warnings: string[] } => {
+  const warnings: string[] = []
+  const normalizedPatch: RuntimeConfigPatch = { ...patch }
+
+  const telemetryValue = (normalizedPatch as Record<string, unknown>)['telemetry']
+  if (telemetryValue !== undefined && typeof telemetryValue !== 'boolean') {
+    if (typeof telemetryValue === 'string') {
+      const nextTelemetry = telemetryValue.trim().toLowerCase()
+      if (nextTelemetry === 'true') normalizedPatch.telemetry = true
+      else if (nextTelemetry === 'false') normalizedPatch.telemetry = false
+      else delete normalizedPatch.telemetry
+    } else if (telemetryValue === 1) normalizedPatch.telemetry = true
+    else if (telemetryValue === 0) normalizedPatch.telemetry = false
+    else delete normalizedPatch.telemetry
+    if (normalizedPatch.telemetry === undefined) warnings.push('[SETTINGS] Ignoring invalid persisted telemetry value (expected boolean)')
+  }
+
+  return { normalizedPatch, warnings }
+}
+
 export class RuntimeSettingsManager {
   private readonly desiredConfig: Config
   private readonly envLockedPathSet: ReadonlySet<string>
@@ -218,9 +238,12 @@ export class RuntimeSettingsManager {
     )
     if (!parsed) return
 
+    const { normalizedPatch, warnings: normalizationWarnings } = normalizeLoadedPatch(parsed)
+    for (const message of normalizationWarnings) warn('WARN:', message)
+
     try {
-      RuntimeSettingsManager.validatePatch(parsed)
-      RuntimeSettingsManager.applyPatch(this.desiredConfig, parsed)
+      RuntimeSettingsManager.validatePatch(normalizedPatch)
+      RuntimeSettingsManager.applyPatch(this.desiredConfig, normalizedPatch)
       this.applyDesiredToActive()
     } catch (err) {
       warn('WARN:', `[SETTINGS] Failed to load runtime settings from storage: ${String(err)}`)

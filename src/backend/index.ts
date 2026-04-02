@@ -8,6 +8,7 @@ import { error, log } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
 import { BRANCH } from './branch'
 import { createLiveConfig } from './config'
+import { releasePortLeases } from './networking/upnp'
 import { startNode } from './Node'
 
 const applyTelemetryScope = (scope: {
@@ -98,6 +99,33 @@ const initTelemetry = (enabled: boolean): void => {
 
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))
+
+let isShuttingDown = false
+const cleanupUpnpLease = async () => {
+  if (isShuttingDown) return
+  isShuttingDown = true
+  try {
+    await releasePortLeases()
+  } catch (err) {
+    error('ERROR:', '[MAIN] Failed to release UPnP leases', { err })
+  }
+}
+
+process.on('SIGINT', () => {
+  cleanupUpnpLease()
+    .catch(() => undefined)
+    .finally(() => { process.exit(0) })
+})
+
+process.on('SIGTERM', () => {
+  cleanupUpnpLease()
+    .catch(() => undefined)
+    .finally(() => { process.exit(0) })
+})
+
+process.on('beforeExit', () => {
+  cleanupUpnpLease().catch(() => undefined)
+})
 
 const { config, envLockedPaths } = await createLiveConfig({ env: process.env })
 initTelemetry(config.telemetry)

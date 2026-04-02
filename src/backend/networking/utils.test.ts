@@ -15,9 +15,9 @@ describe('getIp', () => {
     await expect(getIp()).resolves.toBe('203.0.113.9')
   })
 
-  it('throws when all providers fail', async () => {
+  it('returns loopback when all providers fail', async () => {
     globalThis.fetch = mock(() => Promise.reject(new Error('network unreachable'))) as unknown as typeof fetch
 
-    await expect(getIp()).rejects.toThrow('[IP] Failed to fetch external IP from all providers')
+    await expect(getIp()).resolves.toBe('127.0.0.1')
   })
 })

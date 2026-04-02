@@ -19,13 +19,23 @@ export default class WebSocketClient implements Socket {
     public readonly identity: Identity,
     private readonly account: Account,
     private readonly node: Config['node'],
-    private readonly onOpen: () => void
+    private readonly onOpen: () => void,
+    private readonly onFail: (error: Error) => void
   ) {
     this._connect(account)
   }
 
-  static init = (identity: Identity, account: Account, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>(res => {
-    const socket = new WebSocketClient(identity, account, node, () => res(socket))
+  static init = (identity: Identity, account: Account, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>((res, rej) => {
+    let settled = false
+    const socket = new WebSocketClient(identity, account, node, () => {
+      if (settled) return
+      settled = true
+      res(socket)
+    }, (error) => {
+      if (settled) return
+      settled = true
+      rej(error)
+    })
   })
 
   public readonly close = () => {
@@ -62,9 +72,13 @@ export default class WebSocketClient implements Socket {
     this.socket = new WebSocket(`ws://${this.identity.hostname}`, protocols)
     const openTimeout = setTimeout(() => {
       if (!this.isOpened) {
+        // #region agent log
+        fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{hostname:this.identity.hostname,timeoutMs:WebSocketClient.OPEN_TIMEOUT_MS},hypothesisId:'H6',location:'src/backend/networking/ws/client.ts:65',message:'WebSocket open timed out',runId:'post-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
+        // #endregion
         this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
         this.trace.fail('Connection timed out')
         this.socket.close()
+        this.onFail(new Error(`WebSocket connection timeout after ${WebSocketClient.OPEN_TIMEOUT_MS}ms`))
       }
     }, WebSocketClient.OPEN_TIMEOUT_MS)
     this.socket.addEventListener('open', () => {
@@ -79,14 +93,21 @@ export default class WebSocketClient implements Socket {
       clearTimeout(openTimeout)
       const reason = ev.reason ?? 'Connection closed'
       const codeInfo = ev.code === 1000 ? '' : ` (code: ${ev.code})`
+      // #region agent log
+      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{code:ev.code,hostname:this.identity.hostname,opened:this.isOpened,reason},hypothesisId:'H6',location:'src/backend/networking/ws/client.ts:84',message:'WebSocket closed',runId:'post-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
+      // #endregion
       this.trace.step(`Connection closed: ${reason}${codeInfo}`)
       this.trace.fail(`${reason}${codeInfo}`)
       this.isOpened = false
+      if (ev.code !== 1000) this.onFail(new Error(`${reason}${codeInfo}`))
       for (const handler of this.closeHandlers) handler()
     })
     this.socket.addEventListener('error', err => {
       clearTimeout(openTimeout)
       const errorMsg = (err as unknown as { message: string }).message
+      // #region agent log
+      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{error:errorMsg,hostname:this.identity.hostname},hypothesisId:'H6',location:'src/backend/networking/ws/client.ts:94',message:'WebSocket error',runId:'post-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
+      // #endregion
       this.trace.step(`Connection failed: ${errorMsg}`)
       this.trace.fail(errorMsg)
       
@@ -95,6 +116,7 @@ export default class WebSocketClient implements Socket {
       }
       
       this.isOpened = false
+      this.onFail(new Error(errorMsg || 'WebSocket connection failed'))
     }) // TODO: peer rate limiting
     this.socket.addEventListener('message', message => {
       if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.identity.hostname}`)

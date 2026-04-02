@@ -26,7 +26,7 @@ export const DEFAULT_CONFIG: Config = {
     ip: '127.0.0.1',
     listenAddress: '0.0.0.0',
     port: 4545,
-    preferTransport: 'UTP',
+    preferTransport: 'UDP',
     username: 'Anonymous',
   },
   rpc: {

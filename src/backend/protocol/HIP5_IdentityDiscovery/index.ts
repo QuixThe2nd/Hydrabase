@@ -52,8 +52,20 @@ export type HandshakeResponse = z.infer<typeof H2_HandshakeResponseSchema>
 const h0LastSeen = new Map<string, number>()
 const h1LastSeen = new Map<string, number>()
 const pendingH0Traces = new Map<string, Trace>()
+const pendingH0Timers = new Map<string, ReturnType<typeof setTimeout>>()
 const H0_COOLDOWN_MS = 5_000
 const H1_COOLDOWN_MS = 10_000
+const H0_FOLLOWUP_TIMEOUT_MS = 30_000
+
+const clearPendingH0Trace = (traceId: string | undefined) => {
+  if (!traceId) return
+  const timer = pendingH0Timers.get(traceId)
+  if (timer) {
+    clearTimeout(timer)
+    pendingH0Timers.delete(traceId)
+  }
+  pendingH0Traces.delete(traceId)
+}
 
 export const doH0Probe = (server: UDP_Server, hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => new Promise(resolve => {
   const txnId = Buffer.alloc(4)
@@ -160,7 +172,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
     if (canonicalHostname !== hostname) {
       trace.step(`Upgrading hostname → ${canonicalHostname}`)
       authenticateServerUDP(server, canonicalHostname, account, node, trace).then(result => {
-        if (!Array.isArray(result)) authenticatedPeers.set(hostname, result)
+        if (!Array.isArray(result) && result.address !== account.address) authenticatedPeers.set(hostname, result)
         if (Array.isArray(result)) trace.step(`[HIP5] Hostname upgrade auth failed: ${result[1]}`)
         else trace.step(`[HIP5] Hostname upgrade auth succeeded: ${canonicalHostname}`)
         resolve(result)
@@ -188,6 +200,7 @@ export const authenticateServerUDP = (server: UDP_Server, hostname: `${string}:$
   }
 })
 
+// eslint-disable-next-line max-lines-per-function
 export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, account: Account, query: RPCMessage, peerHostname: `${string}:${number}`, peer: { host: string, port: number }, node: Config['node'], config: Config['rpc'], apiKey: string | undefined, addPeer: (client: UDP_Client, trace: Trace) => Promise<boolean>): Promise<boolean> => {
   if (query.y === 'h0') {
     const now = Date.now()
@@ -199,9 +212,19 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     h0LastSeen.set(peerHostname, now)
     const traceId = Math.random().toString(16).slice(2, 6)
     const trace = new Trace(traceId, `[HANDSHAKE] Received h0 discovery from ${peerHostname}`)
+    trace.step(`[HANDSHAKE] Proving local identity for ${peerHostname}`)
     const payload: HandshakeDiscoveryResponse = { h0r: await proveServer(account, node, trace), t: query.t, tid: traceId, y: 'h0r' }
     socket.send(bencode.encode(payload), peer.port, peer.host)
+    trace.step(`[HANDSHAKE] Sent h0r to ${peerHostname}; awaiting h1 with tid=${traceId} for ${H0_FOLLOWUP_TIMEOUT_MS}ms`)
     pendingH0Traces.set(traceId, trace)
+    const timer = setTimeout(() => {
+      const pendingTrace = pendingH0Traces.get(traceId)
+      if (!pendingTrace) return
+      pendingTrace.step(`[HANDSHAKE] No follow-up h1 from ${peerHostname} within ${H0_FOLLOWUP_TIMEOUT_MS}ms`)
+      pendingTrace.softFail(`[HANDSHAKE] Discovery ended without follow-up h1 from ${peerHostname}`)
+      clearPendingH0Trace(traceId)
+    }, H0_FOLLOWUP_TIMEOUT_MS)
+    pendingH0Timers.set(traceId, timer)
     return true
   } else if (query.y === 'h1') {
     const now = Date.now()
@@ -215,7 +238,10 @@ export const handleHandshake = async (server: UDP_Server, socket: dgram.Socket, 
     const existingTrace = tid ? pendingH0Traces.get(tid) : undefined
     const trace = existingTrace
       ?? Trace.start(tid ? `Inbound UDP h1 from ${peerHostname} (tid=${tid})` : `Inbound UDP h1 from ${peerHostname}`)
-    if (tid) pendingH0Traces.delete(tid)
+    if (tid) {
+      clearPendingH0Trace(tid)
+      trace.step(`[HANDSHAKE] Matched h1 to existing h0 trace via tid=${tid}`)
+    }
     trace.step('Received h1')
     const result = await UDP_Client.connectToUnauthenticatedPeer(account, socket, query, peerHostname, node, config, apiKey, server, trace, addPeer)
     if (result) {
