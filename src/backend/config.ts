@@ -1,4 +1,5 @@
 
+import dgram from 'dgram'
 import net from 'net'
 
 import type { Config, RuntimeConfigPatch } from '../types/hydrabase'
@@ -114,6 +115,20 @@ const isTCPPortInUse = (port: number) => new Promise<boolean>((resolve, reject) 
   server.listen(port)
 })
 
+const isUDPPortInUse = (port: number) => new Promise<boolean>((resolve, reject) => {
+  const socket = dgram.createSocket('udp4')
+  socket.once('listening', () => {
+    try { socket.close() } catch { /* already closed */ }
+    resolve(false)
+  })
+  socket.once('error', (err: NodeJS.ErrnoException) => {
+    try { socket.close() } catch { /* already closed */ }
+    if (err.code === 'EADDRINUSE') resolve(true)
+    else reject(err)
+  })
+  socket.bind(port)
+})
+
 const getPathValue = <T, P extends LeafPath<T>>(target: T, path: P): PathValue<T, P> => {
   const [head, ...rest] = path.split('.')
   if (!head) throw new Error('Invalid config path')
@@ -219,7 +234,7 @@ const resolvePort = async (env: EnvConfigInput): Promise<number> => {
   const requestedPort = Number.isInteger(requestedPortParsed) && requestedPortParsed > 0 ? requestedPortParsed : 4545
 
   let port = requestedPort
-  while (await isTCPPortInUse(port)) port++
+  while ((await Promise.all([isTCPPortInUse(port), isUDPPortInUse(port)])).some(Boolean)) port++
   if (port !== requestedPort) warn('WARN:', `[SERVER] Port ${requestedPortRaw} in use - Using ${port} instead`)
 
   return port
