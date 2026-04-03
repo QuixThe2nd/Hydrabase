@@ -168,7 +168,7 @@ export class StatsReporter {
     const uptime = formatUptime(Date.now() - this.startTime)
     stats(`${peerCount} peers | ${dhtCount} DHT node${dhtCount === 1 ? '' : 's'} | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
     for (const peer of this.peers.peers.values()) {
-      const transport = peer.type === 'CLIENT' ? 'WS' : 'UTP'
+      const transport = peer.type === 'UTP' ? 'UTP' : 'WS'
       const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
       const uptime = formatUptime(peer.uptimeMs)
       const connectionCount = this.getCurrentAnnouncementConnections(peer.address).length
