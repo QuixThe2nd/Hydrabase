@@ -9,6 +9,7 @@ import type PeerManager from './PeerManager'
 
 import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
+import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
 import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
@@ -46,7 +47,7 @@ export class Peer {
   get totalUL() { return this._ul }
 
   get type() {
-    return this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
+    return this.socket instanceof UTPClient ? 'UTP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
   }
 
   get uptimeMs() {

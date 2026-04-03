@@ -471,14 +471,6 @@ export default class PeerManager {
     return envelope.timestamp + envelope.ttl <= now
   }
 
-  private storeHeldMessageIfOffline(envelope: MessageEnvelope, trace: Trace): void {
-    if (this.peers.get(envelope.to)) return
-    const held = this.heldMessages.get(envelope.to) ?? []
-    held.push(envelope)
-    this.heldMessages.set(envelope.to, held)
-    trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}`)
-  }
-
   private notifyPeerConnected(peer: Peer): void {
     this.peerConnectedHandlers.forEach(handler => {
       Promise.resolve(handler(peer)).catch(error => {
@@ -633,6 +625,14 @@ export default class PeerManager {
     if (identity.hostname !== normalizedHostname && this.knownPeers.has(identity.hostname)) return `[PEERS] Not connecting to self ${normalizedHostname}`
     if (this.peers.has(identity.address)) return `[PEERS] Skipping connection to ${identity.username} ${identity.address} - already connected`
     return true
+  }
+
+  private storeHeldMessageIfOffline(envelope: MessageEnvelope, trace: Trace): void {
+    if (this.peers.get(envelope.to)) return
+    const held = this.heldMessages.get(envelope.to) ?? []
+    held.push(envelope)
+    this.heldMessages.set(envelope.to, held)
+    trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}`)
   }
 
   private syncHeldMessagesToPeer(peer: Peer) {

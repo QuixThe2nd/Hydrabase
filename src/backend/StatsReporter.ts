@@ -66,7 +66,7 @@ export class StatsReporter {
       plugins: peer.plugins,
       totalDL: peer.totalDL,
       totalUL: peer.totalUL,
-      type: peer.type,
+      type: peer.type === 'CLIENT' ? 'CLIENT' : 'SERVER',
       uptime: peer.uptimeMs,
       userAgent: peer.userAgent,
       username: peer.username,
