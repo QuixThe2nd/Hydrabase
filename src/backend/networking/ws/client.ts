@@ -68,7 +68,7 @@ export default class WebSocketClient implements Socket {
     ) as Record<string, string>
     this.socket = new WebSocket(`ws://${this.identity.hostname}`, {
       headers: authHeaders,
-    } as unknown as string[])
+    })
     const openTimeout = setTimeout(() => {
       if (!this.isOpened) {
         // #region agent log
