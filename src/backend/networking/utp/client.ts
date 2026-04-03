@@ -35,36 +35,7 @@ export class UTPClient implements Socket {
     // Wait for the connecting peer's in-band greeting containing its service hostname.
     // remotePort is the ephemeral source port, not the peer's service port, so we cannot
     // call authenticateServerHTTP against remoteAddress:remotePort.
-    const serviceHostname = await new Promise<`${string}:${number}` | null>(resolve => {
-      let settled = false
-      let timer: NodeJS.Timeout | null = null
-      const onGreeting = (data: Buffer) => {
-        if (settled) return
-        settled = true
-        if (timer !== null) clearTimeout(timer)
-        conn.removeListener('data', onGreeting)
-        try {
-          const parsed: unknown = JSON.parse(data.toString())
-          if (typeof parsed === 'object' && parsed !== null && 'hello' in parsed) {
-            const hello = (parsed as Record<string, unknown>).hello
-            if (typeof hello === 'string' && hello.includes(':')) {
-              resolve(hello as `${string}:${number}`)
-              return
-            }
-          }
-        } catch (err) {
-          trace.step(`[UTP] Failed to parse greeting: ${err instanceof Error ? err.message : String(err)}`)
-        }
-        resolve(null)
-      }
-      conn.on('data', onGreeting)
-      timer = setTimeout(() => {
-        if (settled) return
-        settled = true
-        conn.removeListener('data', onGreeting)
-        resolve(null)
-      }, UTPClient.GREETING_TIMEOUT_MS)
-    })
+    const serviceHostname = await UTPClient.readServiceHostnameFromGreeting(conn, trace)
     if (!serviceHostname) {
       trace.fail('[UTP] Rejected inbound connection: missing or invalid greeting')
       conn.destroy()
@@ -108,6 +79,39 @@ export class UTPClient implements Socket {
       trace.step(`[UTP] Connection error: ${String(err)}`)
       rej(err)
     })
+  })
+  private static readonly readServiceHostnameFromGreeting = (
+    conn: UTPConnection,
+    trace: Trace
+  ): Promise<`${string}:${number}` | null> => new Promise(resolve => {
+    let settled = false
+    let timer: NodeJS.Timeout | null = null
+    const onGreeting = (data: Buffer) => {
+      if (settled) return
+      settled = true
+      if (timer !== null) clearTimeout(timer)
+      conn.removeListener('data', onGreeting)
+      try {
+        const parsed: unknown = JSON.parse(data.toString())
+        if (typeof parsed === 'object' && parsed !== null && 'hello' in parsed) {
+          const {hello} = (parsed as Record<string, unknown>)
+          if (typeof hello === 'string' && hello.includes(':')) {
+            resolve(hello as `${string}:${number}`)
+            return
+          }
+        }
+      } catch (err) {
+        trace.step(`[UTP] Failed to parse greeting: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      resolve(null)
+    }
+    conn.on('data', onGreeting)
+    timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      conn.removeListener('data', onGreeting)
+      resolve(null)
+    }, UTPClient.GREETING_TIMEOUT_MS)
   })
   public readonly close = () => {
     this.conn.destroy()

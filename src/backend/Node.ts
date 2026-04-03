@@ -150,15 +150,15 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
       if (error.code === 'EADDRINUSE' && CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
     })
     const hasInboundUTPHandler = utpSocket.listenerCount('connection') > 0
-    if (!hasInboundUTPHandler) {
-      Trace.start('[UTP] No inbound UTP connection handler registered, disabling UTP listener').softFail('UTP inbound disabled for this runtime')
-      closeUTPSocket()
-      if (CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
-    } else {
+    if (hasInboundUTPHandler) {
       utpSocket.listen(CONFIG.node.port)
       process.once('SIGINT', closeUTPSocket)
       process.once('SIGTERM', closeUTPSocket)
       process.once('exit', closeUTPSocket)
+    } else {
+      Trace.start('[UTP] No inbound UTP connection handler registered, disabling UTP listener').softFail('UTP inbound disabled for this runtime')
+      closeUTPSocket()
+      if (CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
     }
   }
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
