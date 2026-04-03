@@ -17,6 +17,12 @@ export const PingSchema = z.object({
 })
 export type Ping = z.infer<typeof PingSchema>
 
+export const PongSchema = z.object({
+  peers: z.array(z.string().regex(/^.+:\d+$/u).transform(v => v as `${string}:${number}`)).optional(),
+  time: z.number()
+})
+export type Pong = z.infer<typeof PongSchema>
+
 const SearchHistoryDataSchema = z.union([
   z.literal('get'),
   z.literal('clear'),
@@ -88,7 +94,7 @@ const MessageSchemas = {
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
-  pong: PingSchema,
+  pong: PongSchema,
   request: RequestSchema,
   response: ResponseSchema,
   restart: z.literal(true),
