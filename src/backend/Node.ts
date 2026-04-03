@@ -120,19 +120,24 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
     Trace.start('[UTP] Native UTP unavailable, falling back to TCP transport').softFail('UTP disabled for this runtime')
     CONFIG.node.preferTransport = 'TCP'
   }
+  const peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, utpSocket)
   if (utpSocket) {
-    utpSocket.listen(CONFIG.node.port)
     let utpSocketClosed = false
     const closeUTPSocket = () => {
       if (utpSocketClosed) return
       utpSocketClosed = true
       utpSocket.close()
     }
+    utpSocket.on('error', (error: NodeJS.ErrnoException) => {
+      Trace.start(`[UTP] Failed to listen on port ${CONFIG.node.port}`).softFail(error.message)
+      closeUTPSocket()
+      if (error.code === 'EADDRINUSE' && CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
+    })
+    utpSocket.listen(CONFIG.node.port)
     process.once('SIGINT', closeUTPSocket)
     process.once('SIGTERM', closeUTPSocket)
     process.once('exit', closeUTPSocket)
   }
-  const peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, utpSocket)
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)
   ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m, stack }) => {
