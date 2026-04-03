@@ -59,9 +59,7 @@ const UpdateConfigSchema = z.object({
       prefix: z.string().optional(),
     }).optional(),
     soulIdCutoff: z.number().int().positive().optional(),
-    telemetry: z.object({
-      enabled: z.boolean().optional(),
-    }).optional(),
+    telemetry: z.boolean().optional(),
     upnp: z.object({
       reannounce: z.number().positive().optional(),
       ttl: z.number().positive().optional(),
