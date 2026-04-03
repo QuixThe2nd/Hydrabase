@@ -299,6 +299,9 @@ export default class PeerManager {
 
     this.apiPeer?.sendMessagePacket({ envelope, hops }, trace)
 
+    // Store message for offline recipient so it can be delivered when they connect
+    this.storeHeldMessageIfOffline(envelope, trace)
+
     if (hops >= PeerManager.MAX_MESSAGE_HOPS) {
       trace.step(`[HIP2] Stored message for ${envelope.to}; reached max hops (${hops})`)
       return
@@ -387,6 +390,10 @@ export default class PeerManager {
 
     this.apiPeer?.sendMessagePacket({ envelope, hops: 0 }, trace)
     const sent = this.broadcastMessage(envelope, 0, trace)
+
+    // Store message for offline recipient so it can be delivered when they connect
+    this.storeHeldMessageIfOffline(envelope, trace)
+
     trace.step(`[HIP2] Broadcast message for ${envelope.to} to ${sent} peer${sent === 1 ? '' : 's'} at hop 0`)
     return sent
   }
@@ -462,6 +469,14 @@ export default class PeerManager {
   // eslint-disable-next-line class-methods-use-this
   private isEnvelopeExpired(envelope: MessageEnvelope, now = Number(new Date())): boolean {
     return envelope.timestamp + envelope.ttl <= now
+  }
+
+  private storeHeldMessageIfOffline(envelope: MessageEnvelope, trace: Trace): void {
+    if (this.peers.get(envelope.to)) return
+    const held = this.heldMessages.get(envelope.to) ?? []
+    held.push(envelope)
+    this.heldMessages.set(envelope.to, held)
+    trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}`)
   }
 
   private notifyPeerConnected(peer: Peer): void {
