@@ -29,58 +29,105 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Start node and wait for peer connection
+      - name: Start two isolated nodes and wait for peer connection
         shell: bash
         run: |
           set -euo pipefail
 
-          bun start > node.log 2>&1 &
-          NODE_PID=$!
-          echo "Started node PID=${NODE_PID}"
+          NODE_A_DIR="$(mktemp -d)"
+          NODE_B_DIR="$(mktemp -d)"
+
+          # Keep each node state (including data/db.sqlite and keys) isolated.
+          for target in "$NODE_A_DIR" "$NODE_B_DIR"; do
+            cp -R src public drizzle VERSION package.json tsconfig.json "$target"/
+            ln -s "$PWD/node_modules" "$target/node_modules"
+          done
+
+          (
+            cd "$NODE_A_DIR"
+            PORT=4545 HYDRABASE_BOOTSTRAPPEERS="127.0.0.1:4546" HYDRABASE_NODE_PREFERTRANSPORT="TCP" bun start > "$PWD/node-a.log" 2>&1
+          ) &
+          NODE_A_PID=$!
+
+          (
+            cd "$NODE_B_DIR"
+            PORT=4546 HYDRABASE_BOOTSTRAPPEERS="127.0.0.1:4545" HYDRABASE_NODE_PREFERTRANSPORT="TCP" bun start > "$PWD/node-b.log" 2>&1
+          ) &
+          NODE_B_PID=$!
+
+          NODE_A_LOG="$NODE_A_DIR/node-a.log"
+          NODE_B_LOG="$NODE_B_DIR/node-b.log"
+
+          echo "Started node A PID=${NODE_A_PID}"
+          echo "Started node B PID=${NODE_B_PID}"
 
           cleanup() {
-            if kill -0 "$NODE_PID" 2>/dev/null; then
-              kill "$NODE_PID" 2>/dev/null || true
-              wait "$NODE_PID" 2>/dev/null || true
-            fi
+            for pid in "$NODE_A_PID" "$NODE_B_PID"; do
+              if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
+              fi
+            done
+            rm -rf "$NODE_A_DIR" "$NODE_B_DIR"
           }
           trap cleanup EXIT
 
-          echo "Waiting for node startup..."
-          started=false
+          echo "Waiting for both nodes to start..."
+          started_a=false
+          started_b=false
           for _ in {1..90}; do
-            if grep -q 'Listening on port' node.log; then
-              started=true
+            if grep -q 'Listening on port' "$NODE_A_LOG"; then started_a=true; fi
+            if grep -q 'Listening on port' "$NODE_B_LOG"; then started_b=true; fi
+
+            if [[ "$started_a" == "true" && "$started_b" == "true" ]]; then
               break
             fi
 
-            if ! kill -0 "$NODE_PID" 2>/dev/null; then
-              echo "Node exited before startup"
-              cat node.log
+            if ! kill -0 "$NODE_A_PID" 2>/dev/null; then
+              echo "Node A exited before startup"
+              tail -n 200 "$NODE_A_LOG" || true
+              exit 1
+            fi
+
+            if ! kill -0 "$NODE_B_PID" 2>/dev/null; then
+              echo "Node B exited before startup"
+              tail -n 200 "$NODE_B_LOG" || true
               exit 1
             fi
 
             sleep 2
           done
 
-          if [[ "$started" != "true" ]]; then
-            echo "Node did not start in time"
-            tail -n 200 node.log || true
+          if [[ "$started_a" != "true" || "$started_b" != "true" ]]; then
+            echo "Nodes did not start in time"
+            echo "--- node A log ---"
+            tail -n 200 "$NODE_A_LOG" || true
+            echo "--- node B log ---"
+            tail -n 200 "$NODE_B_LOG" || true
             exit 1
           fi
 
-          echo "Node started, waiting for at least one peer..."
+          echo "Nodes started, waiting for at least one peer connection..."
           deadline=$((SECONDS + 900))
           while (( SECONDS < deadline )); do
-            if grep -Eq '[1-9][0-9]* peer(s)? connected:' node.log; then
+            if grep -Eq '[1-9][0-9]* peer(s)? connected:' "$NODE_A_LOG" || grep -Eq '[1-9][0-9]* peer(s)? connected:' "$NODE_B_LOG"; then
               echo "Peer connectivity check passed"
-              tail -n 120 node.log || true
+              echo "--- node A log ---"
+              tail -n 120 "$NODE_A_LOG" || true
+              echo "--- node B log ---"
+              tail -n 120 "$NODE_B_LOG" || true
               exit 0
             fi
 
-            if ! kill -0 "$NODE_PID" 2>/dev/null; then
-              echo "Node exited before connecting to a peer"
-              tail -n 200 node.log || true
+            if ! kill -0 "$NODE_A_PID" 2>/dev/null; then
+              echo "Node A exited before connecting to a peer"
+              tail -n 200 "$NODE_A_LOG" || true
+              exit 1
+            fi
+
+            if ! kill -0 "$NODE_B_PID" 2>/dev/null; then
+              echo "Node B exited before connecting to a peer"
+              tail -n 200 "$NODE_B_LOG" || true
               exit 1
             fi
 
@@ -88,5 +135,8 @@ jobs:
           done
 
           echo "Timed out waiting for peer connection"
-          tail -n 200 node.log || true
+          echo "--- node A log ---"
+          tail -n 200 "$NODE_A_LOG" || true
+          echo "--- node B log ---"
+          tail -n 200 "$NODE_B_LOG" || true
           exit 1
