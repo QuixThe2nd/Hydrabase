@@ -63,13 +63,12 @@ export default class WebSocketClient implements Socket {
   private _connect(account: Account) {
     this.trace = Trace.start(`WS client → ${this.identity.hostname}`)
     this.trace.step('Connecting')
-    // Use sec-websocket-protocol for authentication, as 'headers' is not a valid option in browser/WebSocket API
-    const auth = proveClient(account, this.node, this.identity.hostname, this.trace, true)
-    let protocols: string[] | undefined
-    if (typeof auth === 'object' && auth !== null && 'sec-websocket-protocol' in auth && typeof auth['sec-websocket-protocol'] === 'string') {
-      protocols = [auth['sec-websocket-protocol']]
-    }
-    this.socket = new WebSocket(`ws://${this.identity.hostname}`, protocols)
+    const authHeaders = Object.fromEntries(
+      Object.entries(proveClient(account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
+    ) as Record<string, string>
+    this.socket = new WebSocket(`ws://${this.identity.hostname}`, {
+      headers: authHeaders,
+    } as unknown as string[])
     const openTimeout = setTimeout(() => {
       if (!this.isOpened) {
         // #region agent log

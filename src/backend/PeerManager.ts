@@ -724,7 +724,15 @@ export default class PeerManager {
     phase: 'Fallback' | 'Primary',
   ): Promise<false | Socket | string> {
     const transportTrace = trace.child(`[PEERS] Transport attempt ${preferTransport} -> ${normalizedHostname}`)
-    const socket = await this.toSocket(hostname, preferTransport, transportTrace, identity)
+    let socket: false | Socket | string
+    try {
+      socket = await this.toSocket(hostname, preferTransport, transportTrace, identity)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      transportTrace.step(`[PEERS] ${phase} transport threw: ${message}`)
+      transportTrace.softFail(message)
+      return message
+    }
     if (typeof socket === 'object') {
       transportTrace.success()
       return socket
