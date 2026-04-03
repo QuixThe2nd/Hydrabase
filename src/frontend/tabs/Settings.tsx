@@ -148,14 +148,14 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Bootstrap Peers</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, bootstrapPeers: event.target.value } : prev)} style={textInputStyle} type='text' value={draft.bootstrapPeers} />
+              <input disabled={isEnvLocked('bootstrapPeers')} onChange={(event) => setDraft((prev) => prev ? { ...prev, bootstrapPeers: event.target.value } : prev)} style={fieldStyle('bootstrapPeers')} type='text' value={draft.bootstrapPeers} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Soul ID Cutoff</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, soulIdCutoff: Number(event.target.value) } : prev)} style={textInputStyle} type='number' value={draft.soulIdCutoff} />
+              <input disabled={isEnvLocked('soulIdCutoff')} onChange={(event) => setDraft((prev) => prev ? { ...prev, soulIdCutoff: Number(event.target.value) } : prev)} style={fieldStyle('soulIdCutoff')} type='number' value={draft.soulIdCutoff} />
             </label>
             <label style={{ alignItems: 'center', display: 'flex', gap: 8, marginTop: 22 }}>
-              <input checked={Boolean(draft.telemetry)} onChange={(event) => setDraft((prev) => prev ? { ...prev, telemetry: event.target.checked } : prev)} type='checkbox' />
+              <input checked={Boolean(draft.telemetry)} disabled={isEnvLocked('telemetry')} onChange={(event) => setDraft((prev) => prev ? { ...prev, telemetry: event.target.checked } : prev)} type='checkbox' />
               <span style={{ color: MUTED, fontSize: 12 }}>Enable Telemetry (Sentry)</span>
             </label>
           </div>
@@ -207,19 +207,19 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
           <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>RPC Prefix</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, rpc: { ...prev.rpc, prefix: event.target.value } } : prev)} style={textInputStyle} type='text' value={draft.rpc.prefix} />
+              <input disabled={isEnvLocked('rpc.prefix')} onChange={(event) => setDraft((prev) => prev ? { ...prev, rpc: { ...prev.rpc, prefix: event.target.value } } : prev)} style={fieldStyle('rpc.prefix')} type='text' value={draft.rpc.prefix} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Bootstrap Nodes</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, bootstrapNodes: event.target.value } } : prev)} style={textInputStyle} type='text' value={draft.dht.bootstrapNodes} />
+              <input disabled={isEnvLocked('dht.bootstrapNodes')} onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, bootstrapNodes: event.target.value } } : prev)} style={fieldStyle('dht.bootstrapNodes')} type='text' value={draft.dht.bootstrapNodes} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Reannounce</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, reannounce: Number(event.target.value) } } : prev)} style={textInputStyle} type='number' value={draft.dht.reannounce} />
+              <input disabled={isEnvLocked('dht.reannounce')} onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, reannounce: Number(event.target.value) } } : prev)} style={fieldStyle('dht.reannounce')} type='number' value={draft.dht.reannounce} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Room Seed</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, roomSeed: event.target.value } } : prev)} style={textInputStyle} type='text' value={draft.dht.roomSeed} />
+              <input disabled={isEnvLocked('dht.roomSeed')} onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, roomSeed: event.target.value } } : prev)} style={fieldStyle('dht.roomSeed')} type='text' value={draft.dht.roomSeed} />
             </label>
             <label style={{ alignItems: 'center', display: 'flex', gap: 8, marginTop: 22 }}>
               <input checked={draft.dht.requireReady} disabled={isEnvLocked('dht.requireReady')} onChange={(event) => setDraft((prev) => prev ? { ...prev, dht: { ...prev.dht, requireReady: event.target.checked } } : prev)} type='checkbox' />
@@ -233,11 +233,11 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
           <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Plugin Confidence</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, formulas: { ...prev.formulas, pluginConfidence: event.target.value } } : prev)} style={textInputStyle} type='text' value={draft.formulas.pluginConfidence} />
+              <input disabled={isEnvLocked('formulas.pluginConfidence')} onChange={(event) => setDraft((prev) => prev ? { ...prev, formulas: { ...prev.formulas, pluginConfidence: event.target.value } } : prev)} style={fieldStyle('formulas.pluginConfidence')} type='text' value={draft.formulas.pluginConfidence} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>Final Confidence</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, formulas: { ...prev.formulas, finalConfidence: event.target.value } } : prev)} style={textInputStyle} type='text' value={draft.formulas.finalConfidence} />
+              <input disabled={isEnvLocked('formulas.finalConfidence')} onChange={(event) => setDraft((prev) => prev ? { ...prev, formulas: { ...prev.formulas, finalConfidence: event.target.value } } : prev)} style={fieldStyle('formulas.finalConfidence')} type='text' value={draft.formulas.finalConfidence} />
             </label>
           </div>
         </div>
@@ -247,11 +247,11 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
           <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>UPnP Reannounce</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, upnp: { ...prev.upnp, reannounce: Number(event.target.value) } } : prev)} style={textInputStyle} type='number' value={draft.upnp.reannounce} />
+              <input disabled={isEnvLocked('upnp.reannounce')} onChange={(event) => setDraft((prev) => prev ? { ...prev, upnp: { ...prev.upnp, reannounce: Number(event.target.value) } } : prev)} style={fieldStyle('upnp.reannounce')} type='number' value={draft.upnp.reannounce} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={{ color: MUTED, fontSize: 12 }}>UPnP TTL</span>
-              <input onChange={(event) => setDraft((prev) => prev ? { ...prev, upnp: { ...prev.upnp, ttl: Number(event.target.value) } } : prev)} style={textInputStyle} type='number' value={draft.upnp.ttl} />
+              <input disabled={isEnvLocked('upnp.ttl')} onChange={(event) => setDraft((prev) => prev ? { ...prev, upnp: { ...prev.upnp, ttl: Number(event.target.value) } } : prev)} style={fieldStyle('upnp.ttl')} type='number' value={draft.upnp.ttl} />
             </label>
           </div>
         </div>
