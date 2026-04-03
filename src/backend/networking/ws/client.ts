@@ -72,9 +72,6 @@ export default class WebSocketClient implements Socket {
     })
     const openTimeout = setTimeout(() => {
       if (!this.isOpened) {
-        // #region agent log
-        fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{hostname:this.identity.hostname,timeoutMs:WebSocketClient.OPEN_TIMEOUT_MS},hypothesisId:'H6',location:'src/backend/networking/ws/client.ts:65',message:'WebSocket open timed out',runId:'post-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
-        // #endregion
         this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
         this.trace.fail('Connection timed out')
         this.socket.close()
@@ -93,9 +90,6 @@ export default class WebSocketClient implements Socket {
       clearTimeout(openTimeout)
       const reason = ev.reason ?? 'Connection closed'
       const codeInfo = ev.code === 1000 ? '' : ` (code: ${ev.code})`
-      // #region agent log
-      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{code:ev.code,hostname:this.identity.hostname,opened:this.isOpened,reason},hypothesisId:'H6',location:'src/backend/networking/ws/client.ts:84',message:'WebSocket closed',runId:'post-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
-      // #endregion
       this.trace.step(`Connection closed: ${reason}${codeInfo}`)
       this.trace.fail(`${reason}${codeInfo}`)
       this.isOpened = false
@@ -105,9 +99,6 @@ export default class WebSocketClient implements Socket {
     this.socket.addEventListener('error', err => {
       clearTimeout(openTimeout)
       const errorMsg = (err as unknown as { message: string }).message
-      // #region agent log
-      fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{error:errorMsg,hostname:this.identity.hostname},hypothesisId:'H6',location:'src/backend/networking/ws/client.ts:94',message:'WebSocket error',runId:'post-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
-      // #endregion
       this.trace.step(`Connection failed: ${errorMsg}`)
       this.trace.fail(errorMsg)
       

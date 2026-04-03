@@ -98,9 +98,6 @@ export class Node {
 // eslint-disable-next-line max-lines-per-function
 export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): Promise<Node> => {
   const trace = Trace.start('STARTUP')
-  // #region agent log
-  fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{bootstrapPeers:CONFIG.bootstrapPeers.split(','),dhtRequireReady:CONFIG.dht.requireReady,hostname:CONFIG.node.hostname,ip:CONFIG.node.ip,port:CONFIG.node.port,preferTransport:CONFIG.node.preferTransport},hypothesisId:'H1',location:'src/backend/Node.ts:101',message:'Node startup config snapshot',runId:'pre-fix',sessionId:'59157e',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'59157e'},method:'POST'}).catch(() => undefined)
-  // #endregion
   trace.step('1/14 Using UPnP')
   await requestPort(CONFIG.node, CONFIG.upnp)
   trace.step('2/14 Fetching private key')
@@ -156,22 +153,9 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
   trace.step('12/14 Starting stats reporter')
   new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peerManager, dhtNode, repos)
   trace.step('13/14 Loading cached peers')
-  // #region agent log
-  fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{bootstrapPeers:CONFIG.bootstrapPeers.split(','),preferTransport:CONFIG.node.preferTransport,requireReady:CONFIG.dht.requireReady},hypothesisId:'H1',location:'src/backend/Node.ts:149',message:'Starting cached/bootstrap peer load before DHT readiness wait',runId:'post-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
-  // #endregion
   await peerManager.loadCache(CONFIG.bootstrapPeers.split(','))
-  // #region agent log
-  fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{connectedPeers:peerManager.connectedPeers.map(peer=>({address:peer.address,hostname:peer.hostname,type:peer.type})),knownPeerAddresses:peerManager.peerAddresses},hypothesisId:'H2',location:'src/backend/Node.ts:152',message:'Cached/bootstrap peer load finished before DHT readiness',runId:'post-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
-  // #endregion
   trace.step('14/14 Waiting for DHT in background')
-  // #region agent log
-  fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{knownDhtNodes:dhtNode.nodes.length,requireReady:CONFIG.dht.requireReady},hypothesisId:'H1',location:'src/backend/Node.ts:156',message:'DHT readiness moved to background',runId:'post-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
-  // #endregion
-  dhtNode.isReady().then(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{dhtResolved:dhtNode.resolved,knownDhtNodes:dhtNode.nodes.length},hypothesisId:'H1',location:'src/backend/Node.ts:159',message:'Background DHT readiness resolved',runId:'post-fix',sessionId:'ca44a7',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ca44a7'},method:'POST'}).catch(() => undefined)
-    // #endregion
-  }).catch(() => undefined)
+  dhtNode.isReady()
   trace.success()
   return node
 }
