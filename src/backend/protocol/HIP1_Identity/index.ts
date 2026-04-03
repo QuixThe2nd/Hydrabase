@@ -79,7 +79,8 @@ export const verifyClient = async (
   preferTransport: 'TCP' | 'UTP' = node.preferTransport,
   account?: Account,
   identity?: Identity,
-  ip?: { address: string }
+  ip?: { address: string },
+  requestedHostname?: `${string}:${number}`
 ): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
     trace.step('[HIP1] Verifying API')
@@ -89,16 +90,21 @@ export const verifyClient = async (
   }
   trace.step(`[HIP1] Verifying client ${auth.username} running ${auth.userAgent}`)
   trace.step(`[HIP1] Verifying client address ${auth.address}`)
-  const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address, trace)
-  trace.step(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${node.hostname}:${node.port}" result=${signatureValid}`)
-  if (!signatureValid) {
-    const altHostname = `${node.ip}:${node.port}`
-    if (altHostname === `${node.hostname}:${node.port}`) return [403, 'Failed to authenticate address']
-    const altValid = Signature.fromString(auth.signature).verify(`I am connecting to ${altHostname}`, auth.address, trace)
-    trace.step(`[HIP1] Alt signature verify for ${auth.address}: message="I am connecting to ${altHostname}" result=${altValid}`)
-    if (altValid) trace.step(`[HIP1] Accepted signature against alternate hostname ${altHostname}`)
-    else return [403, 'Failed to authenticate address']
+  const candidates = new Set<`${string}:${number}`>()
+  if (requestedHostname) candidates.add(requestedHostname)
+  candidates.add(`${node.hostname}:${node.port}`)
+  candidates.add(`${node.ip}:${node.port}`)
+
+  let signatureValid = false
+  for (const candidate of candidates) {
+    const valid = Signature.fromString(auth.signature).verify(`I am connecting to ${candidate}`, auth.address, trace)
+    trace.step(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${candidate}" result=${valid}`)
+    if (!valid) continue
+    if (candidate !== `${node.hostname}:${node.port}`) trace.step(`[HIP1] Accepted signature against alternate hostname ${candidate}`)
+    signatureValid = true
+    break
   }
+  if (!signatureValid) return [403, 'Failed to authenticate address']
   if (account && identity && ip) {
     const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, identity, ip)
     if (Array.isArray(isHostnameValid)) return isHostnameValid

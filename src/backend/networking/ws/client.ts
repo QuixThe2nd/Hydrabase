@@ -66,7 +66,8 @@ export default class WebSocketClient implements Socket {
     const authHeaders = Object.fromEntries(
       Object.entries(proveClient(account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
     ) as Record<string, string>
-    this.socket = new WebSocket(`ws://${this.identity.hostname}`, {
+    const BunWebSocket = WebSocket as unknown as new (url: string, options: { headers: Record<string, string> }) => WebSocket
+    this.socket = new BunWebSocket(`ws://${this.identity.hostname}`, {
       headers: authHeaders,
     })
     const openTimeout = setTimeout(() => {
