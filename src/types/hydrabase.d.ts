@@ -25,7 +25,7 @@ export interface Config {
     ip: string
     listenAddress: string
     port: number
-    preferTransport: 'TCP' | 'UDP' | 'UTP'
+    preferTransport: 'TCP' | 'UTP'
     username: string
   }
   rpc: {
@@ -54,7 +54,7 @@ export interface Connection {
   plugins: string[]
   totalDL: number
   totalUL: number
-  type: 'CLIENT' | 'SERVER' | 'UDP'
+  type: 'CLIENT' | 'SERVER'
   uptime: number
   userAgent: string
   username: string

@@ -1,13 +1,9 @@
 import utp from 'utp-socket'
 
-import type { Config } from '../../../types/hydrabase'
-import type { Account } from '../../crypto/Account'
-
 import { Trace } from '../../../utils/trace'
-import { UDP_Server } from '../udp/server'
 import { UTPClient } from './client'
 
-export const startUTPServer = (port: number, address: string, udpServer: UDP_Server, account: Account, node: Config['node']): Promise<true> => new Promise((res, rej) => {
+export const startUTPServer = (port: number, address: string): Promise<true> => new Promise((res, rej) => {
   const trace = Trace.start(`[UTP] Starting server on ${address}:${port}`)
   const socket = utp()
   socket.listen(port, address, () => {
@@ -25,7 +21,7 @@ export const startUTPServer = (port: number, address: string, udpServer: UDP_Ser
   })
 
   socket.on('connection', conn => {
-    UTPClient.authenticateConnectedPeer(conn, udpServer, account, node).catch(err => {
+    UTPClient.authenticateConnectedPeer(conn).catch(err => {
       trace.fail(`[UTP] Inbound authentication error: ${String(err)}`)
       conn.destroy()
     })

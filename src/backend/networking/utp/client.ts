@@ -1,13 +1,10 @@
 import type { UTPConnection, UTPSocket } from 'utp-socket'
 
-import type { Config } from '../../../types/hydrabase'
 import type { Socket } from '../../../types/hydrabase'
-import type { Account } from '../../crypto/Account'
 import type { Identity } from '../../protocol/HIP1_Identity'
 
 import { Trace } from '../../../utils/trace'
-import { authenticateServerUDP } from '../../protocol/HIP5_IdentityDiscovery'
-import { UDP_Server } from '../udp/server'
+import { authenticateServerHTTP } from '../http'
 
 export class UTPClient implements Socket {
   private static readonly CONNECT_TIMEOUT_MS = 8_000
@@ -31,14 +28,11 @@ export class UTPClient implements Socket {
     })
   }
   static readonly authenticateConnectedPeer = async (
-    conn: UTPConnection,
-    udpServer: UDP_Server,
-    account: Account,
-    node: Config['node']
+    conn: UTPConnection
   ): Promise<false | UTPClient> => {
     const remoteHostname = `${conn.remoteAddress}:${conn.remotePort}` as const
     const trace = Trace.start(`[UTP] Authenticating inbound connection from ${remoteHostname}`)
-    const identity = await authenticateServerUDP(udpServer, remoteHostname, account, node, trace)
+    const identity = await authenticateServerHTTP(remoteHostname, trace)
     if (Array.isArray(identity)) {
       trace.fail(`[UTP] Rejected unauthenticated inbound connection from ${remoteHostname}: ${identity[1]}`)
       conn.destroy()

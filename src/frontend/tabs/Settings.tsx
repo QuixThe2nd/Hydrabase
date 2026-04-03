@@ -192,7 +192,6 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
               <span style={{ color: MUTED, fontSize: 12 }}>Preferred Transport</span>
               <select disabled={isEnvLocked('node.preferTransport')} onChange={(event) => setDraft((prev) => prev ? { ...prev, node: { ...prev.node, preferTransport: event.target.value as Config['node']['preferTransport'] } } : prev)} style={fieldStyle('node.preferTransport')} value={draft.node.preferTransport}>
                 <option value='TCP'>TCP</option>
-                <option value='UDP'>UDP</option>
                 <option value='UTP'>UTP</option>
               </select>
             </label>

@@ -3,7 +3,6 @@ import z from 'zod'
 import type { Config } from '../../../types/hydrabase'
 import type { Trace } from '../../../utils/trace'
 import type { Account } from '../../crypto/Account'
-import type { UDP_Server } from '../../networking/udp/server'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../../../VERSION' with { type: 'text' }
@@ -77,8 +76,7 @@ export const verifyClient = async (
   auth: Auth | { apiKey: string },
   apiKey: string | undefined,
   trace: Trace,
-  preferTransport: 'TCP' | 'UDP' | 'UTP' = node.preferTransport,
-  udpServer?: UDP_Server,
+  preferTransport: 'TCP' | 'UTP' = node.preferTransport,
   account?: Account,
   identity?: Identity,
   ip?: { address: string }
@@ -101,8 +99,8 @@ export const verifyClient = async (
     if (altValid) trace.step(`[HIP1] Accepted signature against alternate hostname ${altHostname}`)
     else return [403, 'Failed to authenticate address']
   }
-  if (udpServer && account && identity && ip) {
-    const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, udpServer, account, node, identity, ip)
+  if (account && identity && ip) {
+    const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, identity, ip)
     if (Array.isArray(isHostnameValid)) return isHostnameValid
   }
   return auth

@@ -9,7 +9,6 @@ import type PeerManager from './PeerManager'
 
 import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
-import { UDP_Client } from './networking/udp/client'
 import WebSocketClient from './networking/ws/client'
 import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
@@ -19,7 +18,6 @@ export class Peer {
   private static readonly PING_INTERVAL_MS = 60_000
   // Keep timeout comfortably above interval to tolerate network and event-loop jitter.
   private static readonly PING_TIMEOUT_MS = 90_000
-  private static readonly UDP_PING_TIMEOUT_THRESHOLD = 2
 
   public nonce = 0
   get address() { return this.socket.identity.address }
@@ -48,7 +46,7 @@ export class Peer {
   get totalUL() { return this._ul }
 
   get type() {
-    return this.socket instanceof UDP_Client ? 'UDP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
+    return this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
   }
 
   get uptimeMs() {
@@ -214,7 +212,7 @@ export class Peer {
         if (!this.pendingPings.has(nonce)) return
         this.pendingPings.delete(nonce)
         this.consecutivePingTimeouts += 1
-        const timeoutThreshold = this.type === 'UDP' ? Peer.UDP_PING_TIMEOUT_THRESHOLD : 1
+        const timeoutThreshold = 1
         // #region agent log
         fetch('http://127.0.0.1:7488/ingest/ae9253ff-0376-45a8-b089-19456fa3761b',{body:JSON.stringify({data:{address:this.address,hostname:this.hostname,nonce,pendingPingsAfterDelete:this.pendingPings.size,transport:this.type},hypothesisId:'H2',location:'src/backend/Peer.ts:208',message:'Ping timeout disconnect',runId:'pre-fix',sessionId:'58f352',timestamp:Date.now()}),headers:{'Content-Type':'application/json','X-Debug-Session-Id':'58f352'},method:'POST'}).catch(() => undefined)
         // #endregion

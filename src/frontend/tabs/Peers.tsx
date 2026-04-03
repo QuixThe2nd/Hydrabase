@@ -21,28 +21,26 @@ interface Props {
 }
 
 const FILTERS = ['all', 'connected', 'disconnected'] as const
-const CONN_TYPE_ORDER = ['CLIENT', 'SERVER', 'UDP', 'UTP'] as const
+const CONN_TYPE_ORDER = ['CLIENT', 'SERVER', 'UTP'] as const
 type ConnType = typeof CONN_TYPE_ORDER[number]
 
 const CONN_TYPE_COLORS: Record<ConnType, string> = {
   CLIENT: '#79c0ff',
   SERVER: '#3fb950',
-  UDP: '#f0883e',
   UTP: '#a371f7',
 }
 
 const CONN_TYPE_LABELS: Record<ConnType, string> = {
   CLIENT: 'Client (ws://)',
   SERVER: 'Server (wsc://)',
-  UDP: 'UDP',
   UTP: 'UTP',
 }
 
 const isConnType = (type: string | undefined): type is ConnType =>
-  type === 'CLIENT' || type === 'SERVER' || type === 'UDP' || type === 'UTP'
+  type === 'CLIENT' || type === 'SERVER' || type === 'UTP'
 
 const countPeerConnTypes = (sorted: PeerWithCountry[]) => {
-  const counts: Record<ConnType, number> = { CLIENT: 0, SERVER: 0, UDP: 0, UTP: 0 }
+  const counts: Record<ConnType, number> = { CLIENT: 0, SERVER: 0, UTP: 0 }
   sorted.forEach((peer) => {
     const type = peer.connection?.type
     if (isConnType(type)) counts[type] += 1
@@ -101,9 +99,8 @@ const ConnectionTypePie = ({ counts }: { counts: Record<ConnType, number> }) => 
   </div>
 }
 
-const getConnectionPrefix = (type?: 'CLIENT' | 'SERVER' | 'UDP' | 'UTP') => {
+const getConnectionPrefix = (type?: 'CLIENT' | 'SERVER' | 'UTP') => {
   if (!type) return undefined
-  if (type === 'UDP') return 'udp://'
   if (type === 'UTP') return 'utp://'
   if (type === 'CLIENT') return 'ws://'
   if (type === 'SERVER') return 'wsc://'

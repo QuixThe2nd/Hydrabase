@@ -10,7 +10,7 @@ import type PeerManager from '../PeerManager'
 
 import { debug, error, logContext, warn } from '../../utils/log'
 import { Trace } from '../../utils/trace'
-import { authenticatedPeers, UDP_Server } from './udp/server'
+import { authenticatedPeers } from './authenticatedPeers'
 
 export class DHT_Node {
   public readonly resolved = {
@@ -26,9 +26,9 @@ export class DHT_Node {
   private readonly knownPeers: Set<`${string}:${number}`> // TODO: prune old peers, mem leak
   private readonly nodeHandlers: (() => void)[] = []
   private readonly startupTrace = Trace.start('[DHT] Startup')
-  constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], udpServer: UDP_Server, private readonly dhtNodeRepo: DhtNodeRepository) {
+  constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], private readonly dhtNodeRepo: DhtNodeRepository) {
     this.knownPeers = new Set<`${string}:${number}`>([`${node.hostname}:${node.port}`,`${node.ip}:${node.port}`])
-    const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(udpServer), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
+    const socket = krpc({ id: Buffer.from(DHT_Node.getNodeId(node), 'hex'), krpcSocket: krpcSocket(), nodes: config.bootstrapNodes.split(','), timeout: 5_000 })
     this.dht = new DHT({ bootstrap: config.bootstrapNodes.split(','), host: net.isIP(node.hostname) ? node.hostname : node.ip, krpc: socket, nodeId: DHT_Node.getNodeId(node) })
     config.bootstrapNodes.split(',').forEach(node => {
       const [host, port] = node.split(':') as [string, `${number}`]

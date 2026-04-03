@@ -23,7 +23,6 @@ ARG BRANCH=main
 ENV BRANCH=$BRANCH
 
 EXPOSE 4545/tcp
-EXPOSE 4545/udp
 
 VOLUME ["/app/data"]
 

@@ -13,8 +13,8 @@ import { Signature } from './crypto/Signature'
 import { startDatabase } from './db'
 import MetadataManager from './metadata'
 import ITunes from './metadata/plugins/iTunes'
+import { authenticatedPeers } from './networking/authenticatedPeers'
 import { startServer } from './networking/http'
-import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { handleConnection, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
 import PeerManager from './PeerManager'
@@ -50,7 +50,7 @@ const config3: Config['node'] = {
   ip: '127.0.0.1',
   listenAddress: '127.0.0.1',
   port: 14547,
-  preferTransport: 'UDP',
+  preferTransport: 'UTP',
   username: 'TestNode3'
 }
 
@@ -76,7 +76,6 @@ beforeAll(async () => {
   // Start Node 1
   account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, formulas)
-  const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined, (peer, trace) => peerManager1.add(peer, trace, config1.preferTransport))
   const runtimeSettings = new RuntimeSettingsManager({
     apiKey: undefined,
     bootstrapPeers: '',
@@ -97,7 +96,7 @@ beforeAll(async () => {
     },
   }, repos, formula => repos.peer.setPluginConfidenceFormula(formula))
   const utpSocket = utp()
-  peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1, utpSocket)
+  peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, utpSocket)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
 
@@ -164,8 +163,8 @@ describe('HIP1', () => {
   // })
 
   // Skipped: peerManager2 is not defined in this test setup
-  // it('peer 2 connected to peer 3 over UDP', async () => {
-  //   expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, trace, 'UDP')).toBe(true)
+  // it('peer 2 connected to peer 3 over UTP', async () => {
+  //   expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, trace, 'UTP')).toBe(true)
   // })
 
   // it('peers 1 and 2 have connected to each other', async () => {
@@ -623,7 +622,7 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  it('accepts client when UDP authentication fails', async () => {
+  it('accepts client when transport authentication fails', async () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
@@ -713,7 +712,7 @@ describe('NAT-friendly authentication', () => {
 })
 
 
-describe('UDP Authentication Edge Cases', () => {
+describe('Transport Authentication Edge Cases', () => {
   it('handles authentication cache correctly', () => {
 
     authenticatedPeers.clear()
@@ -732,7 +731,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(cached).toEqual(testIdentity)
   })
 
-  it('validates server proof correctly for UDP', async () => {
+  it('validates server proof for transport auth', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       connectMessage: 'Hello!',

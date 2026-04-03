@@ -10,7 +10,7 @@ let upnpInitError: Error | null = null
 const renewalTimers = new Set<Timer>()
 const activeMappings = new Set<string>()
 
-const mappingKey = (port: number, protocol: 'TCP' | 'UDP' | 'UTP') => `${port}:${protocol}`
+const mappingKey = (port: number, protocol: 'TCP' | 'UTP') => `${port}:${protocol}`
 
 const getUpnpClient = (trace?: Trace) => {
   if (upnpClient) return upnpClient
@@ -29,7 +29,7 @@ const getUpnpClient = (trace?: Trace) => {
   }
 }
 
-const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP' | 'UTP', trace?: Trace) => new Promise<void>((res, rej) => {
+const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UTP', trace?: Trace) => new Promise<void>((res, rej) => {
   const upnp = getUpnpClient(trace)
   const timeoutId = setTimeout(() => {
     rej(new Error(`UPnP port mapping timeout after 5s for ${protocol} port ${port}`))
@@ -46,7 +46,7 @@ const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP'
   })
 })
 
-const unmapPort = (port: number, protocol: 'TCP' | 'UDP' | 'UTP') => new Promise<void>((res, rej) => {
+const unmapPort = (port: number, protocol: 'TCP' | 'UTP') => new Promise<void>((res, rej) => {
   const upnp = getUpnpClient()
   const timeoutId = setTimeout(() => {
     rej(new Error(`UPnP port unmapping timeout after 5s for ${protocol} port ${port}`))
@@ -62,7 +62,7 @@ const unmapPort = (port: number, protocol: 'TCP' | 'UDP' | 'UTP') => new Promise
   })
 })
 
-const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP' | 'UTP', trace: Trace) => {
+const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UTP', trace: Trace) => {
   await mapPort(port, description, ttl, protocol, trace)
   const timer = setInterval(() => mapPort(port, description, ttl, protocol), announceInterval)
   renewalTimers.add(timer)
@@ -75,12 +75,6 @@ export const requestPort = async (node: Config['node'], upnp: Config['upnp']) =>
     await portForward(node.port, 'Hydrabase (TCP)', upnp.reannounce, upnp.ttl, 'TCP', trace)
   } catch (err) {
     const msg = `TCP: ${(err as Error).message} - Ignore if manually port forwarded`
-    errors.push(msg)
-  }
-  try {
-    await portForward(node.port, 'Hydrabase (UDP)', upnp.reannounce, upnp.ttl, 'UDP', trace)
-  } catch (err) {
-    const msg = `UDP: ${(err as Error).message} - Ignore if manually port forwarded`
     errors.push(msg)
   }
   for (let i = 0; i < errors.length; i++) {
@@ -106,7 +100,7 @@ export const releasePortLeases = async () => {
   for (const mapping of mappings) {
     const [portRaw, protocolRaw] = mapping.split(':')
     const port = Number(portRaw)
-    const protocol = protocolRaw as 'TCP' | 'UDP' | 'UTP'
+    const protocol = protocolRaw as 'TCP' | 'UTP'
     if (!Number.isFinite(port)) continue
 
     try {

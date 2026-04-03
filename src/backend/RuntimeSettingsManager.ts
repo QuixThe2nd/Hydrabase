@@ -199,7 +199,7 @@ export class RuntimeSettingsManager {
       if (patch.node.ip !== undefined && typeof patch.node.ip !== 'string') throw new Error('node.ip must be a string')
       if (patch.node.listenAddress !== undefined && typeof patch.node.listenAddress !== 'string') throw new Error('node.listenAddress must be a string')
       if (patch.node.port !== undefined && (!Number.isInteger(patch.node.port) || patch.node.port <= 0 || patch.node.port > 65535)) throw new Error('node.port must be an integer between 1 and 65535')
-      if (patch.node.preferTransport !== undefined && patch.node.preferTransport !== 'TCP' && patch.node.preferTransport !== 'UDP' && patch.node.preferTransport !== 'UTP') throw new Error('node.preferTransport must be TCP, UDP, or UTP')
+      if (patch.node.preferTransport !== undefined && patch.node.preferTransport !== 'TCP' && patch.node.preferTransport !== 'UTP') throw new Error('node.preferTransport must be TCP or UTP')
       if (patch.node.username !== undefined) {
         if (typeof patch.node.username !== 'string') throw new Error('node.username must be a string')
         if (!USERNAME_REGEX.test(patch.node.username.trim())) throw new Error('Username must be 3-20 alphanumeric characters with no spaces')

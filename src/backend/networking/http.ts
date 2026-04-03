@@ -6,7 +6,7 @@ import { debug, logContext } from '../../utils/log'
 import { Trace } from '../../utils/trace'
 import { AuthSchema, type Identity, proveServer, verifyServer } from '../protocol/HIP1_Identity'
 import { serveStaticFile } from '../webui'
-import { authenticatedPeers, UDP_Server } from './udp/server'
+import { authenticatedPeers } from './authenticatedPeers'
 import { handleConnection, websocketHandlers } from './ws/server'
 
 export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
@@ -51,7 +51,6 @@ export const startServer = (
   peerManager: PeerManager,
   node: Config['node'],
   apiKey: string,
-  udpServer?: UDP_Server,
   identity: Identity = { address: account.address, bio: node.bio?.slice(0, 140), hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
 ) => logContext('HTTP', () => {
   const server = Bun.serve({
@@ -64,7 +63,7 @@ export const startServer = (
         trace.fail('Failed to get client IP')
         return new Response('Failed to get client IP', { status: 500 })
       }
-      const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager, node.preferTransport, udpServer, account, identity)
+      const response = await handleConnection(server, req, ip, node, apiKey, trace, peerManager, node.preferTransport, account, identity)
       if (response === undefined) return new Response(null)
       const {res} = response
       const {apiPeer} = peerManager

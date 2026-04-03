@@ -46,7 +46,7 @@ const UpdateConfigSchema = z.object({
       ip: z.string().optional(),
       listenAddress: z.string().optional(),
       port: z.number().int().min(1).max(65535).optional(),
-      preferTransport: z.union([z.literal('TCP'), z.literal('UDP'), z.literal('UTP')]).optional(),
+      preferTransport: z.union([z.literal('TCP'), z.literal('UTP')]).optional(),
       username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u).optional(),
     }).optional(),
     rpc: z.object({

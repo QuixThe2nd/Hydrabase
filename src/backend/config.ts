@@ -1,4 +1,4 @@
-import dgram from 'dgram'
+
 import net from 'net'
 
 import type { Config, RuntimeConfigPatch } from '../types/hydrabase'
@@ -26,7 +26,7 @@ export const DEFAULT_CONFIG: Config = {
     ip: '127.0.0.1',
     listenAddress: '0.0.0.0',
     port: 4545,
-    preferTransport: 'UDP',
+    preferTransport: 'UTP',
     username: 'Anonymous',
   },
   rpc: {
@@ -96,7 +96,7 @@ type EnvConfigInput = Readonly<Record<string, string | undefined>>
 
 const cloneDefaultConfig = (): Config => JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as Config
 
-const socketHandler = (socket: dgram.Socket | net.Server, resolve: (value: boolean) => void, reject: (reason: Error) => void) => {
+const socketHandler = (socket: net.Server, resolve: (value: boolean) => void, reject: (reason: Error) => void) => {
   socket.addListener('listening', () => {
     socket.close()
     resolve(false)
@@ -112,12 +112,6 @@ const isTCPPortInUse = (port: number) => new Promise<boolean>((resolve, reject) 
   const server = net.createServer()
   socketHandler(server, resolve, reject)
   server.listen(port)
-})
-
-const isUDPPortInUse = (port: number) => new Promise<boolean>((resolve, reject) => {
-  const socket = dgram.createSocket('udp4')
-  socketHandler(socket, resolve, reject)
-  socket.bind(port)
 })
 
 const getPathValue = <T, P extends LeafPath<T>>(target: T, path: P): PathValue<T, P> => {
@@ -140,7 +134,7 @@ const setPathValue = <T, P extends LeafPath<T>>(target: T, path: P, value: PathV
 
 const parseEnvValue = <P extends EnvConfigPath>(path: P, raw: string, fallback: PathValue<Config, P>): PathValue<Config, P> => {
   if (path === 'node.preferTransport') {
-    if (raw === 'TCP' || raw === 'UDP' || raw === 'UTP') return raw as PathValue<Config, P>
+    if (raw === 'TCP' || raw === 'UTP') return raw as PathValue<Config, P>
     return fallback
   }
 
@@ -225,7 +219,7 @@ const resolvePort = async (env: EnvConfigInput): Promise<number> => {
   const requestedPort = Number.isInteger(requestedPortParsed) && requestedPortParsed > 0 ? requestedPortParsed : 4545
 
   let port = requestedPort
-  while (await isTCPPortInUse(port) || await isUDPPortInUse(port)) port++
+  while (await isTCPPortInUse(port)) port++
   if (port !== requestedPort) warn('WARN:', `[SERVER] Port ${requestedPortRaw} in use - Using ${port} instead`)
 
   return port

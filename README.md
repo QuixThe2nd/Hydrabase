@@ -52,16 +52,15 @@ bun start
 
 ## Networking
 
-Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
+Manually forward port 4545 (TCP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
 
 ```
 TCP: 4545 (WebSocket)
-UDP: 4545 (DHT)
 ```
 
-Hydrabase will automatically try to port forward using uPnP. For best connectability, I recommend manually port forwarding both. However technically, only TCP is required for Hydrabase to work, though performance may be worse without UDP port forwarded.
+Hydrabase will automatically try to port forward using uPnP. For best connectability, manually port forward TCP.
 
-When setting `PREFER_TRANSPORT`, you only change the transport for connections you initiate, not on ones initiated by other peers. If UDP is selected, TCP is still used to handle authentication. A proper UDP-only mode for those with restricted networks is planned.
+When setting `PREFER_TRANSPORT`, you only change the transport for connections you initiate, not on ones initiated by other peers. Available transports are TCP and UTP.
 
 The select port must be between 4000-5000. This limitation is not permanent, it is simply so we can reduce the number of non Hydrabase nodes we try to connect to.
 
@@ -169,7 +168,7 @@ Metadata discovered via API lookups and other peers is stored in a database. Whe
 
 ### Transport Layer
 
-Hydrabase connections are made via either a WebSocket connection (TCP, both sides require port forwarding), or via the DHT network (UDP, only one side needs to port forward). While TCP is more stable and the default, Hydrabase will automatically fallback to UDP if the TCP connection fails. You can optionally configure your node to prefer UDP, which will cause your node to try UDP first when initiating connections. 
+Hydrabase connections are made via either a WebSocket connection (TCP) or UTP. TCP is the default, and Hydrabase can fallback between TCP and UTP when needed.
 
 ### Future Plans
 
