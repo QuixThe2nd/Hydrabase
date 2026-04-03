@@ -24,6 +24,32 @@ describe('parseHydrabaseUserAgent', () => {
   it('returns null when no branch-version separator exists', () => {
     expect(parseHydrabaseUserAgent('Hydrabase/main')).toBeNull()
   })
+
+  it('returns null for empty string', () => {
+    expect(parseHydrabaseUserAgent('')).toBeNull()
+  })
+
+  it('returns null when separator is at the start (no branch)', () => {
+    expect(parseHydrabaseUserAgent('Hydrabase/-1.0.0')).toBeNull()
+  })
+
+  it('returns null when separator is at the end (no version)', () => {
+    expect(parseHydrabaseUserAgent('Hydrabase/main-')).toBeNull()
+  })
+
+  it('handles whitespace in the user agent by trimming', () => {
+    expect(parseHydrabaseUserAgent('  Hydrabase/main-1.0.0  ')).toEqual({
+      branch: 'main',
+      version: '1.0.0',
+    })
+  })
+
+  it('handles deep nested branch with multiple dashes', () => {
+    expect(parseHydrabaseUserAgent('Hydrabase/fix-cool-thing-3.0.1')).toEqual({
+      branch: 'fix-cool-thing',
+      version: '3.0.1',
+    })
+  })
 })
 
 describe('compareVersions', () => {
@@ -49,5 +75,30 @@ describe('compareVersions', () => {
 
   it('returns null for non-numeric versions', () => {
     expect(compareVersions('latest', '1.2.3')).toBeNull()
+  })
+
+  it('returns 0 for identical versions', () => {
+    expect(compareVersions('2.0.0', '2.0.0')).toBe(0)
+  })
+
+  it('returns null when both are non-numeric', () => {
+    expect(compareVersions('latest', 'stable')).toBeNull()
+  })
+
+  it('returns null when right version is non-numeric', () => {
+    expect(compareVersions('1.0.0', 'unknown')).toBeNull()
+  })
+
+  it('handles major version difference', () => {
+    expect(compareVersions('2.0.0', '1.9.9')).toBe(1)
+    expect(compareVersions('1.9.9', '2.0.0')).toBe(-1)
+  })
+
+  it('handles deep version segments', () => {
+    expect(compareVersions('1.0.0.1', '1.0.0.0')).toBe(1)
+  })
+
+  it('handles v-prefix on right side', () => {
+    expect(compareVersions('1.0.0', 'v1.0.0')).toBe(0)
   })
 })
