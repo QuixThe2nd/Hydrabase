@@ -54,7 +54,7 @@ export interface Connection {
   plugins: string[]
   totalDL: number
   totalUL: number
-  type: 'CLIENT' | 'SERVER'
+  type: 'CLIENT' | 'SERVER' | 'UTP'
   uptime: number
   userAgent: string
   username: string

@@ -16,6 +16,7 @@ import { authenticatedPeers } from './networking/authenticatedPeers'
 import { DHT_Node } from './networking/dht'
 import { startServer } from './networking/http'
 import { requestPort } from './networking/upnp'
+import { UTPClient } from './networking/utp/client'
 import PeerManager from './PeerManager'
 import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 import { StatsReporter } from './StatsReporter'
@@ -122,6 +123,21 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
   }
   const peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, utpSocket)
   if (utpSocket) {
+    // Register the inbound connection handler before listen() so no connections are missed.
+    // peerManager is fully initialised at this point and safe to reference in the handler.
+    utpSocket.on('connection', async conn => {
+      try {
+        const client = await UTPClient.authenticateConnectedPeer(conn)
+        if (!client) return
+        const inboundTrace = Trace.start(`[UTP] Accepted inbound connection from ${client.identity.username} (${client.identity.address})`)
+        await peerManager.add(client, inboundTrace)
+      } catch (err) {
+        Trace.start(`[UTP] Inbound connection error from ${conn.remoteAddress}`).caughtError(err instanceof Error ? err.message : String(err))
+        conn.destroy()
+      }
+    })
+  }
+  if (utpSocket) {
     let utpSocketClosed = false
     const closeUTPSocket = () => {
       if (utpSocketClosed) return
@@ -129,7 +145,7 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
       utpSocket.close()
     }
     utpSocket.on('error', (error: NodeJS.ErrnoException) => {
-      Trace.start(`[UTP] Failed to listen on port ${CONFIG.node.port}`).softFail(error.message)
+      Trace.start(`[UTP] Socket error on port ${CONFIG.node.port}`).softFail(error.message)
       closeUTPSocket()
       if (error.code === 'EADDRINUSE' && CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
     })

@@ -8,6 +8,7 @@ import { authenticateServerHTTP } from '../http'
 
 export class UTPClient implements Socket {
   private static readonly CONNECT_TIMEOUT_MS = 8_000
+  private static readonly GREETING_TIMEOUT_MS = 10_000
   private readonly closeHandlers: (() => void)[] = []
   private readonly messageHandlers: ((message: string) => void)[] = []
   private constructor(public readonly identity: Identity, private readonly conn: UTPConnection) {
@@ -30,19 +31,57 @@ export class UTPClient implements Socket {
   static readonly authenticateConnectedPeer = async (
     conn: UTPConnection
   ): Promise<false | UTPClient> => {
-    const remoteHostname = `${conn.remoteAddress}:${conn.remotePort}` as const
-    const trace = Trace.start(`[UTP] Authenticating inbound connection from ${remoteHostname}`)
-    const identity = await authenticateServerHTTP(remoteHostname, trace)
+    const trace = Trace.start(`[UTP] Authenticating inbound connection from ${conn.remoteAddress}`)
+    // Wait for the connecting peer's in-band greeting containing its service hostname.
+    // remotePort is the ephemeral source port, not the peer's service port, so we cannot
+    // call authenticateServerHTTP against remoteAddress:remotePort.
+    const serviceHostname = await new Promise<`${string}:${number}` | null>(resolve => {
+      let settled = false
+      let timer: NodeJS.Timeout | null = null
+      const onGreeting = (data: Buffer) => {
+        if (settled) return
+        settled = true
+        if (timer !== null) clearTimeout(timer)
+        conn.removeListener('data', onGreeting)
+        try {
+          const parsed: unknown = JSON.parse(data.toString())
+          if (typeof parsed === 'object' && parsed !== null && 'hello' in parsed) {
+            const hello = (parsed as Record<string, unknown>).hello
+            if (typeof hello === 'string' && hello.includes(':')) {
+              resolve(hello as `${string}:${number}`)
+              return
+            }
+          }
+        } catch (err) {
+          trace.step(`[UTP] Failed to parse greeting: ${err instanceof Error ? err.message : String(err)}`)
+        }
+        resolve(null)
+      }
+      conn.on('data', onGreeting)
+      timer = setTimeout(() => {
+        if (settled) return
+        settled = true
+        conn.removeListener('data', onGreeting)
+        resolve(null)
+      }, UTPClient.GREETING_TIMEOUT_MS)
+    })
+    if (!serviceHostname) {
+      trace.fail('[UTP] Rejected inbound connection: missing or invalid greeting')
+      conn.destroy()
+      return false
+    }
+    trace.step(`[UTP] Received greeting, authenticating service at ${serviceHostname}`)
+    const identity = await authenticateServerHTTP(serviceHostname, trace)
     if (Array.isArray(identity)) {
-      trace.fail(`[UTP] Rejected unauthenticated inbound connection from ${remoteHostname}: ${identity[1]}`)
+      trace.fail(`[UTP] Rejected unauthenticated inbound connection from ${serviceHostname}: ${identity[1]}`)
       conn.destroy()
       return false
     }
     trace.step(`[UTP] Authenticated inbound peer ${identity.username} (${identity.address})`)
     trace.success()
-    return new UTPClient({ ...identity, hostname: remoteHostname }, conn)
+    return new UTPClient({ ...identity, hostname: serviceHostname }, conn)
   }
-  static readonly connectToAuthenticatedPeer = (identity: Identity, utpSocket: UTPSocket, trace: Trace): Promise<UTPClient> => new Promise<UTPClient>((res, rej) => {
+  static readonly connectToAuthenticatedPeer = (identity: Identity, utpSocket: UTPSocket, localHostname: `${string}:${number}`, trace: Trace): Promise<UTPClient> => new Promise<UTPClient>((res, rej) => {
     trace.step(`[UTP] Establishing outbound connection to ${identity.hostname}`)
     const [host, portStr] = identity.hostname.split(':') as [string, `${number}`]
     const conn = utpSocket.connect(Number(portStr), host)
@@ -58,7 +97,8 @@ export class UTPClient implements Socket {
       if (settled) return
       settled = true
       clearTimeout(connectTimeout)
-      trace.step('[UTP] Connection established')
+      trace.step('[UTP] Connection established, sending greeting')
+      conn.write(JSON.stringify({ hello: localHostname }))
       res(new UTPClient(identity, conn))
     })
     conn.on('error', err => {

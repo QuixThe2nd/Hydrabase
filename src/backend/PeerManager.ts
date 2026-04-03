@@ -21,7 +21,6 @@ import { authenticateServerHTTP } from './networking/http'
 import { isAllowedPeer } from './networking/utils'
 import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
-import { WebSocketServerConnection } from './networking/ws/server'
 import { Peer } from './Peer'
 import { PeerMap } from './PeerMap'
 import { RuntimeSettingsManager } from './RuntimeSettingsManager'
@@ -154,7 +153,7 @@ export default class PeerManager {
 
   // TODO: some mechanism to proactively propagate unsolicited votes
   // eslint-disable-next-line max-lines-per-function
-  public async add(_peer: `${string}:${number}` | WebSocketServerConnection, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
+  public async add(_peer: `${string}:${number}` | Socket, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
     let connectionKey: `${string}:${number}` | null = null
     if (typeof _peer === 'string') {
       const separatorIndex = _peer.lastIndexOf(':')
@@ -723,7 +722,8 @@ export default class PeerManager {
         return await WebSocketClient.init(identity, this.account, this.nodeConfig)
       case 'UTP': {
         if (!this.utpSocket) return 'UTP unavailable in current runtime'
-        return UTPClient.connectToAuthenticatedPeer(identity, this.utpSocket, trace) || 'UTP connection failed'
+        const localHostname = `${this.nodeConfig.hostname}:${this.nodeConfig.port}` as `${string}:${number}`
+        return UTPClient.connectToAuthenticatedPeer(identity, this.utpSocket, localHostname, trace) || 'UTP connection failed'
       }
       default:
         return 'Invalid transport preference'
