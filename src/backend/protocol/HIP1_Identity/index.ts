@@ -6,10 +6,12 @@ import type { Account } from '../../crypto/Account'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../../../VERSION' with { type: 'text' }
-import { BRANCH } from '../../branch'
+import { BRANCH, GIT_HASH } from '../../branch'
 import { Signature } from '../../crypto/Signature'
 import { getIp, isPeerLocalHostname } from '../../networking/utils'
 import { upgradeHostname } from '../HIP4_HostnameUpgrades'
+
+const VERSION_WITH_HASH = `${VERSION.trim()}+${GIT_HASH}`
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: 'Address must start with 0x' }).transform(val => val as `0x${string}`),
@@ -45,7 +47,7 @@ export const proveServer = async (account: Account, node: Config['node'], trace:
     ...(bio ? { bio } : {}),
     hostname: `${hostname}:${node.port}`,
     signature: account.sign(`I am ${hostname}:${node.port}`, trace).toString(),
-    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION_WITH_HASH}`,
     username: node.username
   }
 }
@@ -64,7 +66,7 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
     ...(bio ? { bio } : {}),
     hostname: `${node.hostname}:${node.port}`,
     signature: account.sign(`I am connecting to ${hostname}`, trace).toString(),
-    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION_WITH_HASH}`,
     username: node.username
   } as const
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result
@@ -85,7 +87,7 @@ export const verifyClient = async (
   if ('apiKey' in auth) {
     trace.step('[HIP1] Verifying API')
     return auth.apiKey === apiKey
-      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` }
+      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION_WITH_HASH}`, username: `${node.username} (API)` }
       : [500, 'Invalid API Key']
   }
   trace.step(`[HIP1] Verifying client ${auth.username} running ${auth.userAgent}`)
