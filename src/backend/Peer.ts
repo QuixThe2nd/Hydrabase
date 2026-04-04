@@ -94,12 +94,9 @@ export class Peer {
       this.send({ nonce, peer_stats }, trace)
     },
     ping: (ping: Ping, nonce: number, trace: Trace) => {
-      // Update live peer list for this peer
-      if (Array.isArray(ping.peers)) {
-        // Record each announced peer
-        for (const hostname of ping.peers) {
-          this.peers.recordPeerAnnouncedHostname(this.address, hostname)
-        }
+      trace.step(`[HIP2] Received ping ${nonce} from containing ${ping.peers.length} peer hostnames: ${ping.peers.join(', ')}`)
+      for (const hostname of ping.peers) {
+        this.peers.recordPeerAnnouncedHostname(this.address, hostname)
       }
       this.send({ nonce, pong: { peers: ping.peers ?? [], time: Number(new Date()) } }, trace)
     },
