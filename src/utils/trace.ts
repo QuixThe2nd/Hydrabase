@@ -23,18 +23,20 @@ export class Trace {
       message: `Trace started: ${this.label}`,
     })
     getSentryLogger()?.info('Trace started', { label: this.label, traceId: this.traceId })
-    this.timeoutTimer = setTimeout(() => {
-      if (this.finished) return
-      const lastStep = this.steps[this.steps.length - 1]
-      this.fail('Trace exceeded 120s without completion', {
-        elapsedMs: Date.now() - this.startTime.getTime(),
-        label: this.label,
-        lastStep: lastStep?.msg,
-        lastStepAt: lastStep ? Trace.formatTime(lastStep.time) : undefined,
-        stepCount: this.steps.length,
-        traceId: this.traceId,
-      })
-    }, 120_000)
+    if (this.isRoot()) {
+      this.timeoutTimer = setTimeout(() => {
+        if (this.finished) return
+        const lastStep = this.steps[this.steps.length - 1]
+        this.fail('Trace exceeded 120s without completion', {
+          elapsedMs: Date.now() - this.startTime.getTime(),
+          label: this.label,
+          lastStep: lastStep?.msg,
+          lastStepAt: lastStep ? Trace.formatTime(lastStep.time) : undefined,
+          stepCount: this.steps.length,
+          traceId: this.traceId,
+        })
+      }, 120_000)
+    }
   }
 
   static formatTime(date: Date): string {

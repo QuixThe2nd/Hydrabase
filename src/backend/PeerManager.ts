@@ -629,6 +629,10 @@ export default class PeerManager {
   private storeHeldMessageIfOffline(envelope: MessageEnvelope, trace: Trace): void {
     if (this.peers.get(envelope.to)) return
     const held = this.heldMessages.get(envelope.to) ?? []
+    if (held.some(m => m.sig === envelope.sig)) {
+      trace.step(`[HIP2] Skipped duplicate held message for offline recipient ${envelope.to}`)
+      return
+    }
     held.push(envelope)
     this.heldMessages.set(envelope.to, held)
     trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}`)

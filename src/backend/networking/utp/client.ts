@@ -84,33 +84,44 @@ export class UTPClient implements Socket {
     conn: UTPConnection,
     trace: Trace
   ): Promise<`${string}:${number}` | null> => new Promise(resolve => {
+    const MAX_GREETING_BYTES = 4_096
     let settled = false
     let timer: NodeJS.Timeout | null = null
-    const onGreeting = (data: Buffer) => {
+    let buffer = Buffer.alloc(0)
+    const finish = (result: `${string}:${number}` | null) => {
       if (settled) return
       settled = true
       if (timer !== null) clearTimeout(timer)
-      conn.removeListener('data', onGreeting)
+      conn.removeListener('data', onData)
+      resolve(result)
+    }
+    const onData = (chunk: Buffer) => {
+      buffer = Buffer.concat([buffer, chunk])
+      if (buffer.length > MAX_GREETING_BYTES) {
+        trace.step(`[UTP] Greeting exceeded ${MAX_GREETING_BYTES} bytes, rejecting`)
+        finish(null)
+        return
+      }
       try {
-        const parsed: unknown = JSON.parse(data.toString())
+        const parsed: unknown = JSON.parse(buffer.toString())
         if (typeof parsed === 'object' && parsed !== null && 'hello' in parsed) {
           const {hello} = (parsed as Record<string, unknown>)
           if (typeof hello === 'string' && hello.includes(':')) {
-            resolve(hello as `${string}:${number}`)
+            finish(hello as `${string}:${number}`)
             return
           }
         }
-      } catch (err) {
-        trace.step(`[UTP] Failed to parse greeting: ${err instanceof Error ? err.message : String(err)}`)
+        // Parsed but did not match expected shape
+        trace.step('[UTP] Greeting parsed but missing valid "hello" field')
+        finish(null)
+      } catch {
+        // Not yet a complete JSON object — wait for more data
       }
-      resolve(null)
     }
-    conn.on('data', onGreeting)
+    conn.on('data', onData)
     timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      conn.removeListener('data', onGreeting)
-      resolve(null)
+      trace.step('[UTP] Greeting timed out waiting for complete JSON')
+      finish(null)
     }, UTPClient.GREETING_TIMEOUT_MS)
   })
   public readonly close = () => {
