@@ -84,18 +84,13 @@ export class UTPClient implements Socket {
     conn: UTPConnection,
     trace: Trace
   ): Promise<`${string}:${number}` | null> => new Promise(resolve => {
+    /* eslint-disable no-use-before-define */
     const MAX_GREETING_BYTES = 4_096
     let settled = false
     let timer: NodeJS.Timeout | null = null
     let buffer = Buffer.alloc(0)
-    const finish = (result: `${string}:${number}` | null) => {
-      if (settled) return
-      settled = true
-      if (timer !== null) clearTimeout(timer)
-      conn.removeListener('data', onData)
-      resolve(result)
-    }
-    const onData = (chunk: Buffer) => {
+    
+    const onData = (chunk: Buffer): void => {
       buffer = Buffer.concat([buffer, chunk])
       if (buffer.length > MAX_GREETING_BYTES) {
         trace.step(`[UTP] Greeting exceeded ${MAX_GREETING_BYTES} bytes, rejecting`)
@@ -108,21 +103,31 @@ export class UTPClient implements Socket {
           const {hello} = (parsed as Record<string, unknown>)
           if (typeof hello === 'string' && hello.includes(':')) {
             finish(hello as `${string}:${number}`)
-            return
           }
+        } else {
+          // Parsed but did not match expected shape
+          trace.step('[UTP] Greeting parsed but missing valid "hello" field')
+          finish(null)
         }
-        // Parsed but did not match expected shape
-        trace.step('[UTP] Greeting parsed but missing valid "hello" field')
-        finish(null)
       } catch {
         // Not yet a complete JSON object — wait for more data
       }
     }
+    
+    const finish = (result: `${string}:${number}` | null): void => {
+      if (settled) return
+      settled = true
+      if (timer !== null) clearTimeout(timer)
+      conn.removeListener('data', onData)
+      resolve(result)
+    }
+    
     conn.on('data', onData)
     timer = setTimeout(() => {
       trace.step('[UTP] Greeting timed out waiting for complete JSON')
       finish(null)
     }, UTPClient.GREETING_TIMEOUT_MS)
+    /* eslint-enable no-use-before-define */
   })
   public readonly close = () => {
     this.conn.destroy()
