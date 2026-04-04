@@ -349,6 +349,16 @@ export default class PeerManager {
     this.peerDisconnectedHandlers.push(handler)
   }
 
+  public purgePeerCache(): void {
+    this.repos.wsServer.replaceAll([])
+    authenticatedPeers.clear()
+    this.recentPeerAddresses.clear()
+    this.recentConnectionFailures.clear()
+    for (const timer of this.reconnectTimers.values()) clearTimeout(timer)
+    this.reconnectTimers.clear()
+    this.reconnectAttempts.clear()
+  }
+
   public recordPeerAnnouncedHostname(announcerAddress: `0x${string}`, announcedHostname: `${string}:${number}`): void {
     if (announcerAddress === '0x0') return
     const hostnames = this.announcedHostnamesByPeer.get(announcerAddress) ?? new Set<`${string}:${number}`>()

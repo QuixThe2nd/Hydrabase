@@ -194,6 +194,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pendingSearches = useRef(new Map<number, (r: unknown[]) => void>())
   const pendingRuntimeConfig = useRef(new Map<number, (result: { error?: string; snapshot?: RuntimeConfigSnapshot }) => void>())
+  const pendingPurgePeerCache = useRef(new Map<number, (result: { error?: string }) => void>())
   const pendingConnectAttempts = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
   const [tab, setTab] = useState<Tab>(() => initialLocationState.tab)
@@ -303,6 +304,24 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     const snapshot = await sendRuntimeConfigRequest({ update_config: update })
     setRuntimeConfig(snapshot)
   }, [sendRuntimeConfigRequest])
+
+  const purgePeerCache = useCallback(async (): Promise<void> => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket not connected')
+    const requestNonce = nonceRef.current++
+    const response = await new Promise<{ error?: string }>((resolve) => {
+      const timeout = setTimeout(() => {
+        pendingPurgePeerCache.current.delete(requestNonce)
+        resolve({ error: 'Peer cache purge timed out' })
+      }, 10_000)
+      pendingPurgePeerCache.current.set(requestNonce, (result) => {
+        clearTimeout(timeout)
+        resolve(result)
+      })
+      ws.send(JSON.stringify({ nonce: requestNonce, purge_peer_cache: true }))
+    })
+    if (response.error) throw new Error(response.error)
+  }, [])
 
   const markLatestPendingAttemptForHostname = useCallback((hostname: `${string}:${number}`, errorPayload: PeerConnectionError): boolean => {
     const latestPendingAttempt = connectionAttemptsRef.current.find((attempt) => attempt.hostname === hostname && attempt.state === 'pending')
@@ -427,6 +446,15 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
               pendingRuntimeConfig.current.delete(data.nonce)
               if (data.config_error === undefined) resolveConfig({ snapshot: (data.runtime_config ?? data.runtime_config_updated) as RuntimeConfigSnapshot })
               else resolveConfig({ error: String(data.config_error) })
+              return
+            }
+          }
+          if ((data.peer_cache_purged !== undefined || data.config_error !== undefined) && data.nonce !== undefined) {
+            const resolvePurgePeerCache = pendingPurgePeerCache.current.get(data.nonce)
+            if (resolvePurgePeerCache) {
+              pendingPurgePeerCache.current.delete(data.nonce)
+              if (data.config_error === undefined) resolvePurgePeerCache({})
+              else resolvePurgePeerCache({ error: String(data.config_error) })
               return
             }
           }
@@ -752,7 +780,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
-      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} isRestarting={restartPendingReconnect} onRefresh={loadRuntimeConfig} onRestart={handleRestart} onSave={updateRuntimeConfig} />}
+      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} isRestarting={restartPendingReconnect} onPurgePeerCache={purgePeerCache} onRefresh={loadRuntimeConfig} onRestart={handleRestart} onSave={updateRuntimeConfig} />}
       {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
     </div>
     <ActivityFeed eventLog={eventLog} />
