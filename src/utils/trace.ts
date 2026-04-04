@@ -12,7 +12,8 @@ export class Trace {
     public readonly traceId: string,
     public readonly label: string,
     private readonly noPrint = false,
-    private readonly noBroadcast = false
+    private readonly noBroadcast = false,
+    private readonly depth = 0
   ) {
     this.startTime = new Date()
     logEvent({
@@ -60,13 +61,13 @@ export class Trace {
   }
 
   child(label: string): Trace {
-    const childTrace = new Trace(this.traceId, label)
+    const childTrace = new Trace(this.traceId, label, this.noPrint, this.noBroadcast, this.depth + 1)
     this.children.push(childTrace)
     return childTrace
   }
 
   fail(reason: string, context?: unknown): false {
-    this.print(false, reason)
+    if (this.isRoot()) this.print(false, reason)
     this.finished = true
     if (context) console.log(context)
     logEvent({
@@ -82,7 +83,7 @@ export class Trace {
     })
     captureException(exceptionFromContext(reason, context))
     this.clearTimeoutTimer()
-    if (!this.noBroadcast) broadcastLog('ERROR', reason, this.getFullTrace())
+    if (!this.noBroadcast && this.isRoot()) broadcastLog('ERROR', reason, this.getFullTrace())
     return false
   }
 
@@ -124,7 +125,7 @@ export class Trace {
   }
 
   softFail(reason: string, context?: unknown): false {
-    this.print(false, reason)
+    if (this.isRoot()) this.print(false, reason)
     this.finished = true
     this.clearTimeoutTimer()
     if (context) console.log(context)
@@ -164,14 +165,18 @@ export class Trace {
       message: `Trace succeeded: ${this.label}`,
     })
     getSentryLogger()?.info('Trace succeeded', { label: this.label, traceId: this.traceId })
-    if (!this.noBroadcast) broadcastLog('INFO', this.label, this.getFullTrace())
-    this.print(true)
+    if (!this.noBroadcast && this.isRoot()) broadcastLog('INFO', this.label, this.getFullTrace())
+    if (this.isRoot()) this.print(true)
   }
 
   private clearTimeoutTimer(): void {
     if (!this.timeoutTimer) return
     clearTimeout(this.timeoutTimer)
     this.timeoutTimer = null
+  }
+
+  private isRoot(): boolean {
+    return this.depth === 0
   }
 
   private print(isSuccess: boolean, failReason?: string, indent = 0): void {

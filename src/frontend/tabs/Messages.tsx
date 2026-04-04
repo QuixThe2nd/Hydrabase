@@ -109,7 +109,14 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
   }
 
   const globalChatMsgs = conversations.get(GLOBAL_CHAT_ADDRESS)
-  const dmConversations = [...conversations.entries()].filter(([addr]) => addr !== GLOBAL_CHAT_ADDRESS)
+  const dmConversations = [...conversations.entries()]
+    .filter(([addr]) => addr !== GLOBAL_CHAT_ADDRESS)
+    .sort(([addressA, messagesA], [addressB, messagesB]) => {
+      const lastTimestampA = messagesA[messagesA.length - 1]?.timestamp ?? 0
+      const lastTimestampB = messagesB[messagesB.length - 1]?.timestamp ?? 0
+      if (lastTimestampB !== lastTimestampA) return lastTimestampB - lastTimestampA
+      return addressA.localeCompare(addressB)
+    })
 
   return <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 120px)' }}>
 

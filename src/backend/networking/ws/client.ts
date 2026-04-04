@@ -13,21 +13,23 @@ export default class WebSocketClient implements Socket {
   private messageHandlers: ((message: string) => void)[] = []
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
-  private trace!: Trace
+  private trace: Trace
 
   private constructor(
     public readonly identity: Identity,
     private readonly account: Account,
     private readonly node: Config['node'],
+    trace: Trace,
     private readonly onOpen: () => void,
     private readonly onFail: (error: Error) => void
   ) {
+    this.trace = trace
     this._connect(account)
   }
 
-  static init = (identity: Identity, account: Account, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>((res, rej) => {
+  static init = (identity: Identity, account: Account, node: Config['node'], trace: Trace): Promise<WebSocketClient> => new Promise<WebSocketClient>((res, rej) => {
     let settled = false
-    const socket = new WebSocketClient(identity, account, node, () => {
+    const socket = new WebSocketClient(identity, account, node, trace, () => {
       if (settled) return
       settled = true
       res(socket)
@@ -61,7 +63,6 @@ export default class WebSocketClient implements Socket {
 
   // eslint-disable-next-line max-lines-per-function
   private _connect(account: Account) {
-    this.trace = Trace.start(`WS client → ${this.identity.hostname}`)
     this.trace.step('Connecting')
     const authHeaders = Object.fromEntries(
       Object.entries(proveClient(account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
