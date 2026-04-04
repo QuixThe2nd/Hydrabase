@@ -24,46 +24,7 @@ const NAV_ITEMS: { icon: LucideIcon; label: string; tab: Tab; }[] = [
 
 const getPeerLabel = (peer: PeerWithCountry): string => peer.connection?.username || peer.auth?.username || shortAddr(peer.address)
 
-const hasKnownCountry = (peer: PeerWithCountry): boolean => peer.country !== 'N/A' && peer.country !== '-'
-
-const getAuthFieldCount = (peer: PeerWithCountry): number => [peer.auth?.bio, peer.auth?.hostname, peer.auth?.username].filter(Boolean).length
-
-const getLiveFieldCount = (peer: PeerWithCountry): number => [peer.connection?.bio, peer.connection?.hostname, peer.connection?.username].filter(Boolean).length
-
-const getTelemetryFieldCount = (peer: PeerWithCountry): number => [
-  peer.connection?.confidence ?? 0,
-  peer.connection?.latency ?? 0,
-  peer.connection?.lookupTime ?? 0,
-  peer.connection?.totalDL ?? 0,
-  peer.connection?.totalUL ?? 0,
-  peer.connection?.uptime ?? 0,
-].filter(value => value > 0).length
-
-const getInfoDensity = (peer: PeerWithCountry): number => getAuthFieldCount(peer)
-  + getLiveFieldCount(peer)
-  + getTelemetryFieldCount(peer)
-  + (peer.connection?.plugins.length ?? 0)
-  + (peer.knownPlugins?.length ?? 0)
-
-const compareSidebarPeers = (left: PeerWithCountry, right: PeerWithCountry): number => {
-  const comparisons = [
-    Number(right.connection !== undefined) - Number(left.connection !== undefined),
-    Number(hasKnownCountry(right)) - Number(hasKnownCountry(left)),
-    Number(getAuthFieldCount(right) > 0) - Number(getAuthFieldCount(left) > 0),
-    getAuthFieldCount(right) - getAuthFieldCount(left),
-    Number(getLiveFieldCount(right) > 0) - Number(getLiveFieldCount(left) > 0),
-    getInfoDensity(right) - getInfoDensity(left),
-    (right.connection?.confidence ?? 0) - (left.connection?.confidence ?? 0),
-  ]
-
-  for (const comparison of comparisons) {
-    if (comparison !== 0) return comparison
-  }
-
-  return left.address.localeCompare(right.address)
-}
-
-const sortSidebarPeers = (peers: PeerWithCountry[]): PeerWithCountry[] => [...peers].sort(compareSidebarPeers)
+const sortSidebarPeers = (peers: PeerWithCountry[]): PeerWithCountry[] => [...peers].sort((left, right) => left.address.localeCompare(right.address))
 
 const SidebarNav = ({ setTab, tab, unreadMessages }: { setTab: React.Dispatch<React.SetStateAction<Tab>>; tab: ActiveTab; unreadMessages: number }) => <nav style={{ padding: '8px 6px 6px' }}>
   {NAV_ITEMS.map(({ icon: Icon, label, tab: t }) => <button key={t} onClick={() => setTab(t)} style={{ alignItems: 'center', background: tab === t ? 'rgba(88,166,255,.1)' : 'none', border: 'none', borderLeft: `2px solid ${tab === t ? ACCENT : 'transparent'}`, borderRadius: '0 6px 6px 0', color: tab === t ? TEXT : MUTED, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', fontSize: 13, fontWeight: tab === t ? 600 : 400, gap: 9, marginBottom: 2, padding: '7px 12px', transition: 'all .15s', width: '100%' }}>
