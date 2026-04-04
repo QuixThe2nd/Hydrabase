@@ -253,6 +253,8 @@ export const createLiveConfig = async ({
 }): Promise<{ config: Config; envLockedPaths: EnvConfigPath[] }> => {
   const ip = await getIp()
   const port = await resolvePort(env)
+  const isEnvHostnameLocked = readEnvValue(env, 'node.hostname') !== undefined
+  const isEnvIpLocked = readEnvValue(env, 'node.ip') !== undefined
   const envLockedPaths = getEnvLockedPaths(env)
   const envLockedPathSet = new Set(envLockedPaths)
 
@@ -265,14 +267,20 @@ export const createLiveConfig = async ({
     setPathValue(config, path, parseEnvValue(path, rawValue, fallback))
   }
 
-  if (readEnvValue(env, 'node.ip') === undefined) config.node.ip = ip
+  if (!isEnvIpLocked) config.node.ip = ip
+  if (!isEnvHostnameLocked && (config.node.hostname.trim().length === 0 || config.node.hostname === DEFAULT_CONFIG.node.hostname)) {
+    config.node.hostname = ip
+  }
   config.node.port = port
   if (config.node.bio !== undefined) config.node.bio = config.node.bio.slice(0, 140)
 
   if (guiConfig) {
     const filteredGuiConfig = stripEnvLockedFields(guiConfig, envLockedPathSet)
     applyRuntimePatch(config, filteredGuiConfig)
-    if (readEnvValue(env, 'node.ip') === undefined) config.node.ip = ip
+    if (!isEnvIpLocked) config.node.ip = ip
+    if (!isEnvHostnameLocked && (config.node.hostname.trim().length === 0 || config.node.hostname === DEFAULT_CONFIG.node.hostname)) {
+      config.node.hostname = ip
+    }
     config.node.port = port
   }
 

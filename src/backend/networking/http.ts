@@ -66,7 +66,6 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
         return routedAuth
       }
       trace.step(`Upgrading hostname → ${auth.hostname}`)
-      debug(`Upgrading hostname from ${hostname} to ${auth.hostname}`)
       return await authenticateServerHTTP(auth.hostname, trace)
     }
     
