@@ -8,7 +8,7 @@ import type { MetadataPlugin } from '../../../types/hydrabase-schemas'
 const avg = (numbers: number[]) => numbers.reduce((a, b) => a + b, 0) / numbers.length
 
 export class PeerRepository {
-  constructor(private readonly db: DB, private readonly pluginConfidenceFormula: string) {}
+  constructor(private readonly db: DB, private pluginConfidenceFormula: string) {}
 
   accumulateSessionStats(address: `0x${string}`, sessionUL: number, sessionDL: number): void {
     try {
@@ -157,5 +157,9 @@ export class PeerRepository {
     } catch {
       // Table might not exist on old databases; will be created on next migration
     }
+  }
+
+  setPluginConfidenceFormula(formula: string): void {
+    this.pluginConfidenceFormula = formula
   }
 }

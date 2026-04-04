@@ -13,19 +13,31 @@ export default class WebSocketClient implements Socket {
   private messageHandlers: ((message: string) => void)[] = []
   private retryQueue: (() => void)[] = []
   private socket!: WebSocket
-  private trace!: Trace
+  private trace: Trace
 
   private constructor(
     public readonly identity: Identity,
     private readonly account: Account,
     private readonly node: Config['node'],
-    private readonly onOpen: () => void
+    trace: Trace,
+    private readonly onOpen: () => void,
+    private readonly onFail: (error: Error) => void
   ) {
+    this.trace = trace
     this._connect(account)
   }
 
-  static init = (identity: Identity, account: Account, node: Config['node']): Promise<WebSocketClient> => new Promise<WebSocketClient>(res => {
-    const socket = new WebSocketClient(identity, account, node, () => res(socket))
+  static init = (identity: Identity, account: Account, node: Config['node'], trace: Trace): Promise<WebSocketClient> => new Promise<WebSocketClient>((res, rej) => {
+    let settled = false
+    const socket = new WebSocketClient(identity, account, node, trace, () => {
+      if (settled) return
+      settled = true
+      res(socket)
+    }, (error) => {
+      if (settled) return
+      settled = true
+      rej(error)
+    })
   })
 
   public readonly close = () => {
@@ -51,20 +63,20 @@ export default class WebSocketClient implements Socket {
 
   // eslint-disable-next-line max-lines-per-function
   private _connect(account: Account) {
-    this.trace = Trace.start(`WS client → ${this.identity.hostname}`)
     this.trace.step('Connecting')
-    // Use sec-websocket-protocol for authentication, as 'headers' is not a valid option in browser/WebSocket API
-    const auth = proveClient(account, this.node, this.identity.hostname, this.trace, true)
-    let protocols: string[] | undefined
-    if (typeof auth === 'object' && auth !== null && 'sec-websocket-protocol' in auth && typeof auth['sec-websocket-protocol'] === 'string') {
-      protocols = [auth['sec-websocket-protocol']]
-    }
-    this.socket = new WebSocket(`ws://${this.identity.hostname}`, protocols)
+    const authHeaders = Object.fromEntries(
+      Object.entries(proveClient(account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
+    ) as Record<string, string>
+    const BunWebSocket = WebSocket as unknown as new (url: string, options: { headers: Record<string, string> }) => WebSocket
+    this.socket = new BunWebSocket(`ws://${this.identity.hostname}`, {
+      headers: authHeaders,
+    })
     const openTimeout = setTimeout(() => {
       if (!this.isOpened) {
         this.trace.step(`Connection timed out after ${WebSocketClient.OPEN_TIMEOUT_MS / 1000}s`)
         this.trace.fail('Connection timed out')
         this.socket.close()
+        this.onFail(new Error(`WebSocket connection timeout after ${WebSocketClient.OPEN_TIMEOUT_MS}ms`))
       }
     }, WebSocketClient.OPEN_TIMEOUT_MS)
     this.socket.addEventListener('open', () => {
@@ -82,6 +94,7 @@ export default class WebSocketClient implements Socket {
       this.trace.step(`Connection closed: ${reason}${codeInfo}`)
       this.trace.fail(`${reason}${codeInfo}`)
       this.isOpened = false
+      if (ev.code !== 1000) this.onFail(new Error(`${reason}${codeInfo}`))
       for (const handler of this.closeHandlers) handler()
     })
     this.socket.addEventListener('error', err => {
@@ -95,6 +108,7 @@ export default class WebSocketClient implements Socket {
       }
       
       this.isOpened = false
+      this.onFail(new Error(errorMsg || 'WebSocket connection failed'))
     }) // TODO: peer rate limiting
     this.socket.addEventListener('message', message => {
       if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.identity.hostname}`)

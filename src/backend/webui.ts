@@ -28,6 +28,7 @@ export const serveStaticFile = (pathname: string): Response | undefined => {
   if (pathname === '/') return new Response(Bun.file('./src/frontend/index.html'))
   if (pathname === '/src/main.tsx') return new Response(Bun.file('./dist/main.js'))
   if (pathname === '/logo-white.svg') return new Response(Bun.file('./public/logo-white.svg'))
+  if (pathname === '/favicon.ico') return new Response(Bun.file('./public/favicon.ico'))
   // Support SPA deep-link refreshes for frontend routes.
   if (isAppRoute || (!isAssetRequest && pathname !== '/auth')) return new Response(Bun.file('./src/frontend/index.html'))
   return undefined

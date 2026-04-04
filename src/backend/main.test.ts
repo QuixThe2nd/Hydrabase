@@ -1,6 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import utp from 'utp-socket'
 
 import type { Config } from '../types/hydrabase'
 // import type { Peer } from './Peer'
@@ -12,8 +13,8 @@ import { Signature } from './crypto/Signature'
 import { startDatabase } from './db'
 import MetadataManager from './metadata'
 import ITunes from './metadata/plugins/iTunes'
+import { authenticatedPeers } from './networking/authenticatedPeers'
 import { startServer } from './networking/http'
-import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { handleConnection, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
 import PeerManager from './PeerManager'
@@ -22,6 +23,7 @@ import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from
 import { HIP2_Messaging } from './protocol/HIP2_Messaging'
 import { AnnounceSchema } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
+import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 
 
 const config1: Config['node'] = {
@@ -48,7 +50,7 @@ const config3: Config['node'] = {
   ip: '127.0.0.1',
   listenAddress: '127.0.0.1',
   port: 14547,
-  preferTransport: 'UDP',
+  preferTransport: 'UTP',
   username: 'TestNode3'
 }
 
@@ -74,8 +76,27 @@ beforeAll(async () => {
   // Start Node 1
   account1 = new Account(generatePrivateKey())
   const node1 = new Node(metadataManager, formulas)
-  const udpServer1 = await UDP_Server.init(account1, rpcConfig, config1, undefined, (peer, trace) => peerManager1.add(peer, trace, config1.preferTransport))
-  peerManager1 = new PeerManager(account1, metadataManager, repos, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, rpcConfig, udpServer1)
+  const runtimeSettings = new RuntimeSettingsManager({
+    apiKey: undefined,
+    bootstrapPeers: '',
+    dht: {
+      bootstrapNodes: '',
+      reannounce: 1_000,
+      requireReady: true,
+      roomSeed: 'hydrabase',
+    },
+    formulas,
+    node: config1,
+    rpc: rpcConfig,
+    soulIdCutoff: 32,
+    telemetry: false,
+    upnp: {
+      reannounce: 1_800_000,
+      ttl: 3_600_000,
+    },
+  }, repos, formula => repos.peer.setPluginConfidenceFormula(formula))
+  const utpSocket = utp()
+  peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, utpSocket)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
   server1 = startServer(account1, peerManager1, config1, '')
 
@@ -142,8 +163,8 @@ describe('HIP1', () => {
   // })
 
   // Skipped: peerManager2 is not defined in this test setup
-  // it('peer 2 connected to peer 3 over UDP', async () => {
-  //   expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, trace, 'UDP')).toBe(true)
+  // it('peer 2 connected to peer 3 over UTP', async () => {
+  //   expect(await peerManager2.add(`${config3.hostname}:${config3.port}`, trace, 'UTP')).toBe(true)
   // })
 
   // it('peers 1 and 2 have connected to each other', async () => {
@@ -432,8 +453,9 @@ describe('HIP2 message parsing', () => {
     expect(identify({ request: { query: 'test', type: 'artists' } })).toBe('request')
     expect(identify({ response: [] })).toBe('response')
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')
-    expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('store_message')
-    expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('deliver_message')
+    expect(identify({ message: { envelope: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 }, hops: 0 } })).toBe('message')
+    expect(identify({ store_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('message')
+    expect(identify({ deliver_message: { from: '0x1', payload: 'ciphertext', sig: 'signature', timestamp: Date.now(), to: '0x2', ttl: 60_000 } })).toBe('message')
     expect(identify({ ping: { peers: [], time: 123 } })).toBe('ping')
     expect(identify({ pong: { time: 123 } })).toBe('pong')
     expect(identify({ connect_peer: { hostname: 'localhost:14545' } })).toBe('connect_peer')
@@ -600,7 +622,7 @@ describe('NAT-friendly authentication', () => {
     }
   })
 
-  it('accepts client when UDP authentication fails', async () => {
+  it('accepts client when transport authentication fails', async () => {
     const clientAccount = new Account(generatePrivateKey())
     const clientAuth = proveClient(clientAccount, mockNATClient, `${mockNode.hostname}:${mockNode.port}`, trace)
 
@@ -690,7 +712,7 @@ describe('NAT-friendly authentication', () => {
 })
 
 
-describe('UDP Authentication Edge Cases', () => {
+describe('Transport Authentication Edge Cases', () => {
   it('handles authentication cache correctly', () => {
 
     authenticatedPeers.clear()
@@ -709,7 +731,7 @@ describe('UDP Authentication Edge Cases', () => {
     expect(cached).toEqual(testIdentity)
   })
 
-  it('validates server proof correctly for UDP', async () => {
+  it('validates server proof for transport auth', async () => {
     const account = new Account(generatePrivateKey())
     const nodeConfig = {
       connectMessage: 'Hello!',

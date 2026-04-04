@@ -25,13 +25,14 @@ export interface Config {
     ip: string
     listenAddress: string
     port: number
-    preferTransport: 'TCP' | 'UDP'
+    preferTransport: 'TCP' | 'UTP'
     username: string
   }
   rpc: {
     prefix: string
   }
   soulIdCutoff: number
+  telemetry: boolean
   upnp: {
     reannounce: number
     ttl: number
@@ -53,7 +54,7 @@ export interface Connection {
   plugins: string[]
   totalDL: number
   totalUL: number
-  type: 'CLIENT' | 'SERVER' | 'UDP'
+  type: 'CLIENT' | 'SERVER' | 'UTP'
   uptime: number
   userAgent: string
   username: string
@@ -72,6 +73,7 @@ export type FilterState = 'all' | 'connected' | 'disconnected'
 export interface LogEvent {
   lv: string
   m: string
+  stack?: string
 }
 
 export interface NodeStats {
@@ -139,6 +141,37 @@ export interface PluginAccuracy {
   match: number
   mismatch: number
   plugin_id: string
+}
+
+export interface RuntimeConfigEnvVar {
+  aliases: string[]
+  env: string
+  path: string
+}
+
+export interface RuntimeConfigPatch {
+  apiKey?: string
+  bootstrapPeers?: string
+  dht?: Partial<Config['dht']>
+  formulas?: Partial<Config['formulas']>
+  node?: Partial<Config['node']>
+  rpc?: Partial<Config['rpc']>
+  soulIdCutoff?: number
+  telemetry?: Config['telemetry']
+  upnp?: Partial<Config['upnp']>
+}
+
+export interface RuntimeConfigSnapshot {
+  active: Config
+  configurableEnvVars: RuntimeConfigEnvVar[]
+  desired: Config
+  envLockedPaths: string[]
+  liveUpdatePaths: string[]
+  pendingRestartPaths: string[]
+}
+
+export interface RuntimeConfigUpdate {
+  config: RuntimeConfigPatch
 }
 
 export interface Socket {

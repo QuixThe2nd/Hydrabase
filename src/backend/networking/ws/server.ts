@@ -4,7 +4,6 @@ import type { Config, Socket } from '../../../types/hydrabase'
 import type { HydrabaseTelemetryContext } from '../../../utils/log'
 import type { Account } from '../../crypto/Account'
 import type PeerManager from '../../PeerManager'
-import type { UDP_Server } from '../udp/server'
 
 import { logContext, warn, withTelemetryContext } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
@@ -95,12 +94,13 @@ export const handleConnection = async (
   apiKey: string,
   trace: Trace,
   peerManager: PeerManager,
-  preferTransport: 'TCP' | 'UDP' = node.preferTransport,
-  udpServer?: UDP_Server,
+  preferTransport: 'TCP' | 'UTP' = node.preferTransport,
   account?: Account,
   identity?: Identity
 ): Promise<undefined | { address?: `0x${string}`, hostname?: `${string}:${number}`, res: [number, string] }> => {
   trace.step(`Client connecting from ${ip.address}:${ip.port}`)
+  const hostHeader = req.headers.get('host')?.trim()
+  const requestedHostname = hostHeader && hostHeader.includes(':') ? hostHeader as `${string}:${number}` : undefined
   // Bun's Request.headers does not have .entries() or [Symbol.iterator], so use forEach
   const headers: Record<string, string> = {}
   req.headers.forEach((value, key) => {
@@ -120,7 +120,7 @@ export const handleConnection = async (
     return { address: auth.address, hostname: auth.hostname, res: [409, 'Already connected'] }
   }
   const peer = await Promise.race([
-    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, trace, preferTransport, udpServer, account, identity, ip),
+    verifyClient(node, `${ip.address}:${ip.port}`, auth, apiKey, trace, preferTransport, account, identity, ip, requestedHostname),
     new Promise<[number, string]>(resolve => { setTimeout(() => { resolve([408, `Verification timed out after ${VERIFY_TIMEOUT_MS / 1000}s`]) }, VERIFY_TIMEOUT_MS) })
   ])
   if (Array.isArray(peer)) {

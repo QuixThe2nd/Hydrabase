@@ -1,16 +1,14 @@
 import * as Sentry from '@sentry/bun'
-import dgram from 'dgram'
-import net from 'net'
 
-import type { Config } from '../types/hydrabase'
 import type { HydrabaseTelemetryContext } from '../utils/log'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../VERSION' with { type: 'text' }
-import { error, log, warn } from '../utils/log'
+import { error, log } from '../utils/log'
 import { makeSentryRelease } from '../utils/sentryRelease'
 import { BRANCH } from './branch'
-import { getIp } from './networking/utils'
+import { createLiveConfig } from './config'
+import { releasePortLeases } from './networking/upnp'
 import { startNode } from './Node'
 
 const applyTelemetryScope = (scope: {
@@ -29,8 +27,8 @@ const applyTelemetryScope = (scope: {
 }
 
 // eslint-disable-next-line max-lines-per-function
-const initTelemetry = (): void => {
-  if (process.env['HYDRABASE_TELEMETRY'] !== 'true') {
+const initTelemetry = (enabled: boolean): void => {
+  if (!enabled) {
     log('[TELEMETRY] Disabled (set HYDRABASE_TELEMETRY=true to enable)')
     return
   }
@@ -98,72 +96,38 @@ const initTelemetry = (): void => {
     })
   }
 }
-initTelemetry()
 
 process.on('unhandledRejection', (err) => error('ERROR:', '[MAIN] Unhandled rejection', {err}))
 process.on('uncaughtException', (err) => error('ERROR:', '[MAIN] Uncaught exception', {err}))
 
-const socketHandler = (socket: dgram.Socket | net.Server, res: (value: boolean | PromiseLike<boolean>) => void, rej: (reason: Error) => void) => {
-  socket.addListener('listening', () => {
-    socket.close()
-    res(false)
-  })
-  socket.addListener('error', (err: Error) => {
-    socket.close()
-    if ((err as unknown as { code: string }).code === 'EADDRINUSE') res(true)
-    else rej(err)
-  })
-}
-const isTCPPortInUse = (port: number) => new Promise<boolean>((res, rej) => {
-  const server = net.createServer()
-  socketHandler(server, res, rej)
-  server.listen(port)
-})
-const isUDPPortInUse = (port: number) => new Promise<boolean>((res, rej) => {
-  const socket = dgram.createSocket('udp4')
-  socketHandler(socket, res, rej)
-  socket.bind(port)
-})
-
-const defaultPort = process.env['PORT'] ?? 4545
-let port = Number(defaultPort)
-while (await isTCPPortInUse(port) || await isUDPPortInUse(port)) port++
-if (port !== Number(defaultPort)) warn('WARN:', `[SERVER] Port ${defaultPort} in use - Using ${port} instead`)
-
-const ip = await getIp()
-
-const CONFIG: Config = {
-  apiKey: process.env['API_KEY'],
-  bootstrapPeers: 'ddns.yazdani.au:4543,ddns.yazdani.au:4544,ddns.yazdani.au:4545',
-  dht: {
-    bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4543,ddns.yazdani.au:4544,ddns.yazdani.au:4545',
-    reannounce: 15*60*1_000,
-    requireReady: process.env['REQUIRE_DHT_READY'] !== 'false',
-    roomSeed: 'hydrabase',
-  },
-  formulas: {
-    finalConfidence: 'avg(x, y, z)',
-    pluginConfidence: 'x / (x + y)',
-  },
-  node: {
-    bio: process.env['BIO']?.slice(0, 140) ?? 'Welcome to my part of the internet',
-    connectMessage: process.env['CONNECT_MESSAGE'] ?? 'Hello!',
-    hostname: process.env['DOMAIN'] ?? ip,
-    ip,
-    listenAddress: process.env['LISTEN_ADDRESS'] ?? '0.0.0.0',
-    port,
-    preferTransport: (process.env['PREFER_TRANSPORT'] === 'UDP' ? 'UDP' : 'TCP'),
-    username: process.env['USERNAME'] ?? 'Anonymous',
-  },
-  rpc: {
-    prefix: 'hydra_'
-  },
-  soulIdCutoff: 32,
-  upnp: {
-    reannounce: 1_800_000, // Ms
-    ttl: 3_600_000, // Ms
+let isShuttingDown = false
+const cleanupUpnpLease = async () => {
+  if (isShuttingDown) return
+  isShuttingDown = true
+  try {
+    await releasePortLeases()
+  } catch (err) {
+    error('ERROR:', '[MAIN] Failed to release UPnP leases', { err })
   }
 }
 
-await startNode(CONFIG)
+process.on('SIGINT', () => {
+  cleanupUpnpLease()
+    .catch(() => undefined)
+    .finally(() => { process.exit(0) })
+})
+
+process.on('SIGTERM', () => {
+  cleanupUpnpLease()
+    .catch(() => undefined)
+    .finally(() => { process.exit(0) })
+})
+
+process.on('beforeExit', () => {
+  cleanupUpnpLease().catch(() => undefined)
+})
+
+const { config, envLockedPaths } = await createLiveConfig({ env: process.env })
+initTelemetry(config.telemetry)
+await startNode(config, envLockedPaths)
 // TODO: Merge duplicate artists from diff plugins

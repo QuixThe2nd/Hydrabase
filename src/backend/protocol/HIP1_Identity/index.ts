@@ -3,14 +3,15 @@ import z from 'zod'
 import type { Config } from '../../../types/hydrabase'
 import type { Trace } from '../../../utils/trace'
 import type { Account } from '../../crypto/Account'
-import type { UDP_Server } from '../../networking/udp/server'
 
 // @ts-expect-error: This is supported by bun
 import VERSION from '../../../../VERSION' with { type: 'text' }
-import { BRANCH } from '../../branch'
+import { BRANCH, GIT_HASH } from '../../branch'
 import { Signature } from '../../crypto/Signature'
 import { getIp, isPeerLocalHostname } from '../../networking/utils'
 import { upgradeHostname } from '../HIP4_HostnameUpgrades'
+
+const VERSION_WITH_HASH = `${VERSION.trim()}+${GIT_HASH}`
 
 export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: 'Address must start with 0x' }).transform(val => val as `0x${string}`),
@@ -29,14 +30,24 @@ export type Identity = z.infer<typeof IdentitySchema>
 
 export const proveServer = async (account: Account, node: Config['node'], trace: Trace): Promise<Auth> => {
   trace.step('[HIP1] Proving server')
-  const hostname = node.hostname === node.ip && !isPeerLocalHostname(node.hostname) ? await getIp() : node.hostname
+  let {hostname} = node
+  if (node.hostname === node.ip && !isPeerLocalHostname(node.hostname)) {
+    trace.step('[HIP1] Resolving external IP for server proof')
+    try {
+      hostname = await getIp()
+      trace.step(`[HIP1] External IP resolved to ${hostname}`)
+    } catch (e) {
+      trace.step(`[HIP1] External IP lookup failed, using configured hostname ${node.hostname}`)
+      trace.step(`[HIP1] External IP lookup error: ${String(e)}`)
+    }
+  }
   const bio = node.bio?.slice(0, 140)
   return {
     address: account.address,
     ...(bio ? { bio } : {}),
     hostname: `${hostname}:${node.port}`,
     signature: account.sign(`I am ${hostname}:${node.port}`, trace).toString(),
-    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION_WITH_HASH}`,
     username: node.username
   }
 }
@@ -55,7 +66,7 @@ export const proveClient = (account: Account, node: Config['node'], hostname: `$
     ...(bio ? { bio } : {}),
     hostname: `${node.hostname}:${node.port}`,
     signature: account.sign(`I am connecting to ${hostname}`, trace).toString(),
-    userAgent: `Hydrabase/${BRANCH}-${VERSION}`,
+    userAgent: `Hydrabase/${BRANCH}-${VERSION_WITH_HASH}`,
     username: node.username
   } as const
   return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result
@@ -67,32 +78,37 @@ export const verifyClient = async (
   auth: Auth | { apiKey: string },
   apiKey: string | undefined,
   trace: Trace,
-  preferTransport: 'TCP' | 'UDP' = node.preferTransport,
-  udpServer?: UDP_Server,
+  preferTransport: 'TCP' | 'UTP' = node.preferTransport,
   account?: Account,
   identity?: Identity,
-  ip?: { address: string }
+  ip?: { address: string },
+  requestedHostname?: `${string}:${number}`
 ): Promise<[number, string] | Identity> => {
   if ('apiKey' in auth) {
     trace.step('[HIP1] Verifying API')
     return auth.apiKey === apiKey
-      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION}`, username: `${node.username} (API)` }
+      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION_WITH_HASH}`, username: `${node.username} (API)` }
       : [500, 'Invalid API Key']
   }
   trace.step(`[HIP1] Verifying client ${auth.username} running ${auth.userAgent}`)
   trace.step(`[HIP1] Verifying client address ${auth.address}`)
-  const signatureValid = Signature.fromString(auth.signature).verify(`I am connecting to ${node.hostname}:${node.port}`, auth.address, trace)
-  trace.step(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${node.hostname}:${node.port}" result=${signatureValid}`)
-  if (!signatureValid) {
-    const altHostname = `${node.ip}:${node.port}`
-    if (altHostname === `${node.hostname}:${node.port}`) return [403, 'Failed to authenticate address']
-    const altValid = Signature.fromString(auth.signature).verify(`I am connecting to ${altHostname}`, auth.address, trace)
-    trace.step(`[HIP1] Alt signature verify for ${auth.address}: message="I am connecting to ${altHostname}" result=${altValid}`)
-    if (altValid) trace.step(`[HIP1] Accepted signature against alternate hostname ${altHostname}`)
-    else return [403, 'Failed to authenticate address']
+  const candidates = new Set<`${string}:${number}`>()
+  if (requestedHostname) candidates.add(requestedHostname)
+  candidates.add(`${node.hostname}:${node.port}`)
+  candidates.add(`${node.ip}:${node.port}`)
+
+  let signatureValid = false
+  for (const candidate of candidates) {
+    const valid = Signature.fromString(auth.signature).verify(`I am connecting to ${candidate}`, auth.address, trace)
+    trace.step(`[HIP1] Signature verify for ${auth.address}: message="I am connecting to ${candidate}" result=${valid}`)
+    if (!valid) continue
+    if (candidate !== `${node.hostname}:${node.port}`) trace.step(`[HIP1] Accepted signature against alternate hostname ${candidate}`)
+    signatureValid = true
+    break
   }
-  if (udpServer && account && identity && ip) {
-    const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, udpServer, account, node, identity, ip)
+  if (!signatureValid) return [403, 'Failed to authenticate address']
+  if (account && identity && ip) {
+    const isHostnameValid = await upgradeHostname(hostname, auth, trace, preferTransport, identity, ip)
     if (Array.isArray(isHostnameValid)) return isHostnameValid
   }
   return auth

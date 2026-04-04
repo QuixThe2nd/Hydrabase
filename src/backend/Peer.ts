@@ -9,9 +9,9 @@ import type PeerManager from './PeerManager'
 
 import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
-import { UDP_Client } from './networking/udp/client'
+import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
-import { type ConnectPeer, HIP2_Messaging, type Ping, type SendMessage } from './protocol/HIP2_Messaging'
+import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
@@ -47,7 +47,7 @@ export class Peer {
   get totalUL() { return this._ul }
 
   get type() {
-    return this.socket instanceof UDP_Client ? 'UDP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
+    return this.socket instanceof UTPClient ? 'UTP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
   }
 
   get uptimeMs() {
@@ -66,19 +66,24 @@ export class Peer {
 
   private _dl = 0
   private _ul = 0 
+  private consecutivePingTimeouts = 0
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
-    private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
-    private readonly requestManager: RequestManager
-    private totalLatency = 0
-    private totalPongs = 0
+  private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
+  private readonly requestManager: RequestManager
+  private totalLatency = 0
+  private totalPongs = 0
   private readonly handlers = {
     announce: (announce: Announce) => this.HIP4_Conn_Announce.handleAnnounce(announce),
     connect_peer: (data: ConnectPeer, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       this.peers.handleConnectPeerRequest(data.hostname, this, nonce, trace)
     },
-    deliver_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleDeliverMessage(envelope, this, trace),
+    get_config: (_data: true, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.send({ nonce, runtime_config: this.peers.getRuntimeConfig() }, trace)
+    },
+    message: (packet: MessagePacket, trace: Trace) => this.peers.handleMessage(packet, this, trace),
     message_history: (_data: 'get', nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       this.send({ message_history: this.peers.messageHistory, nonce }, trace)
@@ -98,7 +103,7 @@ export class Peer {
       }
       this.send({ nonce, pong: { peers: ping.peers ?? [], time: Number(new Date()) } }, trace)
     },
-    pong: (_: Ping, nonce: number) => {
+    pong: (_: Pong, nonce: number) => {
       const pendingPing = this.pendingPings.get(nonce)
       if (!pendingPing) {
         warn('DEVWARN:', '[PEER] Unhandled pong')
@@ -108,10 +113,12 @@ export class Peer {
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
+      this.consecutivePingTimeouts = 0
       pendingPing.trace.step(`[HIP2] Received pong ${nonce} in ${latency}ms`)
       pendingPing.trace.success()
       this.pendingPings.delete(nonce)
     },
+
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number, trace: Trace) => {
       const results = await this.searchNode(request.type, request.query, this.address === '0x0')
       this.HIP2_Conn_Message.send.response(results, nonce, trace)
@@ -148,7 +155,15 @@ export class Peer {
       if (this.address !== '0x0') return
       this.peers.createAndSendMessage(data.to, data.payload, trace)
     },
-    store_message: (envelope: MessageEnvelope, trace: Trace) => this.peers.handleStoreMessage(envelope, this, trace)
+    update_config: (data: UpdateConfig, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      try {
+        const runtime_config_updated = this.peers.updateRuntimeConfig(data, this.address)
+        this.send({ nonce, runtime_config_updated }, trace)
+      } catch (err) {
+        this.send({ config_error: err instanceof Error ? err.message : 'Failed to update config', nonce }, trace)
+      }
+    },
   }
   private lastSavedDL = 0
   private lastSavedUL = 0
@@ -192,7 +207,16 @@ export class Peer {
       const timeout = setTimeout(() => {
         if (!this.pendingPings.has(nonce)) return
         this.pendingPings.delete(nonce)
-        trace.softFail(`[HIP2] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer`)
+        this.consecutivePingTimeouts += 1
+        const timeoutThreshold = 2
+        if (this.consecutivePingTimeouts < timeoutThreshold) {
+          trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; keeping peer connected (${this.type} transport, hostname: ${this.hostname}, strike ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
+          warn('WARN:', `[PEER][TIMEOUT] Missed pong from peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}; keeping connection (${this.consecutivePingTimeouts}/${timeoutThreshold}).`)
+          return
+        }
+
+        trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer (${this.type} transport, hostname: ${this.hostname}, strikes ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
+        warn('WARN:', `[PEER][TIMEOUT] Ping timeout threshold reached for peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}. Disconnecting.`)
         this.socket.close()
       }, Peer.PING_TIMEOUT_MS)
       this.pendingPings.set(nonce, { time, timeout, trace })
@@ -219,6 +243,7 @@ export class Peer {
       }
       this.pendingPings.clear()
     })
+    // eslint-disable-next-line max-lines-per-function
     this.socket.onMessage(async message => {
       this._dl += message.length
       this.peers.notifyDataTransfer()
@@ -253,7 +278,7 @@ export class Peer {
       }
       const { data, nonce, type } = result
       if (type === 'ping') this.handlers[type](data as Ping, nonce, trace)
-      else if (type === 'pong') this.handlers[type](data as Ping, nonce)
+      else if (type === 'pong') this.handlers[type](data as Pong, nonce)
       else if (type === 'announce') this.handlers[type](data as Announce)
       else if (type === 'peer_stats') this.handlers[type](data as { address: `0x${string}` }, nonce, trace)
       else if (type === 'request') await this.handlers[type](data as Request, nonce, trace)
@@ -262,16 +287,15 @@ export class Peer {
       else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
       else if (type === 'connect_peer') this.handlers[type](data as ConnectPeer, nonce, trace)
       else if (type === 'restart') this.handlers[type](data as true, nonce, trace)
+      else if (this.handleRuntimeConfigMessage(type, data, nonce, trace)) {
+        // handled by runtime config router
+      }
       else if (type === 'send_message') this.handlers[type](data as SendMessage, trace)
-      else if (type === 'store_message') this.handlers[type](data as MessageEnvelope, trace)
-      else if (type === 'deliver_message') this.handlers[type](data as MessageEnvelope, trace)
+      else if (type === 'message') this.handlers[type](data as MessagePacket, trace)
       else warn('DEVWARN:', `[PEER] Unexpected message ${type}`)
       if (!matchedPongTrace) trace.success()
     })
   }
-
-
-  // announcePeer removed: peer lists are now sent on every ping
 
   public async search<T extends Request['type']>(type: T, query: string, trace: Trace): Promise<Response<T>> {
     const response = await this.HIP2_Conn_Message.send.request({ query, type }, trace)
@@ -283,7 +307,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { deliver_message: MessageEnvelope } | { log_event: import('../types/hydrabase').LogEvent } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Ping } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload } | { store_message: MessageEnvelope }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     this.peers.notifyDataTransfer()
@@ -293,10 +317,10 @@ export class Peer {
   }
 
   public readonly sendConnectionError = (error: import('../types/hydrabase').PeerConnectionError, nonce: number, trace: Trace) => this.send({ connection_error: error, nonce }, trace)
-  public readonly sendDeliverMessage = (message: MessageEnvelope, trace: Trace) => this.send({ deliver_message: message, nonce: this.nonce++ }, trace)
+
   public readonly sendLogEvent = (log_event: import('../types/hydrabase').LogEvent, trace: Trace) => this.send({ log_event, nonce: this.nonce++ }, trace)
+  public readonly sendMessagePacket = (packet: MessagePacket, trace: Trace) => this.send({ message: packet, nonce: this.nonce++ }, trace)
   public readonly sendRefreshUi = (trace: Trace) => this.send({ nonce: this.nonce++, refresh_ui: 'backend_changed' }, trace)
-  public readonly sendStats = (stats: NodeStats, trace: Trace) => this.send({ nonce: this.nonce++, stats }, trace)
   public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
   public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)
   public readonly sendStatsPeerConnected = (stats_peer_connected: ApiPeer, trace: Trace) => this.send({ nonce: this.nonce++, stats_peer_connected }, trace)
@@ -304,5 +328,15 @@ export class Peer {
   public readonly sendStatsPulseBundle = (bundle: import('../types/hydrabase').StatsPulseBundle, trace: Trace) => this.send({ nonce: this.nonce++, stats_pulse: bundle }, trace)
   public readonly sendStatsSelf = (stats_self: NodeStats['self'], trace: Trace) => this.send({ nonce: this.nonce++, stats_self }, trace)
   public readonly sendStatsVotes = (stats_votes: StatsVotesPayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_votes }, trace)
-  public readonly sendStoreMessage = (message: MessageEnvelope, trace: Trace) => this.send({ nonce: this.nonce++, store_message: message }, trace)
+  private handleRuntimeConfigMessage(type: string, data: unknown, nonce: number, trace: Trace): boolean {
+    if (type === 'get_config') {
+      this.handlers[type](data as true, nonce, trace)
+      return true
+    }
+    if (type === 'update_config') {
+      this.handlers[type](data as UpdateConfig, nonce, trace)
+      return true
+    }
+    return false
+  }
 }

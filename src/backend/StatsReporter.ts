@@ -9,7 +9,7 @@ import type PeerManager from './PeerManager'
 
 import { formatBytes, formatUptime, stats, truncateAddress } from '../utils/log'
 import { Trace } from '../utils/trace'
-import { authenticatedPeers } from './networking/udp/server'
+import { authenticatedPeers } from './networking/authenticatedPeers'
 import { StatsPulseHistory } from './StatsPulseHistory'
 
 
@@ -168,7 +168,7 @@ export class StatsReporter {
     const uptime = formatUptime(Date.now() - this.startTime)
     stats(`${peerCount} peers | ${dhtCount} DHT node${dhtCount === 1 ? '' : 's'} | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
     for (const peer of this.peers.peers.values()) {
-      const transport = peer.type === 'UDP' ? 'UDP' : 'WS'
+      const transport = peer.type === 'UTP' ? 'UTP' : 'WS'
       const latency = !isNaN(peer.latency) && isFinite(peer.latency) ? `${Math.ceil(peer.latency)}ms` : '?'
       const uptime = formatUptime(peer.uptimeMs)
       const connectionCount = this.getCurrentAnnouncementConnections(peer.address).length
@@ -189,7 +189,7 @@ export class StatsReporter {
   private report(send: (client: Peer, trace: Trace) => void): void {
     const client = this.peers.apiPeer
     if (client)  {
-      const trace = Trace.start('Sending stats to api client')
+      const trace = Trace.start('Sending stats to api client', true, true)
       try {
         send(client, trace)
         trace.success()

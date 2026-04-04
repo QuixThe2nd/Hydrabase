@@ -1,0 +1,50 @@
+name: Build Backend Executables
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  build-linux-executables:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            target: bun-linux-x64
+            output: hydrabase-linux-amd64
+          - arch: arm64
+            target: bun-linux-arm64
+            output: hydrabase-linux-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build executable
+        run: |
+          mkdir -p dist
+          bun build src/backend/index.ts \
+            --compile \
+            --minify \
+            --sourcemap \
+            --target=${{ matrix.target }} \
+            --outfile=dist/${{ matrix.output }}
+
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: dist/${{ matrix.output }}
+          if-no-files-found: error

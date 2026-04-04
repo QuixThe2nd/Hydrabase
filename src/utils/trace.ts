@@ -1,16 +1,19 @@
 /* eslint-disable no-console */
-import { captureException, exceptionFromContext, getSentryLogger, logEvent } from './log'
+import { broadcastLog, captureException, exceptionFromContext, getSentryLogger, logEvent } from './log'
 
 export class Trace {
   private children: Trace[] = []
   private finished = false
   private startTime: Date
   private steps: { error?: true; msg: string; time: Date }[] = []
+  private timeoutTimer: null | ReturnType<typeof setTimeout> = null
 
   constructor(
     public readonly traceId: string,
     public readonly label: string,
-    private readonly noPrint = false
+    private readonly noPrint = false,
+    private readonly noBroadcast = false,
+    private readonly depth = 0
   ) {
     this.startTime = new Date()
     logEvent({
@@ -20,9 +23,20 @@ export class Trace {
       message: `Trace started: ${this.label}`,
     })
     getSentryLogger()?.info('Trace started', { label: this.label, traceId: this.traceId })
-    setTimeout(() => {
-      if (!this.finished) this.fail('Trace took over 2m')
-    }, 120_000)
+    if (this.isRoot()) {
+      this.timeoutTimer = setTimeout(() => {
+        if (this.finished) return
+        const lastStep = this.steps[this.steps.length - 1]
+        this.fail('Trace exceeded 120s without completion', {
+          elapsedMs: Date.now() - this.startTime.getTime(),
+          label: this.label,
+          lastStep: lastStep?.msg,
+          lastStepAt: lastStep ? Trace.formatTime(lastStep.time) : undefined,
+          stepCount: this.steps.length,
+          traceId: this.traceId,
+        })
+      }, 120_000)
+    }
   }
 
   static formatTime(date: Date): string {
@@ -33,7 +47,7 @@ export class Trace {
     return `${hours}:${minutes}:${seconds}.${millis}`
   }
 
-  static readonly start = (label: string, noPrint = false) => new Trace(Math.random().toString(16).slice(2, 6), label, noPrint)
+  static readonly start = (label: string, noPrint = false, noBroadcast = false) => new Trace(Math.random().toString(16).slice(2, 6), label, noPrint, noBroadcast)
 
   caughtError(msg: string): false {
     this.steps.push({ error: true, msg, time: new Date() })
@@ -49,13 +63,13 @@ export class Trace {
   }
 
   child(label: string): Trace {
-    const childTrace = new Trace(this.traceId, label)
+    const childTrace = new Trace(this.traceId, label, this.noPrint, this.noBroadcast, this.depth + 1)
     this.children.push(childTrace)
     return childTrace
   }
 
   fail(reason: string, context?: unknown): false {
-    this.print(false, reason)
+    if (this.isRoot()) this.print(false, reason)
     this.finished = true
     if (context) console.log(context)
     logEvent({
@@ -70,6 +84,8 @@ export class Trace {
       traceId: this.traceId,
     })
     captureException(exceptionFromContext(reason, context))
+    this.clearTimeoutTimer()
+    if (!this.noBroadcast && this.isRoot()) broadcastLog('ERROR', reason, this.getFullTrace())
     return false
   }
 
@@ -82,10 +98,13 @@ export class Trace {
     lines.push(`${prefix}${symbol} [${this.traceId}] ${this.label} (${elapsed.toFixed(1)}s)`)
     
     const stepPrefix = indent === 0 ? '    ' : '│   '.repeat(indent)
+    let prevTime = this.startTime
     for (const step of this.steps) {
       const timeStr = Trace.formatTime(step.time)
       const marker = 'error' in step ? '[ERROR]' : '[DEBUG]'
-      lines.push(`${stepPrefix}${timeStr} ${marker} ${step.msg}`)
+      const deltaMs = step.time.getTime() - prevTime.getTime()
+      lines.push(`${stepPrefix}${timeStr} +${deltaMs}ms ${marker} ${step.msg}`)
+      prevTime = step.time
     }
     
     for (const child of this.children) {
@@ -103,12 +122,14 @@ export class Trace {
       message: reason,
     })
     this.finished = true
+    this.clearTimeoutTimer()
     return false
   }
 
   softFail(reason: string, context?: unknown): false {
-    this.print(false, reason)
+    if (this.isRoot()) this.print(false, reason)
     this.finished = true
+    this.clearTimeoutTimer()
     if (context) console.log(context)
     logEvent({
       category: 'trace',
@@ -138,6 +159,7 @@ export class Trace {
   success(): void {
     if (this.finished) console.error('Timed out trace completed')
     else this.finished = true
+    this.clearTimeoutTimer()
     logEvent({
       category: 'trace',
       context: { label: this.label, traceId: this.traceId },
@@ -145,7 +167,18 @@ export class Trace {
       message: `Trace succeeded: ${this.label}`,
     })
     getSentryLogger()?.info('Trace succeeded', { label: this.label, traceId: this.traceId })
-    this.print(true)
+    if (!this.noBroadcast && this.isRoot()) broadcastLog('INFO', this.label, this.getFullTrace())
+    if (this.isRoot()) this.print(true)
+  }
+
+  private clearTimeoutTimer(): void {
+    if (!this.timeoutTimer) return
+    clearTimeout(this.timeoutTimer)
+    this.timeoutTimer = null
+  }
+
+  private isRoot(): boolean {
+    return this.depth === 0
   }
 
   private print(isSuccess: boolean, failReason?: string, indent = 0): void {
@@ -162,9 +195,12 @@ export class Trace {
     console.log(prefix + header)
 
     const stepPrefix = indent === 0 ? '    ' : '│   '.repeat(indent)
+    let prevTime = this.startTime
     for (const step of this.steps) {
       const timeStr = Trace.formatTime(step.time)
-      console.log(`${'error' in step ? red : grey}${stepPrefix}${timeStr} ${step.msg}${reset}`)
+      const deltaMs = step.time.getTime() - prevTime.getTime()
+      console.log(`${'error' in step ? red : grey}${stepPrefix}${timeStr} +${deltaMs}ms ${step.msg}${reset}`)
+      prevTime = step.time
     }
 
     for (const child of this.children) {

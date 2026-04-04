@@ -1,3 +1,5 @@
+import utp from 'utp-socket'
+
 import type { Config } from '../types/hydrabase'
 import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 import type { Peer } from './Peer'
@@ -10,11 +12,13 @@ import { startDevWatchers } from './devWatch'
 import MetadataManager from './metadata'
 import ITunes from './metadata/plugins/iTunes'
 import Spotify from './metadata/plugins/Spotify'
+import { authenticatedPeers } from './networking/authenticatedPeers'
 import { DHT_Node } from './networking/dht'
 import { startServer } from './networking/http'
-import { authenticatedPeers, UDP_Server } from './networking/udp/server'
 import { requestPort } from './networking/upnp'
+import { UTPClient } from './networking/utp/client'
 import PeerManager from './PeerManager'
+import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 import { StatsReporter } from './StatsReporter'
 import { buildWebUI } from './webui'
 
@@ -49,7 +53,7 @@ export class Node {
   public readonly relayStoreMessage = (envelope: MessageEnvelope): number => {
     if (!this.peers) return 0
     const trace = Trace.start(`[HIP2] Relaying message to ${envelope.to}`)
-    const sent = this.peers.sendStoreMessage(envelope, trace)
+    const sent = this.peers.sendMessage(envelope, trace)
     if (sent > 0) trace.success()
     else trace.softFail('No eligible peers available to relay message')
     return sent
@@ -92,7 +96,8 @@ export class Node {
   private getPeerConfidence: (address: `0x${string}`) => number = () => 0
 }
 
-export const startNode = async (CONFIG: Config): Promise<Node> => {
+// eslint-disable-next-line max-lines-per-function
+export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): Promise<Node> => {
   const trace = Trace.start('STARTUP')
   trace.step('1/14 Using UPnP')
   await requestPort(CONFIG.node, CONFIG.upnp)
@@ -102,38 +107,83 @@ export const startNode = async (CONFIG: Config): Promise<Node> => {
   const account = new Account(key)
   trace.step('4/14 Starting database')
   const repos = await startDatabase(CONFIG.formulas.pluginConfidence)
+  const runtimeSettings = new RuntimeSettingsManager(CONFIG, repos, formula => repos.peer.setPluginConfidenceFormula(formula), envLockedPaths)
+  runtimeSettings.loadFromStorage()
   authenticatedPeers.init(repos.authenticatedPeer)
   trace.step('5/14 Starting metadata manager')
   const metadataManager = new MetadataManager([new ITunes(), ... SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET ? [new Spotify({ clientId: SPOTIFY_CLIENT_ID, clientSecret: SPOTIFY_CLIENT_SECRET })] : []], repos, CONFIG.soulIdCutoff)
-  trace.step('6/14 Starting UDP server')
-  // eslint-disable-next-line prefer-const
-  let peerManager: PeerManager
-  const udpServer = await UDP_Server.init(account, CONFIG.rpc, CONFIG.node, CONFIG.apiKey, (peer, trace) => peerManager.add(peer, trace, CONFIG.node.preferTransport))
+  trace.step('6/14 Preparing node')
   trace.step('7/14 Starting node')
   const node = new Node(metadataManager, CONFIG.formulas)
   trace.step('8/14 Starting peer manager')
-  peerManager = new PeerManager(account, metadataManager, repos, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, CONFIG.rpc, udpServer)
+  const utpSocket = utp()
+  if (!utpSocket && CONFIG.node.preferTransport === 'UTP') {
+    Trace.start('[UTP] Native UTP unavailable, falling back to TCP transport').softFail('UTP disabled for this runtime')
+    CONFIG.node.preferTransport = 'TCP'
+  }
+  const peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, utpSocket)
+  if (utpSocket) {
+    // Register the inbound connection handler before listen() so no connections are missed.
+    // peerManager is fully initialised at this point and safe to reference in the handler.
+    utpSocket.on('connection', async conn => {
+      try {
+        const client = await UTPClient.authenticateConnectedPeer(conn)
+        if (!client) return
+        const inboundTrace = Trace.start(`[UTP] Accepted inbound connection from ${client.identity.username} (${client.identity.address})`)
+        await peerManager.add(client, inboundTrace)
+      } catch (err) {
+        Trace.start(`[UTP] Inbound connection error from ${conn.remoteAddress}`).caughtError(err instanceof Error ? err.message : String(err))
+        conn.destroy()
+      }
+    })
+  }
+  if (utpSocket) {
+    let utpSocketClosed = false
+    const closeUTPSocket = () => {
+      if (utpSocketClosed) return
+      utpSocketClosed = true
+      utpSocket.close()
+    }
+    utpSocket.on('error', (error: NodeJS.ErrnoException) => {
+      Trace.start(`[UTP] Socket error on port ${CONFIG.node.port}`).softFail(error.message)
+      closeUTPSocket()
+      if (error.code === 'EADDRINUSE' && CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
+    })
+    const hasInboundUTPHandler = utpSocket.listenerCount('connection') > 0
+    if (hasInboundUTPHandler) {
+      utpSocket.listen(CONFIG.node.port)
+      process.once('SIGINT', closeUTPSocket)
+      process.once('SIGTERM', closeUTPSocket)
+      process.once('exit', closeUTPSocket)
+    } else {
+      Trace.start('[UTP] No inbound UTP connection handler registered, disabling UTP listener').softFail('UTP inbound disabled for this runtime')
+      closeUTPSocket()
+      if (CONFIG.node.preferTransport === 'UTP') CONFIG.node.preferTransport = 'TCP'
+    }
+  }
   node.setPeerContext(peerManager, address => peerManager.getConfidence(address))
   peerManager.onPeerConnected(runPeerWarmupSearches)
-  ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m }) => {
+  ;(globalThis as HydrabaseGlobal).__hydrabaseBroadcastLog__ = ({ lv, m, stack }) => {
     const {apiPeer} = peerManager
     if (!apiPeer) return
-    const broadcastTrace = Trace.start('[LOG] Broadcasting log event to API peer')
-    apiPeer.sendLogEvent({ lv, m }, broadcastTrace)
+    const broadcastTrace = Trace.start('[LOG] Broadcasting log event to API peer', true, true)
+    const event = stack === undefined ? { lv, m } : { lv, m, stack }
+    apiPeer.sendLogEvent(event, broadcastTrace)
+    broadcastTrace.success()
   }
   trace.step('9/14 Building Web UI')
   await buildWebUI()
   trace.step('10/14 Starting HTTP server')
-  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', CONFIG.node.preferTransport, udpServer, { address: account.address, bio: CONFIG.node.bio?.slice(0, 140), hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
+  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', { address: account.address, bio: CONFIG.node.bio?.slice(0, 140), hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
   startDevWatchers(peerManager)
   trace.step('11/14 Starting DHT node')
-  const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, udpServer, repos.dhtNode)
+  const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, repos.dhtNode)
   trace.step('12/14 Starting stats reporter')
   new StatsReporter(CONFIG.node, account, metadataManager.installedPlugins, peerManager, dhtNode, repos)
-  trace.step('13/14 Waiting for DHT')
-  await dhtNode.isReady()
-  trace.step('14/14 Loading cached peers')
+  trace.step('13/14 Loading cached peers')
   await peerManager.loadCache(CONFIG.bootstrapPeers.split(','))
+  trace.step('14/14 Waiting for DHT in background')
+  dhtNode.isReady()
   trace.success()
   return node
 }

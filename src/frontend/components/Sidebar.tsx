@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 
-import { BarChart3, GitBranch, MessageSquare, RefreshCw, Search, ShieldCheck, Users } from 'lucide-react'
+import { BarChart3, GitBranch, MessageSquare, Search, Settings, ShieldCheck, Users } from 'lucide-react'
 
 import type { NodeStats, PeerWithCountry } from '../../types/hydrabase'
 
@@ -8,7 +8,7 @@ import { ACCENT, BORD, MUTED, TEXT } from '../theme'
 import { fmtBytes, fmtClock, shortAddr, toEmoji } from '../utils'
 import { Identicon } from './Identicon'
 
-export type Tab = 'dht' | 'messages' | 'overview' | 'peers' | 'search' | 'votes'
+export type Tab = 'dht' | 'messages' | 'overview' | 'peers' | 'search' | 'settings' | 'votes'
 
 type ActiveTab = null | Tab
 
@@ -18,6 +18,7 @@ const NAV_ITEMS: { icon: LucideIcon; label: string; tab: Tab; }[] = [
   { icon: MessageSquare, label: 'Messages', tab: 'messages' },
   { icon: Users, label: 'Peers', tab: 'peers' },
   { icon: GitBranch, label: 'DHT', tab: 'dht' },
+  { icon: Settings, label: 'Settings', tab: 'settings' },
   { icon: ShieldCheck, label: 'Votes', tab: 'votes' },
 ]
 
@@ -98,7 +99,7 @@ const SidebarPeers = ({ onSelectPeer, peers, selectedPeerAddress, setTab, tab }:
   </div>
 </div>
 
-export const Sidebar = ({ onRestart, onSelectPeer, peers, selectedPeerAddress, setTab, stats, tab, unreadMessages, uptime }: { onRestart: () => void; onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: ActiveTab; unreadMessages: number; uptime: number }) => {
+export const Sidebar = ({ onSelectPeer, peers, selectedPeerAddress, setTab, stats, tab, unreadMessages, uptime }: { onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: ActiveTab; unreadMessages: number; uptime: number }) => {
   const totalRx = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
   const totalTx = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
   const sidebarPeers = sortSidebarPeers(peers.filter(peer => peer.connection !== undefined)).slice(0, 8)
@@ -124,10 +125,6 @@ export const Sidebar = ({ onRestart, onSelectPeer, peers, selectedPeerAddress, s
         </div>
       ))}
       <div style={{ borderTop: `1px solid ${BORD}`, color: MUTED, fontFamily: 'monospace', fontSize: 9, marginTop: 8, paddingTop: 8, wordBreak: 'break-all' }}>{shortAddr(stats?.self.address)}</div>
-      <button onClick={onRestart} style={{ alignItems: 'center', background: 'rgba(255,74,94,.08)', border: '1px solid rgba(255,74,94,.2)', borderRadius: 5, color: '#ff4a5e', cursor: 'pointer', display: 'flex', fontFamily: 'inherit', fontSize: 10, gap: 6, justifyContent: 'center', marginTop: 10, padding: '5px 10px', transition: 'all .15s', width: '100%' }} title="Restart the Hydrabase backend process">
-        <RefreshCw size={11} />
-        Restart Node
-      </button>
     </div>
   </div>
 }

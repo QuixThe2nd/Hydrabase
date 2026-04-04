@@ -17,6 +17,13 @@ describe('parseHydrabaseUserAgent', () => {
     })
   })
 
+  it('parses version when git hash metadata is present', () => {
+    expect(parseHydrabaseUserAgent('Hydrabase/main-1.2.3+abcdef123456')).toEqual({
+      branch: 'main',
+      version: '1.2.3+abcdef123456',
+    })
+  })
+
   it('returns null for non-Hydrabase user agents', () => {
     expect(parseHydrabaseUserAgent('SomeApp/main-1.2.3')).toBeNull()
   })
