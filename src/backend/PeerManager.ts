@@ -125,7 +125,7 @@ export default class PeerManager {
   private readonly localMessageHistory: MessageEnvelope[] = []
   private readonly peerConnectedHandlers: ((peer: Peer) => Promise<void> | void)[] = []
   private readonly peerDisconnectedHandlers: ((peer: Peer) => void)[] = []
-  private readonly recentConnectionFailures = new Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UTP' }>()
+  private readonly recentConnectionFailures = new Map<`${string}:${number}`, { hostname: `${string}:${number}`; reason: string; stack?: string; timestamp: number; transport: 'TCP' | 'UTP' }>()
   private readonly recentPeerAddresses = new Map<`${string}:${number}`, `0x${string}`>()
   private readonly reconnectAttempts = new Map<`${string}:${number}`, number>()
   private readonly reconnectTimers = new Map<`${string}:${number}`, NodeJS.Timeout>()
@@ -145,6 +145,16 @@ export default class PeerManager {
       this.pruneExpiredConnectionFailures()
     }, PeerManager.HELD_MESSAGE_SWEEP_MS)
     this.heldMessageSweepTimer.unref?.()
+  }
+
+  private static buildConnectionFailurePayload(failure: { at: string; hostname: `${string}:${number}`; reason: string; stack?: string; transport: 'TCP' | 'UTP' }): string {
+    const fields = new URLSearchParams()
+    fields.set('hostname', failure.hostname)
+    fields.set('transport', failure.transport)
+    fields.set('at', failure.at)
+    fields.set('reason', failure.reason)
+    if (failure.stack) fields.set('stack', failure.stack)
+    return `system:connection_attempt_failed|${fields.toString().replace(/&/gu, '|')}`
   }
 
   private static normalizeHostname(hostname: `${string}:${number}`): `${string}:${number}` {
@@ -251,7 +261,7 @@ export default class PeerManager {
         trace.success()
         apiPeer.send({ nonce, refresh_ui: 'peer_connected' }, trace)
       } else {
-        this.recordConnectionFailure(hostname, 'Failed to connect to peer', this.nodeConfig.preferTransport)
+        this.recordConnectionFailure(hostname, 'Failed to connect to peer', this.nodeConfig.preferTransport, trace.getFullTrace())
         trace.fail('Connection failed')
         apiPeer.sendConnectionError({
           hostname,
@@ -262,7 +272,8 @@ export default class PeerManager {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.recordConnectionFailure(hostname, message, this.nodeConfig.preferTransport)
+      const stack = error instanceof Error ? (error.stack ?? trace.getFullTrace()) : trace.getFullTrace()
+      this.recordConnectionFailure(hostname, message, this.nodeConfig.preferTransport, stack)
       trace.fail(message)
       apiPeer.sendConnectionError({
         hostname,
@@ -436,7 +447,7 @@ export default class PeerManager {
     return sent
   }
 
-  private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; timestamp: number; transport: 'TCP' | 'UTP' } {
+  private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; stack?: string; timestamp: number; transport: 'TCP' | 'UTP' } {
     const failure = this.recentConnectionFailures.get(hostname)
     if (!failure) return null
     this.recentConnectionFailures.delete(hostname)
@@ -500,7 +511,13 @@ export default class PeerManager {
     if (!failure) return
 
     const occurredAt = new Date(failure.timestamp).toISOString()
-    const payload = `system:connection_attempt_failed|hostname=${failure.hostname}|transport=${failure.transport}|at=${occurredAt}|reason=${failure.reason}`
+    const payload = PeerManager.buildConnectionFailurePayload({
+      at: occurredAt,
+      hostname: failure.hostname,
+      reason: failure.reason,
+      transport: failure.transport,
+      ...(failure.stack ? { stack: failure.stack } : {}),
+    })
     this.createAndSendMessage(peer.address, payload, trace)
     trace.step(`[PEERS] Sent reciprocal failed-connect notification to ${peer.username} (${truncateAddress(peer.address)}) for ${failure.hostname}`)
   }
@@ -527,9 +544,13 @@ export default class PeerManager {
     this.localMessageHistory.splice(0, before, ...this.localMessageHistory.filter(m => !this.isEnvelopeExpired(m, now)))
   }
 
-  private recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UTP') {
+  private recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UTP', stack?: string) {
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     const trimmedReason = reason.replace(/\s+/gu, ' ').trim().slice(0, 240)
+    const trimmedStack = stack
+      ?.replace(/\r\n/gu, '\n')
+      .trim()
+      .slice(0, 4000)
     const timestamp = Number(new Date())
     if (this.recentConnectionFailures.has(normalizedHostname)) this.recentConnectionFailures.delete(normalizedHostname)
     this.recentConnectionFailures.set(normalizedHostname, {
@@ -537,12 +558,19 @@ export default class PeerManager {
       reason: trimmedReason || 'Connection failed',
       timestamp,
       transport,
+      ...(trimmedStack ? { stack: trimmedStack } : {}),
     })
 
     const resolvedAddress = this.resolveKnownPeerAddress(normalizedHostname)
     if (resolvedAddress) {
       const occurredAt = new Date(timestamp).toISOString()
-      const payload = `system:connection_attempt_failed|hostname=${normalizedHostname}|transport=${transport}|at=${occurredAt}|reason=${trimmedReason || 'Connection failed'}`
+      const payload = PeerManager.buildConnectionFailurePayload({
+        at: occurredAt,
+        hostname: normalizedHostname,
+        reason: trimmedReason || 'Connection failed',
+        transport,
+        ...(trimmedStack ? { stack: trimmedStack } : {}),
+      })
       const trace = Trace.start(`[PEERS] Emitting immediate failed-connect notification for ${normalizedHostname}`)
       this.createAndSendMessage(resolvedAddress, payload, trace)
       trace.success()
@@ -610,7 +638,7 @@ export default class PeerManager {
         trace.success()
         this.reconnectAttempts.delete(hostname)
       } else {
-        this.recordConnectionFailure(hostname, 'Reconnection failed', this.nodeConfig.preferTransport)
+        this.recordConnectionFailure(hostname, 'Reconnection failed', this.nodeConfig.preferTransport, trace.getFullTrace())
         trace.fail('Reconnection failed')
         this.scheduleReconnect(hostname)
       }

@@ -38,6 +38,7 @@ interface ParsedFailedConnectNotice {
   at?: string
   hostname?: string
   reason?: string
+  stack?: string
   transport?: 'TCP' | 'UTP'
 }
 
@@ -56,9 +57,11 @@ const parseFailedConnectNotice = (payload: string): null | ParsedFailedConnectNo
   const at = fields.get('at')
   const hostname = fields.get('hostname')
   const reason = fields.get('reason')
+  const stack = fields.get('stack')
   if (at) parsed.at = at
   if (hostname) parsed.hostname = hostname
   if (reason) parsed.reason = reason
+  if (stack) parsed.stack = stack
   if (transport === 'TCP' || transport === 'UTP') parsed.transport = transport
   return parsed
 }
@@ -223,6 +226,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
                                 {getFailedConnectMessageText(failedConnect)}
                               </div>
                               {failedConnect.reason && <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.4, marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>I got: {failedConnect.reason}</div>}
+                              {failedConnect.stack && <pre style={{ background: BG, border: `1px solid ${BORD}`, borderRadius: 6, color: TEXT, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.35, margin: '6px 0 0', maxHeight: 180, overflowX: 'auto', overflowY: 'auto', padding: '8px 9px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{failedConnect.stack}</pre>}
                             </>
                           : <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>}
                         <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}{isNew && <span style={{ color: '#ff4a5e', fontWeight: 700, marginLeft: 6 }}>NEW</span>}</div>
