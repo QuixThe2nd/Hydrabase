@@ -98,7 +98,7 @@ export class Peer {
       this.send({ nonce, pong: { peers: ping.peers ?? [], time: Number(new Date()) } }, trace)
       for (const hostname of ping.peers) {
         const discoveryTrace = Trace.start(`[HIP2] Discovered peer through ${this.address}: ${hostname}`, true, true)
-        void this.peers.handleDiscoveredHostname(this.address, hostname, discoveryTrace)
+        this.peers.handleDiscoveredHostname(this.address, hostname, discoveryTrace)
           .catch(error => {
             const message = error instanceof Error ? error.message : String(error)
             warn('DEVWARN:', `[PEER] Unhandled discovered hostname error for ${hostname}: ${message}`)

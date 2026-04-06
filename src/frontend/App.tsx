@@ -258,7 +258,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   }, [messages])
 
   const appendMessages = useCallback((incoming: MessageEnvelope[]): number => {
-    const current = messagesRef.current
+    const { current } = messagesRef
     const { added, merged } = mergeMessages(current, incoming)
 
     if (added === 0) {
