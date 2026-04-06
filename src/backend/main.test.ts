@@ -299,7 +299,8 @@ describe('Peer discovery', () => {
 
     peerManager1.peers.set(announcedAddress, fakePeer)
     try {
-      await peerManager1.handleDiscoveredHostname(announcerAddress, announcedHostname, trace)
+      const handleDiscoveredHostnameTrace = trace.child('handleDiscoveredHostname test')
+      await peerManager1.handleDiscoveredHostname(announcerAddress, announcedHostname, handleDiscoveredHostnameTrace)
       expect(addCalls).toContain(announcedHostname)
       expect(peerManager1.getAnnouncedHostnames(announcerAddress)).toContain(announcedHostname)
       expect(peerManager1.getAnnouncementConnections(announcedAddress)).toContain(announcerAddress)
