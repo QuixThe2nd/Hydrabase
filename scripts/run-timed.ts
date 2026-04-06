@@ -15,8 +15,21 @@ const parseTTL = (raw: string): number => {
   return Number.parseFloat(raw) * 1_000 // bare number = seconds
 }
 
+const parseTTLArg = (raw: string): number => {
+  const ttlMs = parseTTL(raw)
+
+  if (!Number.isFinite(ttlMs) || ttlMs < 0) {
+    process.stderr.write(
+      '[run-timed] Invalid TTL. Usage: bun run [-- <seconds|seconds"s"|minutes"m">], where 0 means no timeout.\n',
+    )
+    process.exit(1)
+  }
+
+  return ttlMs
+}
+
 const DEFAULT_TTL_MS = 30_000
-const ttlMs = process.argv[2] ? parseTTL(process.argv[2]) : DEFAULT_TTL_MS
+const ttlMs = process.argv[2] ? parseTTLArg(process.argv[2]) : DEFAULT_TTL_MS
 
 const proc = Bun.spawn(['bun', 'src/backend'], {
   stderr: 'inherit',
