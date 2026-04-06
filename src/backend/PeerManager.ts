@@ -209,6 +209,7 @@ export default class PeerManager {
       this.repos.wsServer.replaceAll([...this.peers.values()].map(peer => peer.hostname))
       // this.announce(peer, trace) // removed: peer lists are now sent on every ping
       this.knownPeers.add(peer.hostname)
+      this.clearReconnectState(peer.hostname)
       this.recentPeerAddresses.set(PeerManager.normalizeHostname(peer.hostname), peer.address)
       this.notifyPeerOfRecentConnectionFailure(peer, trace)
       this.forwardHeldMessagesForPeer(peer)
@@ -455,6 +456,16 @@ export default class PeerManager {
     return sent
   }
 
+  private clearReconnectState(hostname: `${string}:${number}`): void {
+    const normalizedHostname = PeerManager.normalizeHostname(hostname)
+    const timer = this.reconnectTimers.get(normalizedHostname)
+    if (timer) {
+      clearTimeout(timer)
+      this.reconnectTimers.delete(normalizedHostname)
+    }
+    this.reconnectAttempts.delete(normalizedHostname)
+  }
+
   private consumeConnectionFailure(hostname: `${string}:${number}`): null | { hostname: `${string}:${number}`; reason: string; stack?: string; timestamp: number; transport: 'TCP' | 'UTP' } {
     const failure = this.recentConnectionFailures.get(hostname)
     if (!failure) return null
@@ -497,6 +508,15 @@ export default class PeerManager {
     const trace = Trace.start(`[HIP2] Forwarding ${relevant.length} local history message${relevant.length === 1 ? '' : 's'} to ${peer.username} ${peer.address}`)
     for (const message of relevant) peer.sendMessagePacket({ envelope: message, hops: 0 }, trace)
     trace.success()
+  }
+
+  private hasSatisfiedConnection(hostname: `${string}:${number}`): boolean {
+    const normalizedHostname = PeerManager.normalizeHostname(hostname)
+    if (this.connectingPeers.has(normalizedHostname)) return true
+    if (this.findConnectedPeerByHostname(normalizedHostname)) return true
+
+    const resolvedAddress = this.resolveKnownPeerAddress(normalizedHostname)
+    return resolvedAddress ? this.has(resolvedAddress) : false
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -606,10 +626,8 @@ export default class PeerManager {
   private removePeerAnnouncements(address: `0x${string}`): void {
     this.announcedByPeer.delete(address)
     this.announcedHostnamesByPeer.delete(address)
-    for (const [announcedAddress, announcers] of this.announcedByPeer.entries()) {
-      announcers.delete(address)
-      if (announcers.size === 0) this.announcedByPeer.delete(announcedAddress)
-    }
+    // Intentionally keep the peer as an announcer in other peers' sets so
+    // that "Announced" data survives disconnections.
   }
 
   private resolveKnownPeerAddress(hostname: `${string}:${number}`): `0x${string}` | null {
@@ -627,36 +645,45 @@ export default class PeerManager {
 
   private scheduleReconnect(hostname: `${string}:${number}`) {
     if (hostname === 'API:0') return
-    const existing = this.reconnectTimers.get(hostname)
+    const normalizedHostname = PeerManager.normalizeHostname(hostname)
+    const existing = this.reconnectTimers.get(normalizedHostname)
     if (existing) clearTimeout(existing)
 
-    const attempt = (this.reconnectAttempts.get(hostname) ?? 0) + 1
+    const attempt = (this.reconnectAttempts.get(normalizedHostname) ?? 0) + 1
     if (attempt > PeerManager.RECONNECT_MAX_ATTEMPTS) {
-      warn('WARN:', `[PEERS] Giving up reconnection to ${hostname} after ${PeerManager.RECONNECT_MAX_ATTEMPTS} attempts`)
-      this.reconnectAttempts.delete(hostname)
-      this.reconnectTimers.delete(hostname)
+      warn('WARN:', `[PEERS] Giving up reconnection to ${normalizedHostname} after ${PeerManager.RECONNECT_MAX_ATTEMPTS} attempts`)
+      this.reconnectAttempts.delete(normalizedHostname)
+      this.reconnectTimers.delete(normalizedHostname)
       return
     }
 
     const delay = Math.min(PeerManager.RECONNECT_BASE_DELAY_MS * 2**(attempt - 1), PeerManager.RECONNECT_MAX_DELAY_MS)
 
-    this.reconnectAttempts.set(hostname, attempt)
-    const trace = Trace.start(`[PEERS] Reconnecting to ${hostname} (attempt ${attempt}/${PeerManager.RECONNECT_MAX_ATTEMPTS}, delay ${delay / 1000}s)`)
+    this.reconnectAttempts.set(normalizedHostname, attempt)
+    const trace = Trace.start(`[PEERS] Reconnecting to ${normalizedHostname} (attempt ${attempt}/${PeerManager.RECONNECT_MAX_ATTEMPTS}, delay ${delay / 1000}s)`)
 
     const timer = setTimeout(async () => {
-      this.reconnectTimers.delete(hostname)
-      this.knownPeers.delete(hostname)
-      const success = await this.add(hostname, trace)
-      if (success) {
+      this.reconnectTimers.delete(normalizedHostname)
+      if (this.hasSatisfiedConnection(normalizedHostname)) {
+        trace.step(`[PEERS] Reconnect already satisfied for ${normalizedHostname}; skipping duplicate attempt`)
         trace.success()
-        this.reconnectAttempts.delete(hostname)
+        this.reconnectAttempts.delete(normalizedHostname)
+        return
+      }
+
+      this.knownPeers.delete(normalizedHostname)
+      const success = await this.add(normalizedHostname, trace)
+      if (success || this.hasSatisfiedConnection(normalizedHostname)) {
+        if (!success) trace.step(`[PEERS] Reconnect resolved by existing connection for ${normalizedHostname}`)
+        trace.success()
+        this.reconnectAttempts.delete(normalizedHostname)
       } else {
-        this.recordConnectionFailure(hostname, 'Reconnection failed', this.nodeConfig.preferTransport, trace.getFullTrace())
+        this.recordConnectionFailure(normalizedHostname, 'Reconnection failed', this.nodeConfig.preferTransport, trace.getFullTrace())
         trace.fail('Reconnection failed')
-        this.scheduleReconnect(hostname)
+        this.scheduleReconnect(normalizedHostname)
       }
     }, delay)
-    this.reconnectTimers.set(hostname, timer)
+    this.reconnectTimers.set(normalizedHostname, timer)
   }
 
   private shouldAuthenticate(hostname: `${string}:${number}`): string | true {

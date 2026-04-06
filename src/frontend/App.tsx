@@ -821,7 +821,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
       {tab === 'peers' && sel
-        ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} ownAddress={stats?.self.address} peer={sel} peers={peers} sendMessage={handleSendMessage} wsRef={wsRef} />
+        ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} onSelectPeer={handleSelectPeer} ownAddress={stats?.self.address} peer={sel} peers={peers} sendMessage={handleSendMessage} wsRef={wsRef} />
         : tab === 'peers' && <PeersTab connectionAttempts={connectionAttempts} filter={filter} onRequestConnect={handleRequestConnect} peers={peers} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}

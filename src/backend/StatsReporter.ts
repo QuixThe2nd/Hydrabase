@@ -144,8 +144,10 @@ export class StatsReporter {
       const connectedPeer = connectedByAddress.get(address)
       const knownPlugins = this.getKnownPlugins(address, connectedPeer)
       const identity = authByAddress.get(address)
+      const announcedBy = this.peers.getAnnouncementConnections(address)
       return {
         address,
+        ...(announcedBy.length ? { announcedBy } : {}),
         ...(knownPlugins.length ? { knownPlugins } : {}),
         ...(identity ? {
           auth: {

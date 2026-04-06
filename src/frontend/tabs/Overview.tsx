@@ -4,7 +4,7 @@ import { Identicon } from '../components/Identicon'
 import { NetworkPulseCanvas } from '../components/Pulse'
 import { StatCard } from '../components/StatCard'
 import { ACCENT, ACCENT2, BG2, BORD, confColor, DIM, GREEN, MUTED, ORANGE, PURPLE, TEXT, YELLOW } from '../theme'
-import { parseEndpoint, shortAddr, toEmoji } from '../utils'
+import { fmtUptime, parseEndpoint, shortAddr, toEmoji } from '../utils'
 
 interface BwPoint { dl: number; t: number; ul: number }
 type ConnectionType = NonNullable<PeerWithCountry['connection']>['type']
@@ -19,19 +19,9 @@ interface Props {
   uptime: number
 }
 
-const ActivityBar = ({ data }: { data: number[] }) => <div style={{ alignItems: 'flex-end', display: 'flex', gap: 1.5, height: 14 }}>
-  {data.map((v, i) => <div key={i} style={{ background: ACCENT2, borderRadius: 1, height: Math.max(2, (v / 100) * 14), opacity: 0.3 + (v / 140), transition: 'height .3s ease', width: 3 }} />)}
-</div>
 const StatusDotPulse = ({ status }: { status: boolean }) => <div style={{ animation: status ? 'pulse-dot 1.4s ease infinite' : undefined, background: status ? GREEN : '#ff4a5e66', borderRadius: '50%', flexShrink: 0, height: 7, width: 7 }} />
 
 const CONF_BAR_W = 38
-
-const formatUptime = (seconds: number): string => {
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
-  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`
-}
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B'
@@ -57,13 +47,26 @@ const getConnectionTypeColor = (type: ConnectionType | undefined): string => {
 
 const ConnectionTypeLabel = ({ type }: { type: ConnectionType | undefined }) => <span style={{ color: getConnectionTypeColor(type), fontSize: 10, fontWeight: 600 }}>{formatConnectionType(type)}</span>
 
+const ConfidenceCell = ({ confidence, peerAddress }: { confidence: number; peerAddress: `0x${string}` }) => {
+  const confidenceColor = confColor(confidence)
+  if (peerAddress === '0x0') return <span style={{ color: MUTED, fontSize: 10 }}>—</span>
+  return <>
+    <span style={{ color: confidenceColor, fontSize: 10, fontWeight: 600 }}>{(confidence * 100).toFixed(1)}</span>
+    <div style={{ background: '#111820', borderRadius: 2, height: 3, overflow: 'hidden', width: CONF_BAR_W }}>
+      <div style={{ background: confidenceColor, borderRadius: 2, height: '100%', transition: 'width .5s ease', width: `${confidence * 100}%` }} />
+    </div>
+  </>
+}
+
 const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect: () => void; peer: PeerWithCountry }) => {
-  const confColor_ = confColor(peer.connection?.confidence ?? 0)
+  const confidence = peer.connection?.confidence ?? 0
   const parsedPeerEndpoint = peer.connection?.hostname ? parseEndpoint(peer.connection.hostname) : null
   const peerIp = parsedPeerEndpoint?.hostname ?? 'unknown'
   const peerPort = parsedPeerEndpoint?.port ?? 'N/A'
   const peerUserAgent = peer.connection?.userAgent ?? peer.auth?.userAgent
-  return <div className={isSelected ? 'peer-overview-row selected' : 'peer-overview-row'} data-addr={peer.address} onClick={onSelect} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.06)' : 'transparent', borderBottom: `1px solid ${BORD}`, cursor: 'pointer', display: 'grid', gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 60px 60px 60px 80px 50px', transition: 'background .1s' }}>
+  const peerUptime = peer.connection?.uptime ?? 0
+  const peerUptimeColor = peerUptime / 1_000 > 90 ? GREEN : peerUptime / 1_000 > 60 ? YELLOW : ORANGE
+  return <div className={isSelected ? 'peer-overview-row selected' : 'peer-overview-row'} data-addr={peer.address} onClick={onSelect} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.06)' : 'transparent', borderBottom: `1px solid ${BORD}`, cursor: 'pointer', display: 'grid', gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 72px 60px 60px 80px 50px', transition: 'background .1s' }}>
     <div style={{ padding: '8px 6px 8px 10px' }}>
       <Identicon address={peer.address} size={22} />
     </div>
@@ -86,7 +89,7 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
       {(peer.connection?.plugins.length ?? 0) > 2 && <span style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: MUTED, fontSize: 8, padding: '1px 5px' }}>+{(peer.connection?.plugins.length ?? 0) - 2}</span>}
     </div>
     <div style={{ padding: '8px 6px' }}><ConnectionTypeLabel type={peer.connection?.type} /></div>
-    <div style={{ padding: '8px 6px' }}>{peer.connection === undefined ? <span style={{ color: DIM, fontSize: 9 }}>offline</span> : <ActivityBar data={peer.activity} />}</div>
+    <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection ? peerUptimeColor : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection ? fmtUptime(peerUptime) : '—'}</span></div>
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection !== undefined && peer.connection?.latency ? (peer.connection?.latency < 100 ? GREEN : peer.connection?.latency < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.latency ? `${Math.round(peer.connection?.latency)}ms` : '—'}</span></div>
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection !== undefined && peer.connection?.lookupTime ? (peer.connection?.lookupTime < 100 ? GREEN : peer.connection?.lookupTime < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.lookupTime ? `${Math.round(peer.connection?.lookupTime)}ms` : '—'}</span></div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 6px' }}>
@@ -95,26 +98,19 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
     </div>
     <div style={{ padding: '8px 8px 8px 4px' }}>
       <div style={{ alignItems: 'center', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {peer.address === '0x0'
-          ? <span style={{ color: MUTED, fontSize: 10 }}>—</span>
-          : <>
-            <span style={{ color: confColor_, fontSize: 10, fontWeight: 600 }}>{((peer.connection?.confidence ?? 0) * 100).toFixed(1)}</span>
-            <div style={{ background: '#111820', borderRadius: 2, height: 3, overflow: 'hidden', width: CONF_BAR_W }}>
-              <div style={{ background: confColor_, borderRadius: 2, height: '100%', transition: 'width .5s ease', width: `${(peer.connection?.confidence ?? 0) * 100}%` }} />
-            </div>
-          </>}
+        <ConfidenceCell confidence={confidence} peerAddress={peer.address} />
       </div>
     </div>
   </div>
 }
 
 const PeerList = ({ onViewMorePeers, peers, sel, setSel }: { onViewMorePeers: () => void; peers: PeerWithCountry[]; sel: ApiPeer | null; setSel: (p: null | PeerWithCountry) => void }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 8, overflow: 'hidden' }}>
-  <div style={{ alignItems: 'center', borderBottom: `1px solid ${BORD}`, color: MUTED, display: 'grid', fontSize: 9, fontWeight: 700, gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 60px 60px 60px 80px 50px', letterSpacing: '.08em', padding: '6px 0', textTransform: 'uppercase' }}>
+  <div style={{ alignItems: 'center', borderBottom: `1px solid ${BORD}`, color: MUTED, display: 'grid', fontSize: 9, fontWeight: 700, gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 72px 60px 60px 80px 50px', letterSpacing: '.08em', padding: '6px 0', textTransform: 'uppercase' }}>
     <div />
     <div style={{ padding: '0 10px' }}>Peer</div>
     <div style={{ padding: '0 6px' }}>Plugins</div>
     <div style={{ padding: '0 6px' }}>Type</div>
-    <div style={{ padding: '0 6px' }}>Activity</div>
+    <div style={{ padding: '0 6px' }}>Uptime</div>
     <div style={{ padding: '0 6px' }}>Latency</div>
     <div style={{ padding: '0 6px' }}>Lookup Time</div>
     <div style={{ padding: '0 6px' }}>UL / DL</div>
@@ -160,7 +156,7 @@ export const OverviewTab = ({ bwHistory, onViewMorePeers, peers: knownPeers, sel
       <StatCard color="#58a6ff" label="Session Uploaded" sub={`across ${connCount} connections`} value={formatBytes(totalUL)} />
       <StatCard color="#58a6ff" label="Lifetime Uploaded" sub="across all connections" value={formatBytes(lifetimeUL)} />
       
-      <StatCard color={YELLOW} label="Node Uptime" sub="how long running" value={formatUptime(uptime)} />
+      <StatCard color={YELLOW} label="Node Uptime" sub="how long running" value={fmtUptime(uptime)} />
       <StatCard color={ORANGE} label="Session Transfer" sub={`${formatBytes(totalDL)} down · ${formatBytes(totalUL)} up`} value={formatBytes(totalDL + totalUL)} />
       <StatCard color={ORANGE} label="Session Downloaded" sub={`across ${connCount} connections`} value={formatBytes(totalDL)} />
       <StatCard color={ORANGE} label="Lifetime Downloaded" sub="across all connections" value={formatBytes(lifetimeDL)} />
