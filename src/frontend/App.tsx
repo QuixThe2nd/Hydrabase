@@ -329,9 +329,13 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
   const refreshRuntimeConfig = useCallback((): Promise<void> => {
     const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('WebSocket not connected'))
-    setRuntimeConfigLoading(true)
     setRuntimeConfigError(null)
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setRuntimeConfigLoading(false)
+      setRuntimeConfigError('WebSocket not connected')
+      return Promise.resolve()
+    }
+    setRuntimeConfigLoading(true)
     ws.send(JSON.stringify({ get_config: true, nonce: nonceRef.current++ }))
     return Promise.resolve()
   }, [])
