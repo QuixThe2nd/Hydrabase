@@ -1,123 +1,237 @@
-import natUpnp from 'nat-upnp'
+import type { Mapping, MappingInfo, Protocol } from 'node-portmapping'
 
 import type { Config } from '../../types/hydrabase'
 
 import { debug } from '../../utils/log'
 import { Trace } from '../../utils/trace'
 
-let upnpClient: null | ReturnType<typeof natUpnp.createClient> = null
-let upnpInitError: Error | null = null
-const renewalTimers = new Set<Timer>()
-const activeMappings = new Set<string>()
+type PortMappingModule = typeof import('node-portmapping')
 
-const mappingKey = (port: number, protocol: 'TCP' | 'UDP') => `${port}:${protocol}`
+let portMappingModulePromise: null | Promise<PortMappingModule> = null
+let portMappingInitError: Error | null = null
+const activeMappings = new Map<string, Mapping>()
 
-const getUpnpClient = (trace?: Trace) => {
-  if (upnpClient) return upnpClient
-  if (upnpInitError) throw upnpInitError
+const mappingKey = (port: number, protocol: Protocol) => `${port}:${protocol}`
+
+const toError = (error: unknown) => error instanceof Error ? error : new Error(String(error))
+
+const normaliseLoadError = (error: unknown) => {
+  const resolved = toError(error)
+  if (resolved.message.includes('node_portmapping.node')) {
+    return new Error('node-portmapping native addon is unavailable; run the package install script to compile it before starting Hydrabase')
+  }
+
+  return resolved
+}
+
+const loadPortMappingModule = async (): Promise<PortMappingModule> => {
+  const mod = await import('node-portmapping')
+  mod.init()
+  return mod
+}
+
+const getPortMappingModule = (trace?: Trace): Promise<PortMappingModule> => {
+  if (portMappingInitError) throw portMappingInitError
+  if (portMappingModulePromise) return portMappingModulePromise
+
+  const loadPromise = loadPortMappingModule()
+    .catch((error: unknown) => {
+      const nextError = normaliseLoadError(error)
+      portMappingInitError = nextError
+      portMappingModulePromise = null
+      trace?.step(`[UPnP] Port mapping init failed: ${nextError.message}`)
+      throw nextError
+    })
+
+  portMappingModulePromise = loadPromise
+  return loadPromise
+}
+
+const destroyMapping = (mapping: Mapping): void => {
   try {
-    upnpClient = natUpnp.createClient()
-    return upnpClient
-  } catch (error) {
-    upnpInitError = error instanceof Error ? error : new Error(String(error))
-    trace?.step(`[UPnP] Client init failed: ${upnpInitError.message}`)
-    throw upnpInitError
+    mapping.destroy()
+  } catch {
+    // Best-effort cleanup for native mapping handles.
   }
 }
 
-const mapPort = (port: number, description: string, ttl: number, protocol: 'TCP' | 'UDP', trace?: Trace) => new Promise<void>((res, rej) => {
-  const upnp = getUpnpClient(trace)
-  const timeoutId = setTimeout(() => {
-    rej(new Error(`UPnP port mapping timeout after 5s for ${protocol} port ${port}`))
-  }, 5000)
-  upnp.portMapping({ description, private: port, protocol, public: port, ttl }, err => {
-    clearTimeout(timeoutId)
-    if (err) rej(err)
-    else {
-      activeMappings.add(mappingKey(port, protocol))
-      trace?.step(`[UPnP] Successfully forwarded ${protocol} port ${port}`)
-      if (!trace) debug(`[UPnP] Successfully renewed ${protocol} forwarding on port ${port}`)
-      res(undefined)
-    }
-  })
-})
+const removeActiveMapping = (port: number, protocol: Protocol): void => {
+  const existingMapping = activeMappings.get(mappingKey(port, protocol))
+  if (!existingMapping) return
+  destroyMapping(existingMapping)
+  activeMappings.delete(mappingKey(port, protocol))
+}
 
-const unmapPort = (port: number, protocol: 'TCP' | 'UDP') => new Promise<void>((res, rej) => {
-  const upnp = getUpnpClient()
-  const timeoutId = setTimeout(() => {
-    rej(new Error(`UPnP port unmapping timeout after 5s for ${protocol} port ${port}`))
-  }, 5000)
-  upnp.portUnmapping({ protocol, public: port }, err => {
-    clearTimeout(timeoutId)
-    if (err) {
-      rej(err)
-      return
-    }
-    activeMappings.delete(mappingKey(port, protocol))
-    res(undefined)
-  })
-})
+const describeSuccess = (port: number, protocol: Protocol, info: MappingInfo, trace?: Trace): void => {
+  trace?.step(`[UPnP] Successfully forwarded ${protocol} port ${port} to ${info.externalHost}:${info.externalPort}`)
+  if (!trace) debug(`[UPnP] Successfully renewed ${protocol} forwarding on port ${port}`)
+}
 
-const portForward = async (port: number, description: string, announceInterval: number, ttl: number, protocol: 'TCP' | 'UDP', trace: Trace) => {
-  await mapPort(port, description, ttl, protocol, trace)
-  const timer = setInterval(() => mapPort(port, description, ttl, protocol), announceInterval)
-  renewalTimers.add(timer)
+const handleMappingState = ({
+  info,
+  mapping,
+  port,
+  protocol,
+  reject,
+  resolve,
+  trace,
+}: {
+  info: MappingInfo
+  mapping: Mapping
+  port: number
+  protocol: Protocol
+  reject: (reason?: unknown) => void
+  resolve: () => void
+  trace: Trace | undefined
+}): MappingInfo => {
+  if (info.state === 'Success') {
+    activeMappings.set(mappingKey(port, protocol), mapping)
+    describeSuccess(port, protocol, info, trace)
+    resolve()
+    return info
+  }
+
+  if (info.state === 'Failure' || info.state === 'Destroyed') {
+    destroyMapping(mapping)
+    reject(new Error(`Port mapping failed for ${protocol} port ${port} with state ${info.state}`))
+  }
+
+  return info
+}
+
+const tryReadMappingInfo = (mapping: Mapping, onInfo: (info: MappingInfo) => MappingInfo): void => {
+  try {
+    onInfo(mapping.getInfo())
+  } catch {
+    // Ignore eager query failures and wait for the async callback instead.
+  }
+}
+
+const createMappingObserver = ({
+  mapping,
+  port,
+  protocol,
+  reject,
+  resolve,
+  trace,
+}: {
+  mapping: Mapping
+  port: number
+  protocol: Protocol
+  reject: (reason?: unknown) => void
+  resolve: () => void
+  trace: Trace | undefined
+}) => {
+  let settled = false
+  let timeoutId: null | ReturnType<typeof setTimeout> = null
+
+  const finish = (callback: () => void): void => {
+    if (settled) return
+    settled = true
+    if (timeoutId) clearTimeout(timeoutId)
+    callback()
+  }
+
+  const onInfo = (info: MappingInfo): MappingInfo => {
+    finish(() => {
+      handleMappingState({ info, mapping, port, protocol, reject, resolve, trace })
+    })
+    return info
+  }
+
+  timeoutId = setTimeout(() => {
+    finish(() => {
+      destroyMapping(mapping)
+      reject(new Error(`Port mapping timeout after 5s for ${protocol} port ${port}`))
+    })
+  }, 5000)
+
+  return onInfo
+}
+
+const createPortMapping = async (port: number, protocol: Protocol, trace?: Trace): Promise<void> => {
+  const portMapping = await getPortMappingModule(trace)
+  removeActiveMapping(port, protocol)
+  await new Promise<void>((resolve, reject) => {
+    let observer: (info: MappingInfo) => MappingInfo = info => info
+    const onInfo = (info: MappingInfo): MappingInfo => observer(info)
+    const mapping = portMapping.createMapping({ externalPort: port, internalPort: port, protocol }, onInfo)
+    observer = createMappingObserver({ mapping, port, protocol, reject, resolve, trace })
+    tryReadMappingInfo(mapping, observer)
+  })
+}
+
+const recordMappingError = (errors: string[], protocol: Protocol, error: unknown): void => {
+  errors.push(`${protocol}: ${toError(error).message} - Ignore if manually port forwarded`)
+}
+
+const logTraceErrors = (trace: Trace, errors: string[], fallback: string): void => {
+  for (let i = 0; i < errors.length; i++) {
+    const message = errors[i] ?? fallback
+    if (i === errors.length - 1) trace.fail(message)
+    else trace.caughtError(message)
+  }
 }
 
 export const requestPort = async (node: Config['node'], upnp: Config['upnp']) => {
   const trace = Trace.start(`[UPnP] Requesting port ${node.port}`)
+  trace.step(`[UPnP] node-portmapping manages leases internally; ignoring legacy reannounce=${upnp.reannounce}ms ttl=${upnp.ttl}ms`)
+
   const errors: string[] = []
   try {
-    await portForward(node.port, 'Hydrabase (TCP)', upnp.reannounce, upnp.ttl, 'TCP', trace)
+    await createPortMapping(node.port, 'TCP', trace)
   } catch (err) {
-    const msg = `TCP: ${(err as Error).message} - Ignore if manually port forwarded`
-    errors.push(msg)
+    recordMappingError(errors, 'TCP', err)
   }
+
   try {
-    await portForward(node.port, 'Hydrabase (UDP)', upnp.reannounce, upnp.ttl, 'UDP', trace)
+    await createPortMapping(node.port, 'UDP', trace)
   } catch (err) {
-    const msg = `UDP: ${(err as Error).message} - Ignore if manually port forwarded`
-    errors.push(msg)
+    recordMappingError(errors, 'UDP', err)
   }
-  for (let i = 0; i < errors.length; i++) {
-    const prefixed = `[UPnP][FAIL] ${errors[i] ?? 'Error not found??'}`
-    if (i === errors.length - 1) trace.fail(prefixed)
-    else trace.caughtError(prefixed)
+
+  if (errors.length > 0) {
+    logTraceErrors(trace, errors.map(message => `[UPnP][FAIL] ${message}`), '[UPnP][FAIL] Unknown port mapping error')
+    return
   }
-  if (errors.length === 0) trace.success()
+
+  trace.success()
 }
 
 export const releasePortLeases = async () => {
-  for (const timer of renewalTimers) clearInterval(timer)
-  renewalTimers.clear()
-
   const trace = Trace.start('[UPnP] Releasing mapped ports')
-  const mappings = [...activeMappings.values()]
-  if (mappings.length === 0) {
+  const mappings = [...activeMappings.entries()]
+  const modulePromise = portMappingModulePromise
+
+  if (mappings.length === 0 && !modulePromise) {
     trace.softFail('No active mappings to release')
     return
   }
 
   const errors: string[] = []
-  for (const mapping of mappings) {
-    const [portRaw, protocolRaw] = mapping.split(':')
-    const port = Number(portRaw)
-    const protocol = protocolRaw as 'TCP' | 'UDP'
-    if (!Number.isFinite(port)) continue
-
+  for (const [mappingId, mapping] of mappings) {
+    const [portRaw, protocolRaw] = mappingId.split(':')
     try {
-      await unmapPort(port, protocol)
-      trace.step(`[UPnP] Released ${protocol} forwarding on port ${port}`)
+      destroyMapping(mapping)
+      activeMappings.delete(mappingId)
+      trace.step(`[UPnP] Released ${protocolRaw} forwarding on port ${portRaw}`)
     } catch (err) {
-      errors.push(`${protocol}:${port}: ${(err as Error).message}`)
+      errors.push(`${protocolRaw}:${portRaw}: ${toError(err).message}`)
+    }
+  }
+
+  portMappingModulePromise = null
+  if (modulePromise) {
+    try {
+      const mod = await modulePromise
+      await mod.cleanup()
+    } catch (err) {
+      errors.push(`cleanup: ${toError(err).message}`)
     }
   }
 
   if (errors.length > 0) {
-    for (let i = 0; i < errors.length; i++) {
-      if (i === errors.length - 1) trace.fail(errors[i] ?? 'Unknown UPnP unmap error')
-      else trace.caughtError(errors[i] ?? 'Unknown UPnP unmap error')
-    }
+    logTraceErrors(trace, errors, 'Unknown UPnP cleanup error')
     return
   }
 

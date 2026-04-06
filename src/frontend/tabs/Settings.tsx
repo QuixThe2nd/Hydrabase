@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 

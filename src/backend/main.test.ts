@@ -279,6 +279,7 @@ describe('HIP3', () => {
     }
     expect(peer3).toBeDefined()
   })
+})
 describe('Peer discovery', () => {
   it('connects to hostnames learned through peer advertisements', async () => {
     const announcerAddress = '0x1111111111111111111111111111111111111111' as `0x${string}`
@@ -293,7 +294,7 @@ describe('Peer discovery', () => {
 
     ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = peer => {
       if (typeof peer === 'string') addCalls.push(peer)
-      return Promise.resolve(false)
+      return Promise.resolve(true)
     }
 
     peerManager1.peers.set(announcedAddress, fakePeer)

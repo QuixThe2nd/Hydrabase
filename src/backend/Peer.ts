@@ -30,9 +30,6 @@ export class Peer {
   get latency(): number {
     return this.totalLatency/this.totalPongs
   }
-  private get persistedLifetimeStats(): { lifetimeDL: number; lifetimeUL: number } {
-    return this.repos.peer.getLifetimeStats(this.address)
-  }
   get lifetimeDL(): number {
     return this.persistedLifetimeStats.lifetimeDL + Math.max(0, this._dl - this.lastSavedDL)
   }
@@ -45,10 +42,9 @@ export class Peer {
   get plugins(): string[] {
     return this.repos.peer.getPlugins(this.address)
   }
-
   get totalDL() { return this._dl }
-  get totalUL() { return this._ul }
 
+  get totalUL() { return this._ul }
   get type() {
     return this.socket instanceof UTPClient ? 'UTP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
   }
@@ -58,7 +54,9 @@ export class Peer {
   }
 
   get userAgent() { return this.socket.identity.userAgent }
+
   get username() { return this.socket.identity.username }
+  private _dl = 0
   // get votes(): Votes {
   //   return {
   //     albums: 0,
@@ -67,9 +65,8 @@ export class Peer {
   //   }
   // }
 
-  private _dl = 0
-  private _ul = 0 
-  private consecutivePingTimeouts = 0
+  private _ul = 0
+  private consecutivePingTimeouts = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
   private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
@@ -176,8 +173,11 @@ export class Peer {
   }
   private lastSavedDL = 0
   private lastSavedUL = 0
-
   private startTime?: number
+
+  private get persistedLifetimeStats(): { lifetimeDL: number; lifetimeUL: number } {
+    return this.repos.peer.getLifetimeStats(this.address)
+  }
 
   // eslint-disable-next-line max-lines-per-function
   constructor(
