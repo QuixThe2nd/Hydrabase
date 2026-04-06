@@ -61,10 +61,10 @@ const SidebarPeers = ({ onSelectPeer, peerCount, peers, selectedPeerAddress, set
 </div>
 
 export const Sidebar = ({ onSelectPeer, peers, selectedPeerAddress, setTab, stats, tab, unreadMessages, uptime }: { onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: ActiveTab; unreadMessages: number; uptime: number }) => {
-  const totalRx = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
-  const totalTx = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
-  const connectedPeers = sortSidebarPeers(peers.filter(peer => peer.connection !== undefined))
-  const connectedPeerCount = connectedPeers.filter(peer => peer.address !== '0x0').length
+  const connectedPeers = sortSidebarPeers(peers.filter(peer => peer.connection !== undefined && peer.address !== '0x0'))
+  const totalRx = connectedPeers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
+  const totalTx = connectedPeers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
+  const connectedPeerCount = connectedPeers.length
 
   return <div style={{ background: '#010409', borderRight: `1px solid ${BORD}`, display: 'flex', flexDirection: 'column', flexShrink: 0, height: 'calc(100vh - 48px)', position: 'sticky', top: 0, width: 196 }}>
     <div style={{ borderBottom: `1px solid ${BORD}`, padding: '16px 16px 14px' }}>

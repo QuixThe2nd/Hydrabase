@@ -27,9 +27,21 @@ export const parseWsHost = (wsUrl: string): { hostname: string; port: number } =
   return { hostname: url.hostname, port: Number(url.port) }
 }
 
-export const fmtUptime = (ms: number): string => `${String(Math.floor(ms / 3_600_000)).padStart(2, '0')}:${String(Math.floor(ms / 60_000) % 60).padStart(2, '0')}:${String(Math.floor(ms / 1_000) % 60).padStart(2, '0')}`
+const fmtDuration = (totalSeconds: number): string => {
+  const seconds = Math.max(0, Math.floor(totalSeconds))
+  const days = Math.floor(seconds / 86_400)
+  const hours = Math.floor(seconds / 3_600) % 24
+  const minutes = Math.floor(seconds / 60) % 60
+  const secs = seconds % 60
 
-export const fmtClock = (seconds: number): string => `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m ${secs}s`
+}
+
+export const fmtUptime = (ms: number): string => fmtDuration(ms / 1_000)
+
+export const fmtClock = (seconds: number): string => fmtDuration(seconds)
 
 export const toEmoji = (country: string): string => country === 'N/A' || country === '-' ? '🌐' : countryCodeEmoji(country)
 

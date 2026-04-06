@@ -21,10 +21,12 @@ const Item = ({ label, value, valueColor }: { label: string; value: string; valu
 </span>
 
 export const StatusBar = ({ dhtNodes, peers, uptime, wsState }: Props) => {
-  const connCount = peers.filter(p => p.connection !== undefined && p.address !== '0x0').length
-  const peerCount = `${connCount}/${peers.length}`
-  const totalUL = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
-  const totalDL = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
+  const connectedPeers = peers.filter(p => p.connection !== undefined && p.address !== '0x0')
+  const knownPeers = peers.filter(p => p.address !== '0x0')
+  const connCount = connectedPeers.length
+  const peerCount = `${connCount}/${knownPeers.length}`
+  const totalUL = connectedPeers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
+  const totalDL = connectedPeers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
   const hasGithubNode = peers.some((p) => p.connection?.address?.toLowerCase() === '0x26cc08d7f906b2e55a06af561f870ec427d0caf7')
   const hasConnectedNonApiPeer = peers.some((p) => p.connection !== undefined && p.address !== '0x0')
   const connectability = hasGithubNode ? 'Connectable' : hasConnectedNonApiPeer ? 'Limited Connectivity' : 'Not Connectable'

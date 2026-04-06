@@ -30,11 +30,14 @@ export class Peer {
   get latency(): number {
     return this.totalLatency/this.totalPongs
   }
+  private get persistedLifetimeStats(): { lifetimeDL: number; lifetimeUL: number } {
+    return this.repos.peer.getLifetimeStats(this.address)
+  }
   get lifetimeDL(): number {
-    return this.repos.peer.getLifetimeStats(this.address).lifetimeDL
+    return this.persistedLifetimeStats.lifetimeDL + Math.max(0, this._dl - this.lastSavedDL)
   }
   get lifetimeUL(): number {
-    return this.repos.peer.getLifetimeStats(this.address).lifetimeUL
+    return this.persistedLifetimeStats.lifetimeUL + Math.max(0, this._ul - this.lastSavedUL)
   }
   get lookupTime(): number {
     return this.requestManager.averageLatencyMs

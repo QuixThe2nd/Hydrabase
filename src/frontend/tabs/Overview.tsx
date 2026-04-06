@@ -4,7 +4,7 @@ import { Identicon } from '../components/Identicon'
 import { NetworkPulseCanvas } from '../components/Pulse'
 import { StatCard } from '../components/StatCard'
 import { ACCENT, ACCENT2, BG2, BORD, confColor, DIM, GREEN, MUTED, ORANGE, PURPLE, TEXT, YELLOW } from '../theme'
-import { fmtUptime, parseEndpoint, shortAddr, toEmoji } from '../utils'
+import { fmtClock, fmtUptime, parseEndpoint, shortAddr, toEmoji } from '../utils'
 
 interface BwPoint { dl: number; t: number; ul: number }
 type ConnectionType = NonNullable<PeerWithCountry['connection']>['type']
@@ -126,42 +126,43 @@ const PeerList = ({ onViewMorePeers, peers, sel, setSel }: { onViewMorePeers: ()
 </div>
 
 export const OverviewTab = ({ bwHistory, onViewMorePeers, peers: knownPeers, sel, setSel, stats, uptime }: Props) => {
+  const knownNetworkPeers = knownPeers.filter(peer => peer.address !== '0x0')
   const connections = knownPeers.filter(p => p.connection !== undefined)
-  const peers = connections.filter(p => p.address !== '0x0')
-  const peerCount = peers.length
-  const connCount = connections.length
-  const avgConf = peerCount ? peers.reduce((a, p) => a + (p.connection?.confidence ?? 0), 0) / peerCount : 0
+  const peerConnections = connections.filter(p => p.address !== '0x0')
+  const peerCount = peerConnections.length
+  const connCount = peerConnections.length
+  const avgConf = peerCount ? peerConnections.reduce((a, p) => a + (p.connection?.confidence ?? 0), 0) / peerCount : 0
   const avgLat = (() => {
-    const measured = connections.filter(p => p.connection?.latency)
+    const measured = peerConnections.filter(p => p.connection?.latency)
     return measured.length ? measured.reduce((a, p) => a + (p.connection?.latency ?? 0), 0) / measured.length : 0
   })()
   const avgLookup = (() => {
-    const measured = connections.filter(p => p.connection?.lookupTime)
+    const measured = peerConnections.filter(p => p.connection?.lookupTime)
     return measured.length ? measured.reduce((a, p) => a + (p.connection?.lookupTime ?? 0), 0) / measured.length : 0
   })()
-  const totalDL = connections.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
-  const totalUL = connections.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
-  const lifetimeDL = connections.reduce((a, p) => a + (p.connection?.lifetimeDL ?? 0), 0)
-  const lifetimeUL = connections.reduce((a, p) => a + (p.connection?.lifetimeUL ?? 0), 0)
+  const totalDL = peerConnections.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
+  const totalUL = peerConnections.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
+  const lifetimeDL = peerConnections.reduce((a, p) => a + (p.connection?.lifetimeDL ?? 0), 0)
+  const lifetimeUL = peerConnections.reduce((a, p) => a + (p.connection?.lifetimeUL ?? 0), 0)
 
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
     <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(4, 1fr)' }}>
       <StatCard color={ACCENT2} label="DHT Nodes" sub="bootstrap nodes" value={stats?.dhtNodes.length ?? 0} />
-      <StatCard color={ACCENT} label="Connected Peers" sub={`of ${knownPeers.length} known · ${connCount} total connections`} value={peerCount} />
+      <StatCard color={ACCENT} label="Connected Peers" sub={`of ${knownNetworkPeers.length} known · ${connCount} total connections`} value={peerCount} />
       <StatCard color={confColor(avgConf)} label="Avg Confidence" sub="network-wide" value={peerCount ? `${(avgConf * 100).toFixed(1)}` : 'N/A'} />
       <StatCard color={PURPLE} label="Your Votes" sub={`${stats?.self.votes.tracks} tracks · ${stats?.self.votes.artists} artists · ${stats?.self.votes.albums} albums`} value={(stats?.self.votes.tracks ?? 0) + (stats?.self.votes.artists ?? 0) + (stats?.self.votes.albums ?? 0)} />
 
-      <StatCard color={avgLat ? (avgLat < 100 ? GREEN : avgLat < 250 ? YELLOW : ORANGE) : MUTED} label="Avg Latency" sub={`${connections.filter(p => p.connection?.latency).length} peers measured`} value={avgLat ? `${Math.round(avgLat)}ms` : '—'} />
-      <StatCard color={avgLookup ? (avgLookup < 100 ? GREEN : avgLookup < 250 ? YELLOW : ORANGE) : MUTED} label="Avg Lookup Time" sub={`${connections.filter(p => p.connection?.lookupTime).length} peers measured`} value={avgLookup ? `${Math.round(avgLookup)}ms` : '—'} />
+      <StatCard color={avgLat ? (avgLat < 100 ? GREEN : avgLat < 250 ? YELLOW : ORANGE) : MUTED} label="Avg Latency" sub={`${peerConnections.filter(p => p.connection?.latency).length} peers measured`} value={avgLat ? `${Math.round(avgLat)}ms` : '—'} />
+      <StatCard color={avgLookup ? (avgLookup < 100 ? GREEN : avgLookup < 250 ? YELLOW : ORANGE) : MUTED} label="Avg Lookup Time" sub={`${peerConnections.filter(p => p.connection?.lookupTime).length} peers measured`} value={avgLookup ? `${Math.round(avgLookup)}ms` : '—'} />
       <StatCard color="#58a6ff" label="Session Uploaded" sub={`across ${connCount} connections`} value={formatBytes(totalUL)} />
       <StatCard color="#58a6ff" label="Lifetime Uploaded" sub="across all connections" value={formatBytes(lifetimeUL)} />
       
-      <StatCard color={YELLOW} label="Node Uptime" sub="how long running" value={fmtUptime(uptime)} />
+      <StatCard color={YELLOW} label="Node Uptime" sub="how long running" value={fmtClock(uptime)} />
       <StatCard color={ORANGE} label="Session Transfer" sub={`${formatBytes(totalDL)} down · ${formatBytes(totalUL)} up`} value={formatBytes(totalDL + totalUL)} />
       <StatCard color={ORANGE} label="Session Downloaded" sub={`across ${connCount} connections`} value={formatBytes(totalDL)} />
       <StatCard color={ORANGE} label="Lifetime Downloaded" sub="across all connections" value={formatBytes(lifetimeDL)} />
     </div>
     <NetworkPulseCanvas bwHistory={bwHistory} />
-    <PeerList onViewMorePeers={onViewMorePeers} peers={connections} sel={sel} setSel={setSel} />
+    <PeerList onViewMorePeers={onViewMorePeers} peers={peerConnections} sel={sel} setSel={setSel} />
   </div>
 }
