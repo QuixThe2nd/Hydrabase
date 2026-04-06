@@ -192,7 +192,7 @@ const AnnouncementOverview = ({ peer, peers }: { peer: PeerWithCountry; peers: P
   }))
   const announcedEntries: AnnouncementEntry[] = peers
     .filter((candidate) => {
-      const candidateAnnouncements = candidate.connection?.connections ?? candidate.announcedBy ?? []
+      const candidateAnnouncements = candidate.announcedBy ?? candidate.connection?.connections ?? []
       return candidateAnnouncements.includes(peer.address)
     })
     .map((candidate) => ({
