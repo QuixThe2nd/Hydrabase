@@ -50,6 +50,7 @@
   "scripts": {
     "start": "bun src/backend",
     "dev": "bun --watch src/backend",
+    "test": "bun test",
     "build-webui": "bun src/backend/build-webui.ts",
     "list:gui-env": "bun scripts/list-gui-env.ts",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org parsa-0g --project bun ./dist && sentry-cli sourcemaps upload --org parsa-0g --project bun ./dist",
