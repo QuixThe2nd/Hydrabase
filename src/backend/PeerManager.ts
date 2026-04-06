@@ -225,7 +225,7 @@ export default class PeerManager {
   public createAndSendMessage(to: `0x${string}`, payload: string, trace: Trace): void {
     const from = this.account.address
     const timestamp = Date.now()
-    const ttl = 86_400_000 // 24 hours
+    const ttl = 21_600_000 // 6 hours
     const sig = this.account.sign(`${from}:${to}:${timestamp}:${payload}`, trace).toString()
     const envelope: MessageEnvelope = { from, payload, sig, timestamp, to, ttl }
     this.recordLocalMessage(envelope)

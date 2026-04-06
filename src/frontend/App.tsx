@@ -700,7 +700,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const handleSendMessage = useCallback((to: `0x${string}`, payload: string) => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    setMessages(prev => [...prev, { from: stats?.self.address ?? '0x0' as `0x${string}`, payload, sig: '', timestamp: Date.now(), to, ttl: 86_400_000 }])
+    setMessages(prev => [...prev, { from: stats?.self.address ?? '0x0' as `0x${string}`, payload, sig: '', timestamp: Date.now(), to, ttl: 21_600_000 }])
     ws.send(JSON.stringify({ nonce: nonceRef.current++, send_message: { payload, to } }))
   }, [stats?.self.address])
 
