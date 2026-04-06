@@ -203,7 +203,7 @@ const AnnouncementOverview = ({ peer, peers }: { peer: PeerWithCountry; peers: P
   const resolvedAnnouncedHostnames = new Set(
     announcedPeers
       .map(candidate => candidate.connection?.hostname)
-      .filter((hostname): hostname is string => Boolean(hostname)),
+      .filter((hostname): hostname is `${string}:${number}` => Boolean(hostname)),
   )
   const unresolvedHostnameEntries: AnnouncementEntry[] = Array.from(new Set(peer.connection?.announcedHostnames ?? []))
     .filter(hostname => !resolvedAnnouncedHostnames.has(hostname))
