@@ -122,16 +122,34 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
     CONFIG.node.preferTransport = 'TCP'
   }
   const peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, utpSocket)
+  peerManager.onApiConnected(() => {
+    const {apiPeer} = peerManager
+    if (!apiPeer) return
+    const apiConfigTrace = Trace.start('[PEERS] Sending runtime config to API peer')
+    apiPeer.send({ nonce: apiPeer.nonce++, runtime_config: peerManager.getRuntimeConfig() }, apiConfigTrace)
+    apiConfigTrace.success()
+  })
   if (utpSocket) {
     // Register the inbound connection handler before listen() so no connections are missed.
     // peerManager is fully initialised at this point and safe to reference in the handler.
     utpSocket.on('connection', async conn => {
+      let inboundTrace: null | Trace = null
       try {
         const client = await UTPClient.authenticateConnectedPeer(conn)
         if (!client) return
-        const inboundTrace = Trace.start(`[UTP] Accepted inbound connection from ${client.identity.username} (${client.identity.address})`)
-        await peerManager.add(client, inboundTrace)
+        inboundTrace = Trace.start(`[UTP] Accepted inbound connection from ${client.identity.username} (${client.identity.address})`)
+        inboundTrace.step('[UTP] Registering inbound peer')
+        const added = await peerManager.add(client, inboundTrace)
+        if (!added) {
+          inboundTrace.fail('[UTP] Failed to register inbound peer')
+          conn.destroy()
+          return
+        }
+        inboundTrace.success()
       } catch (err) {
+        if (inboundTrace) {
+          inboundTrace.fail(err instanceof Error ? err.message : String(err))
+        }
         Trace.start(`[UTP] Inbound connection error from ${conn.remoteAddress}`).caughtError(err instanceof Error ? err.message : String(err))
         conn.destroy()
       }

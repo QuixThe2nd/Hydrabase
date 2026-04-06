@@ -20,14 +20,7 @@ export class HIP3_AnnouncePeers {
   async handleAnnounce(announce: Announce): Promise<void> {
     if (this.isSelfHostname(announce.hostname) || announce.hostname === this.peer.hostname) return
     const trace = Trace.start(`[HIP3] Discovered server through ${this.peer.address}: ${announce.hostname}`)
-    this.peers.recordPeerAnnouncedHostname(this.peer.address, announce.hostname)
-    await this.peers.add(announce.hostname, trace)
-
-    // Track the live topology announced by connected peers.
-    const announcedPeer = this.findPeerByHostname(announce.hostname)
-    if (announcedPeer) {
-      this.peers.recordPeerAnnouncement(announcedPeer.address, this.peer.address)
-    }
+    await this.peers.handleDiscoveredHostname(this.peer.address, announce.hostname, trace)
   }
 
   sendAnnounce(announce: Announce, trace: Trace): void {

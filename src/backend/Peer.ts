@@ -31,10 +31,10 @@ export class Peer {
     return this.totalLatency/this.totalPongs
   }
   get lifetimeDL(): number {
-    return this.repos.peer.getLifetimeStats(this.address).lifetimeDL
+    return this.persistedLifetimeStats.lifetimeDL + Math.max(0, this._dl - this.lastSavedDL)
   }
   get lifetimeUL(): number {
-    return this.repos.peer.getLifetimeStats(this.address).lifetimeUL
+    return this.persistedLifetimeStats.lifetimeUL + Math.max(0, this._ul - this.lastSavedUL)
   }
   get lookupTime(): number {
     return this.requestManager.averageLatencyMs
@@ -42,10 +42,9 @@ export class Peer {
   get plugins(): string[] {
     return this.repos.peer.getPlugins(this.address)
   }
-
   get totalDL() { return this._dl }
-  get totalUL() { return this._ul }
 
+  get totalUL() { return this._ul }
   get type() {
     return this.socket instanceof UTPClient ? 'UTP' : this.socket instanceof WebSocketClient ? 'CLIENT' : 'SERVER'
   }
@@ -55,7 +54,9 @@ export class Peer {
   }
 
   get userAgent() { return this.socket.identity.userAgent }
+
   get username() { return this.socket.identity.username }
+  private _dl = 0
   // get votes(): Votes {
   //   return {
   //     albums: 0,
@@ -64,9 +65,8 @@ export class Peer {
   //   }
   // }
 
-  private _dl = 0
-  private _ul = 0 
-  private consecutivePingTimeouts = 0
+  private _ul = 0
+  private consecutivePingTimeouts = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
   private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
@@ -94,14 +94,18 @@ export class Peer {
       this.send({ nonce, peer_stats }, trace)
     },
     ping: (ping: Ping, nonce: number, trace: Trace) => {
-      // Update live peer list for this peer
-      if (Array.isArray(ping.peers)) {
-        // Record each announced peer
-        for (const hostname of ping.peers) {
-          this.peers.recordPeerAnnouncedHostname(this.address, hostname)
-        }
-      }
+      const samplePeers = ping.peers.slice(0, 3)
+      const peerSample = samplePeers.length < ping.peers.length ? `${samplePeers.join(', ')}, …` : samplePeers.join(', ')
+      trace.step(`[HIP2] Received ping ${nonce} from ${this.address} containing ${ping.peers.length} peer hostname(s)${ping.peers.length > 0 ? `: ${peerSample}` : ''}`)
       this.send({ nonce, pong: { peers: ping.peers ?? [], time: Number(new Date()) } }, trace)
+      for (const hostname of ping.peers) {
+        const discoveryTrace = Trace.start(`[HIP2] Discovered peer through ${this.address}: ${hostname}`, true, true)
+        this.peers.handleDiscoveredHostname(this.address, hostname, discoveryTrace)
+          .catch(error => {
+            const message = error instanceof Error ? error.message : String(error)
+            warn('DEVWARN:', `[PEER] Unhandled discovered hostname error for ${hostname}: ${message}`)
+          })
+      }
     },
     pong: (_: Pong, nonce: number) => {
       const pendingPing = this.pendingPings.get(nonce)
@@ -117,6 +121,11 @@ export class Peer {
       pendingPing.trace.step(`[HIP2] Received pong ${nonce} in ${latency}ms`)
       pendingPing.trace.success()
       this.pendingPings.delete(nonce)
+    },
+    purge_peer_cache: (_data: true, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.peers.purgePeerCache()
+      this.send({ nonce, peer_cache_purged: true }, trace)
     },
 
     request: async <T extends Request['type']>(request: Request & { type: T }, nonce: number, trace: Trace) => {
@@ -167,8 +176,11 @@ export class Peer {
   }
   private lastSavedDL = 0
   private lastSavedUL = 0
-
   private startTime?: number
+
+  private get persistedLifetimeStats(): { lifetimeDL: number; lifetimeUL: number } {
+    return this.repos.peer.getLifetimeStats(this.address)
+  }
 
   // eslint-disable-next-line max-lines-per-function
   constructor(
@@ -207,8 +219,8 @@ export class Peer {
       const timeout = setTimeout(() => {
         if (!this.pendingPings.has(nonce)) return
         this.pendingPings.delete(nonce)
-        this.consecutivePingTimeouts += 1
         const timeoutThreshold = 2
+        this.consecutivePingTimeouts = Math.min(timeoutThreshold, this.consecutivePingTimeouts + 1)
         if (this.consecutivePingTimeouts < timeoutThreshold) {
           trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; keeping peer connected (${this.type} transport, hostname: ${this.hostname}, strike ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
           warn('WARN:', `[PEER][TIMEOUT] Missed pong from peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}; keeping connection (${this.consecutivePingTimeouts}/${timeoutThreshold}).`)
@@ -307,7 +319,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { peer_cache_purged: true } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     this.peers.notifyDataTransfer()
@@ -335,6 +347,10 @@ export class Peer {
     }
     if (type === 'update_config') {
       this.handlers[type](data as UpdateConfig, nonce, trace)
+      return true
+    }
+    if (type === 'purge_peer_cache') {
+      this.handlers[type](data as true, nonce, trace)
       return true
     }
     return false

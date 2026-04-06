@@ -1,5 +1,20 @@
 # Hydrabase Workspace Instructions
 
+## Running the Node
+
+**Always use `bun run` instead of `bun start` or `bun dev`.**
+
+`bun run` starts the backend with a self-terminating TTL (default 30 s) so it exits automatically and never blocks the agent.
+
+```bash
+bun run          # starts backend, kills itself after 30 s
+bun run -- 60    # 60-second TTL
+bun run -- 2m    # 2-minute TTL
+bun run -- 0     # no timeout (use only when explicitly needed)
+```
+
+Never use `bun start` or `bun dev` — those run indefinitely and will stall or leak background processes.
+
 ## Code Quality Workflow
 
 **CRITICAL**: Validate incrementally while editing (not only at the end). Run targeted checks after each small batch of changes, fix issues immediately, then do one final full-project verification.

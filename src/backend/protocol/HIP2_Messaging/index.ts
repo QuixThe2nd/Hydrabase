@@ -30,7 +30,7 @@ const SearchHistoryDataSchema = z.union([
 ])
 
 const MessageHistoryRequestSchema = z.literal('get')
-const GetConfigSchema = z.literal(true)
+const PurgePeerCacheSchema = z.literal(true)
 const UpdateConfigSchema = z.object({
   config: z.object({
     apiKey: z.string().optional(),
@@ -64,7 +64,7 @@ const UpdateConfigSchema = z.object({
       reannounce: z.number().positive().optional(),
       ttl: z.number().positive().optional(),
     }).optional(),
-  }),
+  }), // TODO: webrtc connections so 2 peers not port forwarding can connect to eachother
 })
 
 export const SendMessageSchema = z.object({
@@ -87,12 +87,13 @@ export type MessagePacket = z.infer<typeof MessagePacketSchema>
 const MessageSchemas = {
   announce: AnnounceSchema,
   connect_peer: ConnectPeerSchema,
-  get_config: GetConfigSchema,
+  get_config: z.literal(true),
   message: MessagePacketSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
   pong: PongSchema,
+  purge_peer_cache: PurgePeerCacheSchema,
   request: RequestSchema,
   response: ResponseSchema,
   restart: z.literal(true),
@@ -128,11 +129,12 @@ export class HIP2_Messaging {
     : 'store_message' in result ? 'message'
     : 'deliver_message' in result ? 'message'
     : 'peer_stats' in result ? 'peer_stats'
-    : 'get_config' in result ? 'get_config'
     : 'announce' in result ? 'announce'
     : 'connect_peer' in result ? 'connect_peer'
+    : 'get_config' in result ? 'get_config'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'
+    : 'purge_peer_cache' in result ? 'purge_peer_cache'
     : 'restart' in result ? 'restart'
     : 'search_history' in result ? 'search_history'
     : 'send_message' in result ? 'send_message'

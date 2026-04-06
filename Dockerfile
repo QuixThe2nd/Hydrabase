@@ -1,5 +1,6 @@
 FROM oven/bun AS deps
 WORKDIR /app
+RUN apt-get update && apt-get install -y g++ cmake make python3 git && rm -rf /var/lib/apt/lists/*
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 

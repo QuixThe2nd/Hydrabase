@@ -144,8 +144,10 @@ export class StatsReporter {
       const connectedPeer = connectedByAddress.get(address)
       const knownPlugins = this.getKnownPlugins(address, connectedPeer)
       const identity = authByAddress.get(address)
+      const announcedBy = this.peers.getAnnouncementConnections(address)
       return {
         address,
+        ...(announcedBy.length ? { announcedBy } : {}),
         ...(knownPlugins.length ? { knownPlugins } : {}),
         ...(identity ? {
           auth: {
@@ -161,10 +163,11 @@ export class StatsReporter {
   }
 
   private logStatus(): void {
-    const peerCount = this.peers.connectedPeers.filter(p => p.address !== '0x0').length
+    const connectedPeers = this.peers.connectedPeers.filter(peer => peer.address !== '0x0')
+    const peerCount = connectedPeers.length
     const dhtCount = this.dht.nodes.length
-    const totalUL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalUL, 0)
-    const totalDL = this.peers.connectedPeers.reduce((sum, peer) => sum + peer.totalDL, 0)
+    const totalUL = connectedPeers.reduce((sum, peer) => sum + peer.totalUL, 0)
+    const totalDL = connectedPeers.reduce((sum, peer) => sum + peer.totalDL, 0)
     const uptime = formatUptime(Date.now() - this.startTime)
     stats(`${peerCount} peers | ${dhtCount} DHT node${dhtCount === 1 ? '' : 's'} | ↑ ${formatBytes(totalUL)} ↓ ${formatBytes(totalDL)} | uptime ${uptime}`)
     for (const peer of this.peers.peers.values()) {
@@ -177,13 +180,13 @@ export class StatsReporter {
   }
 
   private recordPulse(): void {
-    // Only include defined connections for pulse history
+    // Exclude the local API client so pulse reflects peer network traffic only.
     const connections = this.knownPeers()
+      .filter(peer => peer.address !== '0x0')
       .map(peer => peer.connection)
       .filter((conn): conn is Connection => Boolean(conn))
       .map(conn => ({ connection: conn }))
     this.pulseHistory.recordPulse(connections)
-      this.pulseHistory.recordPulse(connections)
   }
 
   private report(send: (client: Peer, trace: Trace) => void): void {

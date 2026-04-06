@@ -4,7 +4,7 @@ import type PeerManager from '../PeerManager'
 
 import { debug, logContext } from '../../utils/log'
 import { Trace } from '../../utils/trace'
-import { AuthSchema, type Identity, proveServer, verifyServer } from '../protocol/HIP1_Identity'
+import { type Auth, AuthSchema, type Identity, proveServer, verifyServer } from '../protocol/HIP1_Identity'
 import { serveStaticFile } from '../webui'
 import { authenticatedPeers } from './authenticatedPeers'
 import { isPeerLocalHostname } from './utils'
@@ -33,12 +33,66 @@ const isLocalRouteHostname = (hostname: `${string}:${number}`): boolean => {
   return isPeerLocalHostname(host) || isPrivateIPv4Host(host)
 }
 
-export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
+const AUTH_CACHE_TTL_MS = 60 * 60 * 1000
+
+const getCachedAuthentication = (hostname: `${string}:${number}`, trace: Trace): Identity | undefined => {
   const cache = authenticatedPeers.get(hostname)
-  if (cache) {
+  if (!cache) return undefined
+  const cachedAt = authenticatedPeers.getCachedAt(hostname)
+  if (cachedAt === undefined) {
+    // Timestamp not in memory (e.g. after a process restart); keep the entry and
+    // trigger re-verification rather than deleting a still-valid persisted record.
+    trace.step('[HTTP] Cached auth timestamp unknown, re-authenticating')
+    return undefined
+  }
+  const age = Date.now() - cachedAt
+  if (age < AUTH_CACHE_TTL_MS) {
     trace.step('[HTTP] Using cached auth')
     return cache
   }
+  trace.step('[HTTP] Cached auth expired, re-authenticating')
+  authenticatedPeers.delete(hostname)
+  return undefined
+}
+
+const verifyAuthenticatedServer = (auth: Auth, hostname: `${string}:${number}`, trace: Trace): [number, string] | Identity => {
+  const authResults = verifyServer(auth, hostname, trace)
+  if (authResults !== true) {
+    trace.step('[HIP1] Failed to verify server')
+    return authResults
+  }
+  trace.step('[HIP1] Successfully verified server')
+  authenticatedPeers.set(hostname, auth)
+  return auth
+}
+
+const handleAdvertisedHostname = (
+  auth: Auth,
+  hostname: `${string}:${number}`,
+  trace: Trace,
+  authenticate: (nextHostname: `${string}:${number}`, nextTrace: Trace) => Promise<[number, string] | Identity>
+): Promise<[number, string] | Identity> => {
+  const requestedIsLocalRoute = isLocalRouteHostname(hostname)
+  const advertisedIsLocalRoute = isLocalRouteHostname(auth.hostname)
+  if (requestedIsLocalRoute && !advertisedIsLocalRoute) {
+    trace.step(`[HTTP] Keeping local route ${hostname} (ignoring advertised hostname ${auth.hostname})`)
+    const authResults = verifyServer(auth, auth.hostname, trace)
+    if (authResults !== true) {
+      trace.step('[HIP1] Failed to verify server')
+      return Promise.resolve(authResults)
+    }
+    trace.step('[HIP1] Successfully verified server')
+    const routedAuth: Identity = { ...auth, hostname }
+    authenticatedPeers.set(hostname, routedAuth)
+    return Promise.resolve(routedAuth)
+  }
+  trace.step(`Upgrading hostname → ${auth.hostname}`)
+  return authenticate(auth.hostname, trace)
+}
+
+export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
+  const cache = getCachedAuthentication(hostname, trace)
+  if (cache) return cache
   
   try {
     trace.step('[HTTP] Fetching auth')
@@ -51,32 +105,10 @@ export const authenticateServerHTTP = async (hostname: `${string}:${number}`, tr
       return [500, '[HIP1] Failed to parse server authentication']
     }
     if (auth.hostname !== hostname) {
-      const requestedIsLocalRoute = isLocalRouteHostname(hostname)
-      const advertisedIsLocalRoute = isLocalRouteHostname(auth.hostname)
-      if (requestedIsLocalRoute && !advertisedIsLocalRoute) {
-        trace.step(`[HTTP] Keeping local route ${hostname} (ignoring advertised hostname ${auth.hostname})`)
-        const authResults = verifyServer(auth, auth.hostname, trace)
-        if (authResults !== true) {
-          trace.step('[HIP1] Failed to verify server')
-          return authResults
-        }
-        trace.step('[HIP1] Successfully verified server')
-        const routedAuth: Identity = { ...auth, hostname }
-        authenticatedPeers.set(hostname, routedAuth)
-        return routedAuth
-      }
-      trace.step(`Upgrading hostname → ${auth.hostname}`)
-      return await authenticateServerHTTP(auth.hostname, trace)
+      return handleAdvertisedHostname(auth, hostname, trace, authenticateServerHTTP)
     }
-    
-    const authResults = verifyServer(auth, hostname, trace)
-    if (authResults !== true) {
-      trace.step('[HIP1] Failed to verify server')
-      return authResults
-    }
-    trace.step('[HIP1] Successfully verified server')
-    authenticatedPeers.set(hostname, auth)
-    return auth
+
+    return verifyAuthenticatedServer(auth, hostname, trace)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return [500, message]

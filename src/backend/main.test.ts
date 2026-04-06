@@ -1,6 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import net from 'net'
 import utp from 'utp-socket'
 
 import type { Config } from '../types/hydrabase'
@@ -17,6 +18,7 @@ import { authenticatedPeers } from './networking/authenticatedPeers'
 import { startServer } from './networking/http'
 import { handleConnection, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
+import { Peer } from './Peer'
 import PeerManager from './PeerManager'
 import { PeerMap } from './PeerMap'
 import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from './protocol/HIP1_Identity'
@@ -26,7 +28,32 @@ import { RequestManager } from './RequestManager'
 import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 
 
-const config1: Config['node'] = {
+const getAvailablePort = () => new Promise<number>((resolve, reject) => {
+  const server = net.createServer()
+  server.once('error', reject)
+  server.listen(0, '127.0.0.1', () => {
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      server.close()
+      reject(new Error('Failed to allocate test port'))
+      return
+    }
+
+    const { port } = address
+    server.close((closeError) => {
+      if (closeError) reject(closeError)
+      else resolve(port)
+    })
+  })
+})
+
+const isListenPermissionError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false
+
+  const err = error as { code?: unknown }
+  return 'code' in err && err.code === 'EPERM'
+}
+let config1: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
@@ -35,7 +62,7 @@ const config1: Config['node'] = {
   preferTransport: 'TCP',
   username: 'TestNode1'
 }
-const config2: Config['node'] = {
+let config2: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
@@ -44,7 +71,7 @@ const config2: Config['node'] = {
   preferTransport: 'TCP',
   username: 'TestNode2'
 }
-const config3: Config['node'] = {
+let config3: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
@@ -66,8 +93,19 @@ const formulas: Config['formulas'] = {
 let account1: Account
 let peerManager1: PeerManager
 let server1: Bun.Server<WebSocketData>
+let networkIntegrationAvailable = true
 
 beforeAll(async () => {
+  try {
+    const [port1, port2, port3] = await Promise.all([getAvailablePort(), getAvailablePort(), getAvailablePort()])
+    config1 = { ...config1, port: port1 }
+    config2 = { ...config2, port: port2 }
+    config3 = { ...config3, port: port3 }
+  } catch (error) {
+    if (!isListenPermissionError(error)) throw error
+    networkIntegrationAvailable = false
+  }
+
   const repos = await startDatabase(formulas.pluginConfidence)
   authenticatedPeers.init(repos.authenticatedPeer)
   authenticatedPeers.clear()
@@ -98,6 +136,7 @@ beforeAll(async () => {
   const utpSocket = utp()
   peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, utpSocket)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
+  if (!networkIntegrationAvailable) return
   server1 = startServer(account1, peerManager1, config1, '')
 
   await new Promise(res => { setTimeout(res, 5000) })
@@ -106,7 +145,7 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  server1.stop()
+  server1?.stop()
 })
 
 const trace = Trace.start('Unit tests', true)
@@ -232,15 +271,46 @@ describe('HIP2', () => {
 describe('HIP3', () => {
   it.skip('peers 1 and 3 discovered each other through peer 2', async () => {
     // Wait up to 2 seconds for peer discovery
+    const expectedHostname = `${config3.hostname}:${config3.port}`
     let peer3
     for (let i = 0; i < 20; i++) {
-      peer3 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config3.hostname}:${config3.port}`)
+      peer3 = peerManager1.connectedPeers.find(peer => peer.hostname === expectedHostname)
       if (peer3) break
       await new Promise(res => { setTimeout(res, 100) })
     }
     expect(peer3).toBeDefined()
   })
-    })
+})
+describe('Peer discovery', () => {
+  it('connects to hostnames learned through peer advertisements', async () => {
+    const announcerAddress = '0x1111111111111111111111111111111111111111' as `0x${string}`
+    const announcedAddress = '0x2222222222222222222222222222222222222222' as `0x${string}`
+    const announcedHostname = `${config2.hostname}:${config2.port}` as `${string}:${number}`
+    const fakePeer = {
+      address: announcedAddress,
+      hostname: announcedHostname,
+    } as unknown as (typeof peerManager1.connectedPeers)[number]
+    const originalAdd = peerManager1.add.bind(peerManager1)
+    const addCalls: `${string}:${number}`[] = []
+
+    ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = peer => {
+      if (typeof peer === 'string') addCalls.push(peer)
+      return Promise.resolve(true)
+    }
+
+    peerManager1.peers.set(announcedAddress, fakePeer)
+    try {
+      const handleDiscoveredHostnameTrace = trace.child('handleDiscoveredHostname test')
+      await peerManager1.handleDiscoveredHostname(announcerAddress, announcedHostname, handleDiscoveredHostnameTrace)
+      expect(addCalls).toContain(announcedHostname)
+      expect(peerManager1.getAnnouncedHostnames(announcerAddress)).toContain(announcedHostname)
+      expect(peerManager1.getAnnouncementConnections(announcedAddress)).toContain(announcerAddress)
+    } finally {
+      peerManager1.peers.delete(announcedAddress)
+      ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = originalAdd
+    }
+  })
+})
 describe('Account', () => {
   it('generates unique private keys', () => {
     const key1 = generatePrivateKey()
@@ -558,6 +628,7 @@ describe('Schema validation', () => {
 
 describe('WebSocket server handleConnection', () => {
   it('rejects requests missing handshake headers', async () => {
+    if (!networkIntegrationAvailable) return
     const result = await handleConnection(server1,
       new globalThis.Request('http://localhost:14545', { headers: { upgrade: 'websocket' } }),
       {
@@ -573,6 +644,81 @@ describe('WebSocket server handleConnection', () => {
     expect(result).toBeDefined()
     expect(result?.res[0]).toBe(400)
     expect(result?.res[1]).toContain('Missing required handshake headers')
+  })
+})
+
+describe('purge_peer_cache handler', () => {
+  const makeMockSocket = (address: `0x${string}`) => {
+    const sentMessages: string[] = []
+    const closeHandlers: (() => void)[] = []
+    const socket = {
+      close: () => { for (const h of closeHandlers) h() },
+      identity: { address, bio: undefined, hostname: 'test:1234' as `${string}:${number}`, userAgent: 'test', username: 'TestUser' },
+      onClose: (handler: () => void) => { closeHandlers.push(handler) },
+      onMessage: () => undefined,
+      send: (msg: string) => { sentMessages.push(msg) },
+    }
+    return { sentMessages, socket }
+  }
+
+  it('purgePeerCache clears internal state', () => {
+    const pm = peerManager1 as unknown as {
+      recentConnectionFailures: Map<string, unknown>
+      recentPeerAddresses: Map<string, unknown>
+      reconnectAttempts: Map<string, unknown>
+    }
+    pm.recentPeerAddresses.set('127.0.0.1:9999', '0xdeadbeef')
+    pm.recentConnectionFailures.set('127.0.0.1:9999', { hostname: '127.0.0.1:9999', reason: 'test', timestamp: Date.now(), transport: 'TCP' })
+    pm.reconnectAttempts.set('127.0.0.1:9999', 3)
+
+    peerManager1.purgePeerCache()
+
+    expect(pm.recentPeerAddresses.size).toBe(0)
+    expect(pm.recentConnectionFailures.size).toBe(0)
+    expect(pm.reconnectAttempts.size).toBe(0)
+  })
+
+  it('non-API peer cannot trigger purge_peer_cache', () => {
+    const { sentMessages, socket } = makeMockSocket('0xdeadbeef1234567890deadbeef1234567890dead' as `0x${string}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const {repos} = (peerManager1 as any)
+    const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
+
+    const pm = peerManager1 as unknown as { recentPeerAddresses: Map<string, unknown> }
+    pm.recentPeerAddresses.set('10.0.0.1:4545', '0xabcd')
+
+    const handlerTrace = trace.child('purge_peer_cache non-API test')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(peer as any).handleRuntimeConfigMessage('purge_peer_cache', true, 42, handlerTrace)
+
+    expect(sentMessages).toHaveLength(0)
+    expect(pm.recentPeerAddresses.size).toBeGreaterThan(0)
+
+    // cleanup
+    socket.close()
+    pm.recentPeerAddresses.delete('10.0.0.1:4545')
+  })
+
+  it('API peer receives peer_cache_purged with correct nonce', () => {
+    const { sentMessages, socket } = makeMockSocket('0x0' as `0x${string}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const {repos} = (peerManager1 as any)
+    const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
+
+    const handlerTrace = trace.child('purge_peer_cache API test')
+    const testNonce = 77
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(peer as any).handleRuntimeConfigMessage('purge_peer_cache', true, testNonce, handlerTrace)
+
+    expect(sentMessages).toHaveLength(1)
+    const [firstMessage] = sentMessages
+    expect(firstMessage).toBeDefined()
+    const parsed = JSON.parse(firstMessage as string) as Record<string, unknown>
+    expect(parsed['peer_cache_purged']).toBe(true)
+    expect(parsed['nonce']).toBe(testNonce)
+
+    // cleanup
+    socket.close()
   })
 })
 

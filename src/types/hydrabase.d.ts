@@ -1,5 +1,6 @@
 export interface ApiPeer {
   address: `0x${string}`
+  announcedBy?: `0x${string}`[]
   auth?: PeerAuthInfo
   connection: Connection | undefined
   knownPlugins?: string[]

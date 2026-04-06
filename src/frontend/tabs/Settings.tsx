@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -15,6 +16,7 @@ interface SettingsTabProps {
   error: null | string
   isLoading: boolean
   isRestarting: boolean
+  onPurgePeerCache: () => Promise<void>
   onRefresh: () => Promise<void>
   onRestart: () => void
   onSave: (update: RuntimeConfigUpdate) => Promise<void>
@@ -81,8 +83,11 @@ const normalizePatch = (patch: RuntimeConfigPatch): string => JSON.stringify(pat
 const isEmptyPatch = (patch: RuntimeConfigPatch): boolean => normalizePatch(patch) === '{}'
 
 // eslint-disable-next-line max-lines-per-function
-export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh, onRestart, onSave }: SettingsTabProps) => {
+export const SettingsTab = ({ config, error, isLoading, isRestarting, onPurgePeerCache, onRefresh, onRestart, onSave }: SettingsTabProps) => {
   const [draft, setDraft] = useState<null | SettingsDraft>(null)
+  const [purgeError, setPurgeError] = useState<null | string>(null)
+  const [purgeSuccess, setPurgeSuccess] = useState<null | string>(null)
+  const [purgingPeerCache, setPurgingPeerCache] = useState(false)
   const [saveError, setSaveError] = useState<null | string>(null)
   const [saving, setSaving] = useState(false)
   const envLockedPathSet = useMemo(() => new Set(config?.envLockedPaths ?? []), [config?.envLockedPaths])
@@ -128,6 +133,20 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
       setSaveError(err instanceof Error ? err.message : 'Failed to save settings')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePurgePeerCache = async () => {
+    setPurgeError(null)
+    setPurgeSuccess(null)
+    setPurgingPeerCache(true)
+    try {
+      await onPurgePeerCache()
+      setPurgeSuccess('Peer cache purged')
+    } catch (err) {
+      setPurgeError(err instanceof Error ? err.message : 'Failed to purge peer cache')
+    } finally {
+      setPurgingPeerCache(false)
     }
   }
 
@@ -264,11 +283,16 @@ export const SettingsTab = ({ config, error, isLoading, isRestarting, onRefresh,
         <button disabled={isLoading || saving} onClick={onRefresh} style={{ background: 'transparent', border: `1px solid ${BORD}`, borderRadius: 7, color: TEXT, cursor: isLoading || saving ? 'default' : 'pointer', fontFamily: 'inherit', padding: '8px 14px' }}>
           Refresh
         </button>
+        <button disabled={isLoading || saving || purgingPeerCache} onClick={handlePurgePeerCache} style={{ background: 'rgba(255, 180, 80, .12)', border: '1px solid rgba(255, 180, 80, .35)', borderRadius: 7, color: '#ffb450', cursor: isLoading || saving || purgingPeerCache ? 'default' : 'pointer', fontFamily: 'inherit', padding: '8px 14px' }} title='Clear cached peer hostnames and authenticated peer records'>
+          {purgingPeerCache ? 'Purging Peer Cache...' : 'Purge Peer Cache'}
+        </button>
         <button disabled={isRestarting} onClick={onRestart} style={{ alignItems: 'center', background: 'rgba(255,74,94,.08)', border: '1px solid rgba(255,74,94,.2)', borderRadius: 7, color: '#ff4a5e', cursor: isRestarting ? 'default' : 'pointer', display: 'flex', fontFamily: 'inherit', gap: 6, marginLeft: 'auto', opacity: isRestarting ? 0.8 : 1, padding: '8px 12px' }} title='Restart the Hydrabase backend process'>
           <RefreshCw size={13} style={{ animation: isRestarting ? 'spin 1s linear infinite' : undefined }} />
           {isRestarting ? 'Restarting...' : 'Restart Node'}
         </button>
       </div>
+      {purgeSuccess && <div style={{ color: '#7ee787', marginTop: 10 }}>{purgeSuccess}</div>}
+      {purgeError && <div style={{ color: '#ff7b72', marginTop: 10 }}>{purgeError}</div>}
       {saveError && <div style={{ color: '#ff7b72', marginTop: 10 }}>{saveError}</div>}
       {error && <div style={{ color: '#ff7b72', marginTop: 10 }}>{error}</div>}
       {isLoading && <div style={{ color: MUTED, marginTop: 10 }}>Loading settings...</div>}
