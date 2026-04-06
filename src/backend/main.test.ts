@@ -46,12 +46,12 @@ const getAvailablePort = () => new Promise<number>((resolve, reject) => {
   })
 })
 
-const isListenPermissionError = (error: unknown): boolean =>
-  typeof error === 'object'
-  && error !== null
-  && 'code' in error
-  && error.code === 'EPERM'
+const isListenPermissionError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false
 
+  const err = error as { code?: unknown }
+  return 'code' in err && err.code === 'EPERM'
+}
 let config1: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
