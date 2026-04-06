@@ -52,6 +52,18 @@ export const useLastRead = (
       }
     }
 
+    if (selectedAddress) {
+      const lastTimestamp = getConversationLastTimestamp(selectedAddress)
+      if (lastTimestamp !== null) {
+        setLastRead(prev => {
+          if (prev[selectedAddress] === lastTimestamp) return prev
+          const updated = { ...prev, [selectedAddress]: lastTimestamp }
+          saveLastRead(updated)
+          return updated
+        })
+      }
+    }
+
     previousSelectedAddressRef.current = selectedAddress
   }, [selectedAddress, conversations])
 
