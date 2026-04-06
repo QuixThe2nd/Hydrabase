@@ -41,8 +41,14 @@ const fmtDuration = (totalSeconds: number): string => {
 
 export const fmtUptime = (ms: number): string => fmtDuration(ms / 1_000)
 
-export const fmtClock = (seconds: number): string => fmtDuration(seconds)
+export const fmtClock = (totalSeconds: number): string => {
+  const seconds = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(seconds / 3_600)
+  const minutes = Math.floor(seconds / 60) % 60
+  const secs = seconds % 60
 
+  return [hours, minutes, secs].map((value) => String(value).padStart(2, '0')).join(':')
+}
 export const toEmoji = (country: string): string => country === 'N/A' || country === '-' ? '🌐' : countryCodeEmoji(country)
 
 const ipMap = new Map<string, string>()
