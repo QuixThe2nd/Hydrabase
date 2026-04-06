@@ -50,6 +50,7 @@
   "scripts": {
     "start": "bun src/backend",
     "dev": "bun --watch src/backend",
+    "run": "bun scripts/run-timed.ts",
     "test": "bun test",
     "build-webui": "bun src/backend/build-webui.ts",
     "list:gui-env": "bun scripts/list-gui-env.ts",
