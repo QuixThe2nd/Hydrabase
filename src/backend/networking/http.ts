@@ -38,7 +38,14 @@ const AUTH_CACHE_TTL_MS = 60 * 60 * 1000
 const getCachedAuthentication = (hostname: `${string}:${number}`, trace: Trace): Identity | undefined => {
   const cache = authenticatedPeers.get(hostname)
   if (!cache) return undefined
-  const age = Date.now() - (authenticatedPeers.getCachedAt(hostname) ?? 0)
+  const cachedAt = authenticatedPeers.getCachedAt(hostname)
+  if (cachedAt === undefined) {
+    // Timestamp not in memory (e.g. after a process restart); keep the entry and
+    // trigger re-verification rather than deleting a still-valid persisted record.
+    trace.step('[HTTP] Cached auth timestamp unknown, re-authenticating')
+    return undefined
+  }
+  const age = Date.now() - cachedAt
   if (age < AUTH_CACHE_TTL_MS) {
     trace.step('[HTTP] Using cached auth')
     return cache

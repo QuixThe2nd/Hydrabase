@@ -87,6 +87,7 @@ export type MessagePacket = z.infer<typeof MessagePacketSchema>
 const MessageSchemas = {
   announce: AnnounceSchema,
   connect_peer: ConnectPeerSchema,
+  get_config: z.literal(true),
   message: MessagePacketSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
@@ -130,6 +131,7 @@ export class HIP2_Messaging {
     : 'peer_stats' in result ? 'peer_stats'
     : 'announce' in result ? 'announce'
     : 'connect_peer' in result ? 'connect_peer'
+    : 'get_config' in result ? 'get_config'
     : 'ping' in result ? 'ping'
     : 'pong' in result ? 'pong'
     : 'purge_peer_cache' in result ? 'purge_peer_cache'
