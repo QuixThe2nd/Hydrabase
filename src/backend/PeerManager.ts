@@ -290,11 +290,24 @@ export default class PeerManager {
   }
 
   public async handleDiscoveredHostname(announcerAddress: `0x${string}`, announcedHostname: `${string}:${number}`, trace: Trace): Promise<void> {
-    this.recordPeerAnnouncedHostname(announcerAddress, announcedHostname)
-    await this.add(announcedHostname, trace)
+    try {
+      const success = await this.add(announcedHostname, trace)
+      if (!success) {
+        trace.fail(`Failed to connect to discovered hostname ${announcedHostname}`)
+        return
+      }
 
-    const announcedPeer = this.findConnectedPeerByHostname(announcedHostname)
-    if (announcedPeer) this.recordPeerAnnouncement(announcedPeer.address, announcerAddress)
+      this.recordPeerAnnouncedHostname(announcerAddress, announcedHostname)
+
+      const announcedPeer = this.findConnectedPeerByHostname(announcedHostname)
+      if (announcedPeer) this.recordPeerAnnouncement(announcedPeer.address, announcerAddress)
+
+      trace.success()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      trace.fail(message)
+      throw error
+    }
   }
 
   public handleMessage(packet: MessagePacket, peer: Peer, trace: Trace): void {
