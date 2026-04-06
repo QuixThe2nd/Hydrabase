@@ -655,7 +655,7 @@ describe('purge_peer_cache handler', () => {
       close: () => { for (const h of closeHandlers) h() },
       identity: { address, bio: undefined, hostname: 'test:1234' as `${string}:${number}`, userAgent: 'test', username: 'TestUser' },
       onClose: (handler: () => void) => { closeHandlers.push(handler) },
-      onMessage: () => {},
+      onMessage: () => undefined,
       send: (msg: string) => { sentMessages.push(msg) },
     }
     return { sentMessages, socket }
@@ -679,9 +679,9 @@ describe('purge_peer_cache handler', () => {
   })
 
   it('non-API peer cannot trigger purge_peer_cache', () => {
-    const { socket, sentMessages } = makeMockSocket('0xdeadbeef1234567890deadbeef1234567890dead' as `0x${string}`)
+    const { sentMessages, socket } = makeMockSocket('0xdeadbeef1234567890deadbeef1234567890dead' as `0x${string}`)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const repos = (peerManager1 as any).repos
+    const {repos} = (peerManager1 as any)
     const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
 
     const pm = peerManager1 as unknown as { recentPeerAddresses: Map<string, unknown> }
@@ -700,9 +700,9 @@ describe('purge_peer_cache handler', () => {
   })
 
   it('API peer receives peer_cache_purged with correct nonce', () => {
-    const { socket, sentMessages } = makeMockSocket('0x0' as `0x${string}`)
+    const { sentMessages, socket } = makeMockSocket('0x0' as `0x${string}`)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const repos = (peerManager1 as any).repos
+    const {repos} = (peerManager1 as any)
     const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
 
     const handlerTrace = trace.child('purge_peer_cache API test')
@@ -711,7 +711,9 @@ describe('purge_peer_cache handler', () => {
     ;(peer as any).handleRuntimeConfigMessage('purge_peer_cache', true, testNonce, handlerTrace)
 
     expect(sentMessages).toHaveLength(1)
-    const parsed = JSON.parse(sentMessages[0]!) as Record<string, unknown>
+    const [firstMessage] = sentMessages
+    expect(firstMessage).toBeDefined()
+    const parsed = JSON.parse(firstMessage as string) as Record<string, unknown>
     expect(parsed['peer_cache_purged']).toBe(true)
     expect(parsed['nonce']).toBe(testNonce)
 
