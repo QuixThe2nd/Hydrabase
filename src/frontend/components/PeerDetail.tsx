@@ -189,8 +189,8 @@ const Peer = ({ data, loading, messages, onClose, onSelectPeer, onSend, ownAddre
     <MessagePanel messages={messages} onSend={onSend} ownAddress={ownAddress} peerAddress={peer.address} />
     <Statistics peer={peer} />
     <Section label="Plugins"><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{(peer.connection?.plugins.length ?? 0) > 0 ? peer.connection?.plugins.map((pl) => <Tag active key={pl} label={pl} />) : <span style={{ color: MUTED, fontSize: 11 }}>No plugins reported</span>}</div></Section>
-    {peer.connection?.connections && peer.connection.connections.length > 0 && <Section label="Announced By"><PeerMiniList addresses={peer.connection.connections} onSelectPeer={onSelectPeer} peers={peers} /></Section>}
-    {peer.announcedBy && peer.announcedBy.length > 0 && <Section label="Announced"><PeerMiniList addresses={peer.announcedBy} onSelectPeer={onSelectPeer} peers={peers} /></Section>}
+    {peer.announcedBy && peer.announcedBy.length > 0 && <Section label="Announced By"><PeerMiniList addresses={peer.announcedBy} onSelectPeer={onSelectPeer} peers={peers} /></Section>}
+    {peer.connection?.connections && peer.connection.connections.length > 0 && <Section label="Announced"><PeerMiniList addresses={peer.connection.connections} onSelectPeer={onSelectPeer} peers={peers} /></Section>}
     {loading && <div style={{ color: MUTED, fontSize: 11, padding: '20px 0', textAlign: 'center' }}>Loading peer stats…</div>}
     {wsError && !loading && <div style={{ color: '#f85149', fontSize: 11, padding: '20px 0', textAlign: 'center' }}>{wsError}</div>}
     {data && !loading && <>
