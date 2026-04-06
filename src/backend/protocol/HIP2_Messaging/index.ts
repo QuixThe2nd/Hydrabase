@@ -64,7 +64,7 @@ const UpdateConfigSchema = z.object({
       reannounce: z.number().positive().optional(),
       ttl: z.number().positive().optional(),
     }).optional(),
-  }),
+  }), // TODO: webrtc connections so 2 peers not port forwarding can connect to eachother
 })
 
 export const SendMessageSchema = z.object({

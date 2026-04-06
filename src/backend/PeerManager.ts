@@ -288,6 +288,14 @@ export default class PeerManager {
     this.handleMessage({ envelope, hops: 0 }, peer, trace)
   }
 
+  public async handleDiscoveredHostname(announcerAddress: `0x${string}`, announcedHostname: `${string}:${number}`, trace: Trace): Promise<void> {
+    this.recordPeerAnnouncedHostname(announcerAddress, announcedHostname)
+    await this.add(announcedHostname, trace)
+
+    const announcedPeer = this.findConnectedPeerByHostname(announcedHostname)
+    if (announcedPeer) this.recordPeerAnnouncement(announcedPeer.address, announcerAddress)
+  }
+
   public handleMessage(packet: MessagePacket, peer: Peer, trace: Trace): void {
     const { envelope, hops } = packet
     if (this.isEnvelopeExpired(envelope)) {
@@ -454,6 +462,11 @@ export default class PeerManager {
     const now = Number(new Date())
     if (failure.timestamp + PeerManager.RECENT_CONNECTION_FAILURE_TTL_MS <= now) return null
     return failure
+  }
+
+  private findConnectedPeerByHostname(hostname: `${string}:${number}`): Peer | undefined {
+    const normalizedHostname = PeerManager.normalizeHostname(hostname)
+    return this.connectedPeers.find(peer => peer.address !== '0x0' && PeerManager.normalizeHostname(peer.hostname) === normalizedHostname)
   }
 
   private forwardHeldMessagesForPeer(peer: Peer) {

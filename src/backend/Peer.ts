@@ -91,10 +91,14 @@ export class Peer {
     },
     ping: (ping: Ping, nonce: number, trace: Trace) => {
       trace.step(`[HIP2] Received ping ${nonce} from containing ${ping.peers.length} peer hostnames: ${ping.peers.join(', ')}`)
-      for (const hostname of ping.peers) {
-        this.peers.recordPeerAnnouncedHostname(this.address, hostname)
-      }
       this.send({ nonce, pong: { peers: ping.peers ?? [], time: Number(new Date()) } }, trace)
+      for (const hostname of ping.peers) {
+        const discoveryTrace = Trace.start(`[HIP2] Discovered peer through ${this.address}: ${hostname}`, true, true)
+        this.peers.handleDiscoveredHostname(this.address, hostname, discoveryTrace).catch(error => {
+          const message = error instanceof Error ? error.message : String(error)
+          discoveryTrace.fail(message)
+        })
+      }
     },
     pong: (_: Pong, nonce: number) => {
       const pendingPing = this.pendingPings.get(nonce)

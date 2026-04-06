@@ -46,6 +46,12 @@ const getAvailablePort = () => new Promise<number>((resolve, reject) => {
   })
 })
 
+const isListenPermissionError = (error: unknown): boolean =>
+  typeof error === 'object'
+  && error !== null
+  && 'code' in error
+  && error.code === 'EPERM'
+
 let config1: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
@@ -86,12 +92,18 @@ const formulas: Config['formulas'] = {
 let account1: Account
 let peerManager1: PeerManager
 let server1: Bun.Server<WebSocketData>
+let networkIntegrationAvailable = true
 
 beforeAll(async () => {
-  const [port1, port2, port3] = await Promise.all([getAvailablePort(), getAvailablePort(), getAvailablePort()])
-  config1 = { ...config1, port: port1 }
-  config2 = { ...config2, port: port2 }
-  config3 = { ...config3, port: port3 }
+  try {
+    const [port1, port2, port3] = await Promise.all([getAvailablePort(), getAvailablePort(), getAvailablePort()])
+    config1 = { ...config1, port: port1 }
+    config2 = { ...config2, port: port2 }
+    config3 = { ...config3, port: port3 }
+  } catch (error) {
+    if (!isListenPermissionError(error)) throw error
+    networkIntegrationAvailable = false
+  }
 
   const repos = await startDatabase(formulas.pluginConfidence)
   authenticatedPeers.init(repos.authenticatedPeer)
@@ -123,6 +135,7 @@ beforeAll(async () => {
   const utpSocket = utp()
   peerManager1 = new PeerManager(account1, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node1.search(type, query, searchPeers), config1, utpSocket)
   node1.setPeerContext(peerManager1, address => peerManager1.getConfidence(address))
+  if (!networkIntegrationAvailable) return
   server1 = startServer(account1, peerManager1, config1, '')
 
   await new Promise(res => { setTimeout(res, 5000) })
@@ -267,6 +280,35 @@ describe('HIP3', () => {
     expect(peer3).toBeDefined()
   })
     })
+describe('Peer discovery', () => {
+  it('connects to hostnames learned through peer advertisements', async () => {
+    const announcerAddress = '0x1111111111111111111111111111111111111111' as `0x${string}`
+    const announcedAddress = '0x2222222222222222222222222222222222222222' as `0x${string}`
+    const announcedHostname = `${config2.hostname}:${config2.port}` as `${string}:${number}`
+    const fakePeer = {
+      address: announcedAddress,
+      hostname: announcedHostname,
+    } as unknown as (typeof peerManager1.connectedPeers)[number]
+    const originalAdd = peerManager1.add.bind(peerManager1)
+    const addCalls: `${string}:${number}`[] = []
+
+    ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = peer => {
+      if (typeof peer === 'string') addCalls.push(peer)
+      return Promise.resolve(false)
+    }
+
+    peerManager1.peers.set(announcedAddress, fakePeer)
+    try {
+      await peerManager1.handleDiscoveredHostname(announcerAddress, announcedHostname, trace)
+      expect(addCalls).toContain(announcedHostname)
+      expect(peerManager1.getAnnouncedHostnames(announcerAddress)).toContain(announcedHostname)
+      expect(peerManager1.getAnnouncementConnections(announcedAddress)).toContain(announcerAddress)
+    } finally {
+      peerManager1.peers.delete(announcedAddress)
+      ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = originalAdd
+    }
+  })
+})
 describe('Account', () => {
   it('generates unique private keys', () => {
     const key1 = generatePrivateKey()
@@ -584,6 +626,7 @@ describe('Schema validation', () => {
 
 describe('WebSocket server handleConnection', () => {
   it('rejects requests missing handshake headers', async () => {
+    if (!networkIntegrationAvailable) return
     const result = await handleConnection(server1,
       new globalThis.Request('http://localhost:14545', { headers: { upgrade: 'websocket' } }),
       {
