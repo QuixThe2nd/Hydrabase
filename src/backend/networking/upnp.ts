@@ -107,6 +107,84 @@ const tryReadMappingInfo = (mapping: Mapping, onInfo: (info: MappingInfo) => Map
   }
 }
 
+const createObserverFinish = () => {
+  let settled = false
+  let timeoutId: null | ReturnType<typeof setTimeout> = null
+
+  return {
+    finish: (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      if (timeoutId) clearTimeout(timeoutId)
+      callback()
+    },
+    isSettled: (): boolean => settled,
+    setTimeoutId: (nextTimeoutId: ReturnType<typeof setTimeout>): void => {
+      timeoutId = nextTimeoutId
+    },
+  }
+}
+
+const createObserverInfoHandler = ({
+  finish,
+  isSettled,
+  mapping,
+  port,
+  protocol,
+  reject,
+  resolve,
+  trace,
+}: {
+  finish: (callback: () => void) => void
+  isSettled: () => boolean
+  mapping: Mapping
+  port: number
+  protocol: Protocol
+  reject: (reason?: unknown) => void
+  resolve: () => void
+  trace: Trace | undefined
+}) => (info: MappingInfo): MappingInfo => {
+  if (isSettled()) return info
+
+  handleMappingState({
+    info,
+    mapping,
+    port,
+    protocol,
+    reject: reason => {
+      finish(() => {
+        reject(reason)
+      })
+    },
+    resolve: () => {
+      finish(() => {
+        resolve()
+      })
+    },
+    trace,
+  })
+  return info
+}
+
+const scheduleObserverTimeout = ({
+  finish,
+  mapping,
+  port,
+  protocol,
+  reject,
+}: {
+  finish: (callback: () => void) => void
+  mapping: Mapping
+  port: number
+  protocol: Protocol
+  reject: (reason?: unknown) => void
+}): ReturnType<typeof setTimeout> => setTimeout(() => {
+  finish(() => {
+    destroyMapping(mapping)
+    reject(new Error(`Port mapping timeout after 5s for ${protocol} port ${port}`))
+  })
+}, 5000)
+
 const createMappingObserver = ({
   mapping,
   port,
@@ -122,46 +200,10 @@ const createMappingObserver = ({
   resolve: () => void
   trace: Trace | undefined
 }) => {
-  let settled = false
-  let timeoutId: null | ReturnType<typeof setTimeout> = null
+  const { finish, isSettled, setTimeoutId } = createObserverFinish()
+  const onInfo = createObserverInfoHandler({ finish, isSettled, mapping, port, protocol, reject, resolve, trace })
 
-  const finish = (callback: () => void): void => {
-    if (settled) return
-    settled = true
-    if (timeoutId) clearTimeout(timeoutId)
-    callback()
-  }
-
-  const onInfo = (info: MappingInfo): MappingInfo => {
-    if (settled) return info
-
-    handleMappingState({
-      info,
-      mapping,
-      port,
-      protocol,
-      reject: reason => {
-        finish(() => {
-          reject(reason)
-        })
-      },
-      resolve: () => {
-        finish(() => {
-          resolve()
-        })
-      },
-      trace,
-    })
-    return info
-  }
-
-  timeoutId = setTimeout(() => {
-    finish(() => {
-      destroyMapping(mapping)
-      reject(new Error(`Port mapping timeout after 5s for ${protocol} port ${port}`))
-    })
-  }, 5000)
-
+  setTimeoutId(scheduleObserverTimeout({ finish, mapping, port, protocol, reject }))
   return onInfo
 }
 
