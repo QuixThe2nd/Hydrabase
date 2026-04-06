@@ -217,8 +217,8 @@ export class Peer {
       const timeout = setTimeout(() => {
         if (!this.pendingPings.has(nonce)) return
         this.pendingPings.delete(nonce)
-        this.consecutivePingTimeouts += 1
         const timeoutThreshold = 2
+        this.consecutivePingTimeouts = Math.min(timeoutThreshold, this.consecutivePingTimeouts + 1)
         if (this.consecutivePingTimeouts < timeoutThreshold) {
           trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; keeping peer connected (${this.type} transport, hostname: ${this.hostname}, strike ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
           warn('WARN:', `[PEER][TIMEOUT] Missed pong from peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}; keeping connection (${this.consecutivePingTimeouts}/${timeoutThreshold}).`)
