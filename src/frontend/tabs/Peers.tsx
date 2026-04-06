@@ -184,18 +184,20 @@ const AnnouncementCard = ({ entries, label }: { entries: AnnouncementEntry[]; la
 </div>
 
 const AnnouncementOverview = ({ peer, peers }: { peer: PeerWithCountry; peers: PeerWithCountry[] }) => {
-  const announcedByEntries: AnnouncementEntry[] = (peer.connection?.connections ?? []).map((address) => ({
+  const announcedByEntries: AnnouncementEntry[] = (peer.announcedBy ?? peer.connection?.connections ?? []).map((address) => ({
     key: `addr:${address}`,
     label: getPeerDisplayName(address, peers),
     secondary: shortAddr(address),
     unresolved: false,
   }))
-  const announcedEntries: AnnouncementEntry[] = (peer.announcedBy ?? []).map((address) => ({
-    key: `addr:${address}`,
-    label: getPeerDisplayName(address, peers),
-    secondary: shortAddr(address),
-    unresolved: false,
-  }))
+  const announcedEntries: AnnouncementEntry[] = peers
+    .filter((candidate) => (candidate.announcedBy ?? []).includes(peer.address))
+    .map((candidate) => ({
+      key: `addr:${candidate.address}`,
+      label: getPeerDisplayName(candidate.address, peers),
+      secondary: shortAddr(candidate.address),
+      unresolved: false,
+    }))
   return <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', marginBottom: 10 }}>
     <AnnouncementCard entries={announcedByEntries} label='Announced By' />
     <AnnouncementCard entries={announcedEntries} label='Announced' />
