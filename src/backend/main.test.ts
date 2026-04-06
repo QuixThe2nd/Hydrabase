@@ -1,6 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import net from 'net'
 import utp from 'utp-socket'
 
 import type { Config } from '../types/hydrabase'
@@ -26,7 +27,26 @@ import { RequestManager } from './RequestManager'
 import { RuntimeSettingsManager } from './RuntimeSettingsManager'
 
 
-const config1: Config['node'] = {
+const getAvailablePort = () => new Promise<number>((resolve, reject) => {
+  const server = net.createServer()
+  server.once('error', reject)
+  server.listen(0, '127.0.0.1', () => {
+    const address = server.address()
+    if (!address || typeof address === 'string') {
+      server.close()
+      reject(new Error('Failed to allocate test port'))
+      return
+    }
+
+    const { port } = address
+    server.close((closeError) => {
+      if (closeError) reject(closeError)
+      else resolve(port)
+    })
+  })
+})
+
+let config1: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
@@ -35,7 +55,7 @@ const config1: Config['node'] = {
   preferTransport: 'TCP',
   username: 'TestNode1'
 }
-const config2: Config['node'] = {
+let config2: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
@@ -44,7 +64,7 @@ const config2: Config['node'] = {
   preferTransport: 'TCP',
   username: 'TestNode2'
 }
-const config3: Config['node'] = {
+let config3: Config['node'] = {
   connectMessage: 'Hello!',
   hostname: '127.0.0.1',
   ip: '127.0.0.1',
@@ -68,6 +88,11 @@ let peerManager1: PeerManager
 let server1: Bun.Server<WebSocketData>
 
 beforeAll(async () => {
+  const [port1, port2, port3] = await Promise.all([getAvailablePort(), getAvailablePort(), getAvailablePort()])
+  config1 = { ...config1, port: port1 }
+  config2 = { ...config2, port: port2 }
+  config3 = { ...config3, port: port3 }
+
   const repos = await startDatabase(formulas.pluginConfidence)
   authenticatedPeers.init(repos.authenticatedPeer)
   authenticatedPeers.clear()
@@ -106,7 +131,7 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  server1.stop()
+  server1?.stop()
 })
 
 const trace = Trace.start('Unit tests', true)
@@ -232,9 +257,10 @@ describe('HIP2', () => {
 describe('HIP3', () => {
   it.skip('peers 1 and 3 discovered each other through peer 2', async () => {
     // Wait up to 2 seconds for peer discovery
+    const expectedHostname = `${config3.hostname}:${config3.port}`
     let peer3
     for (let i = 0; i < 20; i++) {
-      peer3 = peerManager1.connectedPeers.find(peer => peer.hostname === `${config3.hostname}:${config3.port}`)
+      peer3 = peerManager1.connectedPeers.find(peer => peer.hostname === expectedHostname)
       if (peer3) break
       await new Promise(res => { setTimeout(res, 100) })
     }

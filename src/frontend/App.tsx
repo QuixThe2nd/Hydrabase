@@ -29,6 +29,7 @@ const PULSE_WINDOW_MS = 6 * 60 * 60 * 1000
 const PULSE_MIN_INTERVAL_MS = 500
 const CONNECT_ATTEMPT_TIMEOUT_MS = 30_000
 const MAX_CONNECTION_ATTEMPTS = 20
+const GLOBAL_CHAT_ADDRESS = '0x0' as `0x${string}`
 
 const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, intervalMs: number): BwPoint[] => {
   const maxPoints = Math.ceil(PULSE_WINDOW_MS / Math.max(intervalMs, PULSE_MIN_INTERVAL_MS)) + 4
@@ -37,6 +38,25 @@ const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, inte
   const firstRecentIndex = bounded.findIndex(point => point.t >= cutoff)
   if (firstRecentIndex <= 0) return bounded
   return bounded.slice(firstRecentIndex)
+}
+
+const messageEnvelopeKey = (envelope: MessageEnvelope): string => `${envelope.from}|${envelope.to}|${envelope.timestamp}`
+
+const mergeMessages = (current: MessageEnvelope[], incoming: MessageEnvelope[]): { added: number; merged: MessageEnvelope[] } => {
+  if (incoming.length === 0) return { added: 0, merged: current }
+  const seen = new Set(current.map(messageEnvelopeKey))
+  let added = 0
+  const merged = [...current]
+  for (const envelope of incoming) {
+    const key = messageEnvelopeKey(envelope)
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(envelope)
+    added += 1
+  }
+  if (added === 0) return { added: 0, merged: current }
+  merged.sort((a, b) => a.timestamp - b.timestamp)
+  return { added, merged }
 }
 
 const nonce = Math.random()
@@ -209,13 +229,15 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [messages, setMessages] = useState<MessageEnvelope[]>([])
   const [runtimeConfig, setRuntimeConfig] = useState<null | RuntimeConfigSnapshot>(null)
   const [runtimeConfigError, setRuntimeConfigError] = useState<null | string>(null)
-  const [runtimeConfigLoading, setRuntimeConfigLoading] = useState(false)
+  const [runtimeConfigLoading, setRuntimeConfigLoading] = useState(true)
   const [restartPendingReconnect, setRestartPendingReconnect] = useState(false)
   const restartSawDisconnectRef = useRef(false)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const statsRef = useRef<NodeStats | null>(null)
   const [connectionAttempts, setConnectionAttempts] = useState<PeerConnectionAttempt[]>([])
   const connectionAttemptsRef = useRef<PeerConnectionAttempt[]>([])
+  const messagesRef = useRef<MessageEnvelope[]>([])
+  const pendingDirectMessagesRef = useRef<MessageEnvelope[]>([])
 
   const onPeerStatsRef = useRef<({ nonce, peer_stats }: { nonce: number; peer_stats: PeerStats, }) => void>(() => warn('DEVWARN:', '[WEBUI] onPeerStatsRef not initialised'))
   const wsRef = useRef<undefined | WebSocket>(undefined)
@@ -232,13 +254,25 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   }, [connectionAttempts])
 
   useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  const appendMessages = useCallback((incoming: MessageEnvelope[]): number => {
+    const { added, merged } = mergeMessages(messagesRef.current, incoming)
+    if (added === 0) return 0
+    messagesRef.current = merged
+    setMessages(merged)
+    return added
+  }, [])
+
+  useEffect(() => {
     if (!restartPendingReconnect) return
     if (wsState !== 'open') {
       restartSawDisconnectRef.current = true
       return
     }
     if (restartSawDisconnectRef.current) {
-      setRestartPendingReconnect(false)
+      setTimeout(() => setRestartPendingReconnect(false), 0)
       restartSawDisconnectRef.current = false
     }
   }, [restartPendingReconnect, wsState])
@@ -266,7 +300,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     return true
   }, [clearConnectAttemptTimeout])
 
-  const sendRuntimeConfigRequest = useCallback(async (payload: { get_config?: true; update_config?: RuntimeConfigUpdate }): Promise<RuntimeConfigSnapshot> => {
+  const sendRuntimeConfigRequest = useCallback(async (payload: { update_config: RuntimeConfigUpdate }): Promise<RuntimeConfigSnapshot> => {
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN) throw new Error('WebSocket not connected')
     const requestNonce = nonceRef.current++
@@ -286,18 +320,14 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     throw new Error('Missing settings payload')
   }, [])
 
-  const loadRuntimeConfig = useCallback(async () => {
+  const refreshRuntimeConfig = useCallback((): Promise<void> => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('WebSocket not connected'))
     setRuntimeConfigLoading(true)
     setRuntimeConfigError(null)
-    try {
-      const snapshot = await sendRuntimeConfigRequest({ get_config: true })
-      setRuntimeConfig(snapshot)
-    } catch (err) {
-      setRuntimeConfigError(err instanceof Error ? err.message : 'Failed to load settings')
-    } finally {
-      setRuntimeConfigLoading(false)
-    }
-  }, [sendRuntimeConfigRequest])
+    ws.close()
+    return Promise.resolve()
+  }, [])
 
   const updateRuntimeConfig = useCallback(async (update: RuntimeConfigUpdate) => {
     setRuntimeConfigError(null)
@@ -390,6 +420,15 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
     statsRef.current = newStats
     setStats(newStats)
+
+    const selfAddress = newStats.self.address
+    if (selfAddress && pendingDirectMessagesRef.current.length > 0) {
+      const pendingForSelf = pendingDirectMessagesRef.current.filter((envelope) => envelope.to === selfAddress)
+      pendingDirectMessagesRef.current = []
+      const added = appendMessages(pendingForSelf)
+      if (added > 0 && tabRef.current !== 'messages') setUnreadMessages((u) => u + added)
+    }
+
     if (isFull || partialUpdate?.dhtNodes !== undefined) {
       setDhtNodeCounts(prev => ([...prev, newStats.dhtNodes.length]))
       Promise.all(newStats.dhtNodes.map(async (host) => ({ country: await getCountryForHost(host), host })))
@@ -412,7 +451,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         })
     }
 
-  }, [])
+  }, [appendMessages])
 
   useEffect(() => {
     let destroyed = false
@@ -426,11 +465,10 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         if (destroyed) { ws.close(); return }
         setWsState('open')
         addLog('INFO', 'WebSocket connected')
+        setRuntimeConfigLoading(true)
+        setRuntimeConfigError(null)
         ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
         ws.send(JSON.stringify({ message_history: 'get', nonce: nonceRef.current++ }))
-        loadRuntimeConfig().catch((err) => {
-          addLog('WARN', err instanceof Error ? err.message : 'Failed to load settings')
-        })
       }
       ws.onmessage = (e: MessageEvent) => {
         if (destroyed) return
@@ -440,11 +478,17 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             const resolve = pendingSearches.current.get(data.nonce)
             if (resolve) { pendingSearches.current.delete(data.nonce); resolve(data.response); return }
           }
-          if ((data.runtime_config !== undefined || data.runtime_config_updated !== undefined || data.config_error !== undefined) && data.nonce !== undefined) {
+          if (data.runtime_config !== undefined) {
+            setRuntimeConfig(data.runtime_config as RuntimeConfigSnapshot)
+            setRuntimeConfigLoading(false)
+            setRuntimeConfigError(null)
+            return
+          }
+          if ((data.runtime_config_updated !== undefined || data.config_error !== undefined) && data.nonce !== undefined) {
             const resolveConfig = pendingRuntimeConfig.current.get(data.nonce)
             if (resolveConfig) {
               pendingRuntimeConfig.current.delete(data.nonce)
-              if (data.config_error === undefined) resolveConfig({ snapshot: (data.runtime_config ?? data.runtime_config_updated) as RuntimeConfigSnapshot })
+              if (data.config_error === undefined) resolveConfig({ snapshot: data.runtime_config_updated as RuntimeConfigSnapshot })
               else resolveConfig({ error: String(data.config_error) })
               return
             }
@@ -466,19 +510,21 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
             setSearchHistory(data.search_history)
           } else if (data.message_history !== undefined) {
             const snapshot = data.message_history as MessageEnvelope[]
-            setMessages(prev => {
-              const seen = new Set(prev.map((m: MessageEnvelope) => `${m.from}|${m.to}|${m.timestamp}`))
-              const merged = [...snapshot.filter((m: MessageEnvelope) => !seen.has(`${m.from}|${m.to}|${m.timestamp}`)), ...prev]
-              merged.sort((a: MessageEnvelope, b: MessageEnvelope) => a.timestamp - b.timestamp)
-              return merged
-            })
+            appendMessages(snapshot)
           } else if (data.message) {
             const packet = data.message as { envelope?: MessageEnvelope }
             const {envelope} = packet
+            if (!envelope) return
+
             const selfAddress = statsRef.current?.self.address
-            if (envelope && (envelope.to === '0x0' || (selfAddress && envelope.to === selfAddress))) {
-              setMessages(prev => [...prev, envelope])
-              if (tabRef.current !== 'messages') setUnreadMessages(u => u + 1)
+            if (envelope.to === GLOBAL_CHAT_ADDRESS) {
+              const added = appendMessages([envelope])
+              if (added > 0 && tabRef.current !== 'messages') setUnreadMessages(u => u + added)
+            } else if (!selfAddress) {
+              pendingDirectMessagesRef.current.push(envelope)
+            } else if (envelope.to === selfAddress) {
+              const added = appendMessages([envelope])
+              if (added > 0 && tabRef.current !== 'messages') setUnreadMessages(u => u + added)
             }
           } else if (data.stats) {
             const fullStats = data.stats as NodeStats
@@ -561,7 +607,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     }
     connect()
     return () => { destroyed = true; wsRef.current?.close() }
-  }, [applyPulse, applyPulseHistory, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey, loadRuntimeConfig])
+  }, [applyPulse, applyPulseHistory, applyStats, addLog, markAttemptFailed, markLatestPendingAttemptForHostname, socket, apiKey, appendMessages])
 
   useEffect(() => () => {
       pendingConnectAttempts.current.forEach((timeout) => clearTimeout(timeout))
@@ -780,7 +826,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === 'dht' && <DhtTab dhtNodeCounts={dhtNodeCounts} dhtNodes={dhtNodes} socket={socket} stats={stats} tLabels={tLabels} wsState={wsState} />}
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
-      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} isRestarting={restartPendingReconnect} onPurgePeerCache={purgePeerCache} onRefresh={loadRuntimeConfig} onRestart={handleRestart} onSave={updateRuntimeConfig} />}
+      {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} isRestarting={restartPendingReconnect} onPurgePeerCache={purgePeerCache} onRefresh={refreshRuntimeConfig} onRestart={handleRestart} onSave={updateRuntimeConfig} />}
       {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
     </div>
     <ActivityFeed eventLog={eventLog} />

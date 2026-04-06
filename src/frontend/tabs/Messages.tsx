@@ -86,6 +86,8 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
   // conversations already declared above
   const peerMap = new Map(peers.map(p => [p.address, p]))
   const thread = selectedAddress ? (conversations.get(selectedAddress) ?? []) : []
+  const lastReadTime = selectedAddress ? (lastRead[selectedAddress] || 0) : 0
+  const firstUnreadIncomingIndex = thread.findIndex(msg => msg.from !== ownAddress && msg.timestamp > lastReadTime)
 
 
   useEffect(() => {
@@ -206,30 +208,37 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
                   const isMine = msg.from === ownAddress
                   const isGlobal = selectedAddress === GLOBAL_CHAT_ADDRESS
                   const failedConnect = parseFailedConnectNotice(msg.payload)
-                  // Highlight new messages in the thread
-                  const lastReadTime = lastRead[selectedAddress ?? ''] || 0
+                  const showUnreadSeparator = i === firstUnreadIncomingIndex
+                  // Highlight unread incoming messages in the thread
                   const isNew = !isMine && msg.timestamp > lastReadTime
-                  return <div key={i} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-                    <div style={{ maxWidth: '70%' }}>
-                      {isGlobal && !isMine && <div style={{ color: MUTED, fontSize: 10, marginBottom: 2, paddingLeft: 4 }}>{getPeerName(msg.from)}</div>}
-                      <div style={{
-                        background: isMine ? 'rgba(0,200,255,.12)' : (isNew ? 'rgba(255,74,94,0.13)' : BG3),
-                        border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : (isNew ? '#ff4a5e' : BORD)}`,
-                        borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                        boxShadow: isNew ? '0 0 0 2px #ff4a5e33' : undefined,
-                        padding: '8px 12px',
-                        position: 'relative',
-                      }}>
-                        {failedConnect
-                          ? <>
-                              <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                {getFailedConnectMessageText(failedConnect)}
-                              </div>
-                              {failedConnect.reason && <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.4, marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>I got: {failedConnect.reason}</div>}
-                              {failedConnect.stack && <pre style={{ background: BG, border: `1px solid ${BORD}`, borderRadius: 6, color: TEXT, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.35, margin: '6px 0 0', maxHeight: 180, overflowX: 'auto', overflowY: 'auto', padding: '8px 9px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{failedConnect.stack}</pre>}
-                            </>
-                          : <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>}
-                        <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}{isNew && <span style={{ color: '#ff4a5e', fontWeight: 700, marginLeft: 6 }}>NEW</span>}</div>
+                  return <div key={i}>
+                    {showUnreadSeparator && <div style={{ alignItems: 'center', display: 'flex', gap: 10, margin: '6px 0 10px' }}>
+                      <div style={{ background: BORD, flex: 1, height: 1 }} />
+                      <span style={{ color: '#ff4a5e', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>Unread messages</span>
+                      <div style={{ background: BORD, flex: 1, height: 1 }} />
+                    </div>}
+                    <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                      <div style={{ maxWidth: '70%' }}>
+                        {isGlobal && !isMine && <div style={{ color: MUTED, fontSize: 10, marginBottom: 2, paddingLeft: 4 }}>{getPeerName(msg.from)}</div>}
+                        <div style={{
+                          background: isMine ? 'rgba(0,200,255,.12)' : (isNew ? 'rgba(255,74,94,0.13)' : BG3),
+                          border: `1px solid ${isMine ? 'rgba(0,200,255,.25)' : (isNew ? '#ff4a5e' : BORD)}`,
+                          borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                          boxShadow: isNew ? '0 0 0 2px #ff4a5e33' : undefined,
+                          padding: '8px 12px',
+                          position: 'relative',
+                        }}>
+                          {failedConnect
+                            ? <>
+                                <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                  {getFailedConnectMessageText(failedConnect)}
+                                </div>
+                                {failedConnect.reason && <div style={{ color: MUTED, fontSize: 10, lineHeight: 1.4, marginTop: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>I got: {failedConnect.reason}</div>}
+                                {failedConnect.stack && <pre style={{ background: BG, border: `1px solid ${BORD}`, borderRadius: 6, color: TEXT, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 10, lineHeight: 1.35, margin: '6px 0 0', maxHeight: 180, overflowX: 'auto', overflowY: 'auto', padding: '8px 9px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{failedConnect.stack}</pre>}
+                              </>
+                            : <div style={{ fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.payload}</div>}
+                          <div style={{ color: MUTED, fontSize: 9, marginTop: 4, textAlign: 'right' }}>{fmtTime(msg.timestamp)}{isNew && <span style={{ color: '#ff4a5e', fontWeight: 700, marginLeft: 6 }}>NEW</span>}</div>
+                        </div>
                       </div>
                     </div>
                   </div>

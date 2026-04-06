@@ -30,7 +30,6 @@ const SearchHistoryDataSchema = z.union([
 ])
 
 const MessageHistoryRequestSchema = z.literal('get')
-const GetConfigSchema = z.literal(true)
 const PurgePeerCacheSchema = z.literal(true)
 const UpdateConfigSchema = z.object({
   config: z.object({
@@ -88,7 +87,6 @@ export type MessagePacket = z.infer<typeof MessagePacketSchema>
 const MessageSchemas = {
   announce: AnnounceSchema,
   connect_peer: ConnectPeerSchema,
-  get_config: GetConfigSchema,
   message: MessagePacketSchema,
   message_history: MessageHistoryRequestSchema,
   peer_stats: PeerStatsRequestSchema,
@@ -130,7 +128,6 @@ export class HIP2_Messaging {
     : 'store_message' in result ? 'message'
     : 'deliver_message' in result ? 'message'
     : 'peer_stats' in result ? 'peer_stats'
-    : 'get_config' in result ? 'get_config'
     : 'announce' in result ? 'announce'
     : 'connect_peer' in result ? 'connect_peer'
     : 'ping' in result ? 'ping'

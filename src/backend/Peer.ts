@@ -79,10 +79,6 @@ export class Peer {
       if (this.address !== '0x0') return
       this.peers.handleConnectPeerRequest(data.hostname, this, nonce, trace)
     },
-    get_config: (_data: true, nonce: number, trace: Trace) => {
-      if (this.address !== '0x0') return
-      this.send({ nonce, runtime_config: this.peers.getRuntimeConfig() }, trace)
-    },
     message: (packet: MessagePacket, trace: Trace) => this.peers.handleMessage(packet, this, trace),
     message_history: (_data: 'get', nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
@@ -331,10 +327,6 @@ export class Peer {
   public readonly sendStatsSelf = (stats_self: NodeStats['self'], trace: Trace) => this.send({ nonce: this.nonce++, stats_self }, trace)
   public readonly sendStatsVotes = (stats_votes: StatsVotesPayload, trace: Trace) => this.send({ nonce: this.nonce++, stats_votes }, trace)
   private handleRuntimeConfigMessage(type: string, data: unknown, nonce: number, trace: Trace): boolean {
-    if (type === 'get_config') {
-      this.handlers[type](data as true, nonce, trace)
-      return true
-    }
     if (type === 'update_config') {
       this.handlers[type](data as UpdateConfig, nonce, trace)
       return true

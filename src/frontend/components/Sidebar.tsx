@@ -48,10 +48,10 @@ const SidebarPeerButton = ({ isActive, onSelectPeer, peer }: { isActive: boolean
   </div>
 </button>
 
-const SidebarPeers = ({ onSelectPeer, peers, selectedPeerAddress, setTab, tab }: { onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; tab: ActiveTab }) => <div style={{ borderTop: `1px solid ${BORD}`, display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0, padding: '10px 6px 12px' }}>
+const SidebarPeers = ({ onSelectPeer, peerCount, peers, selectedPeerAddress, setTab, tab }: { onSelectPeer: (peer: PeerWithCountry) => void; peerCount: number; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; tab: ActiveTab }) => <div style={{ borderTop: `1px solid ${BORD}`, display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0, padding: '10px 6px 12px' }}>
   <button onClick={() => setTab('peers')} style={{ alignItems: 'center', background: 'none', border: 'none', color: tab === 'peers' ? TEXT : MUTED, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', fontSize: 10, fontWeight: 700, justifyContent: 'space-between', letterSpacing: '.08em', padding: '0 10px 8px', textTransform: 'uppercase', width: '100%' }}>
     <span>Peers</span>
-    <span style={{ color: ACCENT, fontFamily: 'monospace', fontSize: 10 }}>{peers.filter(peer => peer.address !== '0x0').length}</span>
+    <span style={{ color: ACCENT, fontFamily: 'monospace', fontSize: 10 }}>{peerCount}</span>
   </button>
 
   <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 4, minHeight: 0, overflowY: 'auto', padding: '0 4px' }}>
@@ -63,7 +63,8 @@ const SidebarPeers = ({ onSelectPeer, peers, selectedPeerAddress, setTab, tab }:
 export const Sidebar = ({ onSelectPeer, peers, selectedPeerAddress, setTab, stats, tab, unreadMessages, uptime }: { onSelectPeer: (peer: PeerWithCountry) => void; peers: PeerWithCountry[]; selectedPeerAddress: null | string; setTab: React.Dispatch<React.SetStateAction<Tab>>; stats: NodeStats | null; tab: ActiveTab; unreadMessages: number; uptime: number }) => {
   const totalRx = peers.reduce((a, p) => a + (p.connection?.totalDL ?? 0), 0)
   const totalTx = peers.reduce((a, p) => a + (p.connection?.totalUL ?? 0), 0)
-  const sidebarPeers = sortSidebarPeers(peers.filter(peer => peer.connection !== undefined)).slice(0, 8)
+  const connectedPeers = sortSidebarPeers(peers.filter(peer => peer.connection !== undefined))
+  const connectedPeerCount = connectedPeers.filter(peer => peer.address !== '0x0').length
 
   return <div style={{ background: '#010409', borderRight: `1px solid ${BORD}`, display: 'flex', flexDirection: 'column', flexShrink: 0, height: 'calc(100vh - 48px)', position: 'sticky', top: 0, width: 196 }}>
     <div style={{ borderBottom: `1px solid ${BORD}`, padding: '16px 16px 14px' }}>
@@ -72,7 +73,7 @@ export const Sidebar = ({ onSelectPeer, peers, selectedPeerAddress, setTab, stat
     </div>
     <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minHeight: 0 }}>
       <SidebarNav setTab={setTab} tab={tab} unreadMessages={unreadMessages} />
-      <SidebarPeers onSelectPeer={onSelectPeer} peers={sidebarPeers} selectedPeerAddress={selectedPeerAddress} setTab={setTab} tab={tab} />
+      <SidebarPeers onSelectPeer={onSelectPeer} peerCount={connectedPeerCount} peers={connectedPeers} selectedPeerAddress={selectedPeerAddress} setTab={setTab} tab={tab} />
     </div>
     <div style={{ borderTop: `1px solid ${BORD}`, padding: '12px 16px' }}>
       {([

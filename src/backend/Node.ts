@@ -122,6 +122,13 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
     CONFIG.node.preferTransport = 'TCP'
   }
   const peerManager = new PeerManager(account, metadataManager, repos, runtimeSettings, (type, query, searchPeers) => node.search(type, query, searchPeers), CONFIG.node, utpSocket)
+  peerManager.onApiConnected(() => {
+    const {apiPeer} = peerManager
+    if (!apiPeer) return
+    const apiConfigTrace = Trace.start('[PEERS] Sending runtime config to API peer')
+    apiPeer.send({ nonce: apiPeer.nonce++, runtime_config: peerManager.getRuntimeConfig() }, apiConfigTrace)
+    apiConfigTrace.success()
+  })
   if (utpSocket) {
     // Register the inbound connection handler before listen() so no connections are missed.
     // peerManager is fully initialised at this point and safe to reference in the handler.
