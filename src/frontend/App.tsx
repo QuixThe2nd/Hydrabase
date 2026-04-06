@@ -258,11 +258,20 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   }, [messages])
 
   const appendMessages = useCallback((incoming: MessageEnvelope[]): number => {
-    const { added, merged } = mergeMessages(messagesRef.current, incoming)
-    if (added === 0) return 0
-    messagesRef.current = merged
-    setMessages(merged)
-    return added
+    let addedCount = 0
+
+    setMessages((current) => {
+      const { added, merged } = mergeMessages(current, incoming)
+      addedCount = added
+      if (added === 0) {
+        messagesRef.current = current
+        return current
+      }
+      messagesRef.current = merged
+      return merged
+    })
+
+    return addedCount
   }, [])
 
   useEffect(() => {
