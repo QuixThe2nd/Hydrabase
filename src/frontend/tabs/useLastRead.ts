@@ -53,11 +53,11 @@ export const useLastRead = (
     }
 
     if (selectedAddress) {
-      const lastTimestamp = getConversationLastTimestamp(selectedAddress)
-      if (lastTimestamp !== null) {
+      const latestTimestamp = getConversationLastTimestamp(selectedAddress)
+      if (latestTimestamp !== null) {
         setLastRead(prev => {
-          if (prev[selectedAddress] === lastTimestamp) return prev
-          const updated = { ...prev, [selectedAddress]: lastTimestamp }
+          if (prev[selectedAddress] === latestTimestamp) return prev
+          const updated = { ...prev, [selectedAddress]: latestTimestamp }
           saveLastRead(updated)
           return updated
         })
