@@ -41,6 +41,7 @@ To install:
 ```bash
 git clone https://github.com/QuixThe2nd/Hydrabase
 cd Hydrabase
+# install CMake with your system package manager first
 bun install
 ```
 
@@ -48,6 +49,13 @@ To run:
 
 ```bash
 bun start
+```
+
+If UPnP/automatic port forwarding says the `node-portmapping` native addon is unavailable, run:
+
+```bash
+bun pm trust node-portmapping
+bun install
 ```
 
 ## Networking

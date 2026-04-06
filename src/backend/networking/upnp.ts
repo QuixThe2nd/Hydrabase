@@ -18,7 +18,7 @@ const toError = (error: unknown) => error instanceof Error ? error : new Error(S
 const normaliseLoadError = (error: unknown) => {
   const resolved = toError(error)
   if (resolved.message.includes('node_portmapping.node')) {
-    return new Error('node-portmapping native addon is unavailable; run the package install script to compile it before starting Hydrabase')
+    return new Error('node-portmapping native addon is unavailable; run `bun pm trust node-portmapping && bun install` to allow Bun to build it, and ensure CMake is installed before starting Hydrabase')
   }
 
   return resolved
