@@ -133,8 +133,24 @@ const createMappingObserver = ({
   }
 
   const onInfo = (info: MappingInfo): MappingInfo => {
-    finish(() => {
-      handleMappingState({ info, mapping, port, protocol, reject, resolve, trace })
+    if (settled) return info
+
+    handleMappingState({
+      info,
+      mapping,
+      port,
+      protocol,
+      reject: reason => {
+        finish(() => {
+          reject(reason)
+        })
+      },
+      resolve: () => {
+        finish(() => {
+          resolve()
+        })
+      },
+      trace,
     })
     return info
   }
