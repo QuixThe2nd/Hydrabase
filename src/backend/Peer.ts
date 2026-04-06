@@ -90,7 +90,7 @@ export class Peer {
       this.send({ nonce, peer_stats }, trace)
     },
     ping: (ping: Ping, nonce: number, trace: Trace) => {
-      trace.step(`[HIP2] Received ping ${nonce} from containing ${ping.peers.length} peer hostnames: ${ping.peers.join(', ')}`)
+      trace.step(`[HIP2] Received ping ${nonce} from ${this.address} containing ${ping.peers.length} peer hostnames: ${ping.peers.join(', ')}`)
       this.send({ nonce, pong: { peers: ping.peers ?? [], time: Number(new Date()) } }, trace)
       for (const hostname of ping.peers) {
         const discoveryTrace = Trace.start(`[HIP2] Discovered peer through ${this.address}: ${hostname}`, true, true)
