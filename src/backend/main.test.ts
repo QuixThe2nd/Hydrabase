@@ -18,6 +18,7 @@ import { authenticatedPeers } from './networking/authenticatedPeers'
 import { startServer } from './networking/http'
 import { handleConnection, type WebSocketData } from './networking/ws/server'
 import { Node } from './Node'
+import { Peer } from './Peer'
 import PeerManager from './PeerManager'
 import { PeerMap } from './PeerMap'
 import { AuthSchema, proveClient, proveServer, verifyClient, verifyServer } from './protocol/HIP1_Identity'
@@ -643,6 +644,79 @@ describe('WebSocket server handleConnection', () => {
     expect(result).toBeDefined()
     expect(result?.res[0]).toBe(400)
     expect(result?.res[1]).toContain('Missing required handshake headers')
+  })
+})
+
+describe('purge_peer_cache handler', () => {
+  const makeMockSocket = (address: `0x${string}`) => {
+    const sentMessages: string[] = []
+    const closeHandlers: (() => void)[] = []
+    const socket = {
+      close: () => { for (const h of closeHandlers) h() },
+      identity: { address, bio: undefined, hostname: 'test:1234' as `${string}:${number}`, userAgent: 'test', username: 'TestUser' },
+      onClose: (handler: () => void) => { closeHandlers.push(handler) },
+      onMessage: () => {},
+      send: (msg: string) => { sentMessages.push(msg) },
+    }
+    return { sentMessages, socket }
+  }
+
+  it('purgePeerCache clears internal state', () => {
+    const pm = peerManager1 as unknown as {
+      recentConnectionFailures: Map<string, unknown>
+      recentPeerAddresses: Map<string, unknown>
+      reconnectAttempts: Map<string, unknown>
+    }
+    pm.recentPeerAddresses.set('127.0.0.1:9999', '0xdeadbeef')
+    pm.recentConnectionFailures.set('127.0.0.1:9999', { hostname: '127.0.0.1:9999', reason: 'test', timestamp: Date.now(), transport: 'TCP' })
+    pm.reconnectAttempts.set('127.0.0.1:9999', 3)
+
+    peerManager1.purgePeerCache()
+
+    expect(pm.recentPeerAddresses.size).toBe(0)
+    expect(pm.recentConnectionFailures.size).toBe(0)
+    expect(pm.reconnectAttempts.size).toBe(0)
+  })
+
+  it('non-API peer cannot trigger purge_peer_cache', () => {
+    const { socket, sentMessages } = makeMockSocket('0xdeadbeef1234567890deadbeef1234567890dead' as `0x${string}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const repos = (peerManager1 as any).repos
+    const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
+
+    const pm = peerManager1 as unknown as { recentPeerAddresses: Map<string, unknown> }
+    pm.recentPeerAddresses.set('10.0.0.1:4545', '0xabcd')
+
+    const handlerTrace = trace.child('purge_peer_cache non-API test')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(peer as any).handleRuntimeConfigMessage('purge_peer_cache', true, 42, handlerTrace)
+
+    expect(sentMessages).toHaveLength(0)
+    expect(pm.recentPeerAddresses.size).toBeGreaterThan(0)
+
+    // cleanup
+    socket.close()
+    pm.recentPeerAddresses.delete('10.0.0.1:4545')
+  })
+
+  it('API peer receives peer_cache_purged with correct nonce', () => {
+    const { socket, sentMessages } = makeMockSocket('0x0' as `0x${string}`)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const repos = (peerManager1 as any).repos
+    const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
+
+    const handlerTrace = trace.child('purge_peer_cache API test')
+    const testNonce = 77
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(peer as any).handleRuntimeConfigMessage('purge_peer_cache', true, testNonce, handlerTrace)
+
+    expect(sentMessages).toHaveLength(1)
+    const parsed = JSON.parse(sentMessages[0]!) as Record<string, unknown>
+    expect(parsed['peer_cache_purged']).toBe(true)
+    expect(parsed['nonce']).toBe(testNonce)
+
+    // cleanup
+    socket.close()
   })
 })
 
