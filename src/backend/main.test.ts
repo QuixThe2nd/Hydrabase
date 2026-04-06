@@ -279,7 +279,6 @@ describe('HIP3', () => {
     }
     expect(peer3).toBeDefined()
   })
-    })
 describe('Peer discovery', () => {
   it('connects to hostnames learned through peer advertisements', async () => {
     const announcerAddress = '0x1111111111111111111111111111111111111111' as `0x${string}`
