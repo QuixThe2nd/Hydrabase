@@ -190,20 +190,33 @@ const AnnouncementOverview = ({ peer, peers }: { peer: PeerWithCountry; peers: P
     secondary: shortAddr(address),
     unresolved: false,
   }))
-  const announcedEntries: AnnouncementEntry[] = peers
-    .filter((candidate) => {
-      const candidateAnnouncements = candidate.announcedBy ?? candidate.connection?.connections ?? []
-      return candidateAnnouncements.includes(peer.address)
-    })
-    .map((candidate) => ({
-      key: `addr:${candidate.address}`,
-      label: getPeerDisplayName(candidate.address, peers),
-      secondary: shortAddr(candidate.address),
-      unresolved: false,
+  const announcedPeers = peers.filter((candidate) => {
+    const candidateAnnouncements = candidate.announcedBy ?? candidate.connection?.connections ?? []
+    return candidateAnnouncements.includes(peer.address)
+  })
+  const announcedEntries: AnnouncementEntry[] = announcedPeers.map((candidate) => ({
+    key: `addr:${candidate.address}`,
+    label: getPeerDisplayName(candidate.address, peers),
+    secondary: shortAddr(candidate.address),
+    unresolved: false,
+  }))
+  const resolvedAnnouncedHostnames = new Set(
+    announcedPeers
+      .map(candidate => candidate.connection?.hostname)
+      .filter((hostname): hostname is string => Boolean(hostname)),
+  )
+  const unresolvedHostnameEntries: AnnouncementEntry[] = Array.from(new Set(peer.connection?.announcedHostnames ?? []))
+    .filter(hostname => !resolvedAnnouncedHostnames.has(hostname))
+    .map((hostname) => ({
+      key: `host:${hostname}`,
+      label: hostname,
+      secondary: 'unresolved',
+      unresolved: true,
     }))
   return <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', marginBottom: 10 }}>
     <AnnouncementCard entries={announcedByEntries} label='Announced By' />
     <AnnouncementCard entries={announcedEntries} label='Announced' />
+    <AnnouncementCard entries={unresolvedHostnameEntries} label='Unresolved Hostnames' />
   </div>
 }
 
