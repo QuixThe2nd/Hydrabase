@@ -9,6 +9,7 @@ import type PeerManager from './PeerManager'
 
 import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
+import { authenticatedPeers } from './networking/authenticatedPeers'
 import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
 import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
@@ -40,7 +41,7 @@ export class Peer {
     return this.requestManager.averageLatencyMs
   }
   get plugins(): string[] {
-    return this.repos.peer.getPlugins(this.address)
+    return this.socket.identity.plugins
   }
   get totalDL() { return this._dl }
 
@@ -90,7 +91,10 @@ export class Peer {
     },
     peer_stats: (data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
-      const peer_stats = this.repos.peer.collectPeerStats(data.address, this.ownPlugins)
+      const connectedPlugins = this.peers.peers.get(data.address)?.plugins
+      const knownPlugins = authenticatedPeers.values().find(identity => identity.address === data.address)?.plugins ?? []
+      const announcedPlugins = connectedPlugins?.length ? connectedPlugins : knownPlugins
+      const peer_stats = this.repos.peer.collectPeerStats(data.address, this.ownPlugins, announcedPlugins)
       this.send({ nonce, peer_stats }, trace)
     },
     ping: (ping: Ping, nonce: number, trace: Trace) => {

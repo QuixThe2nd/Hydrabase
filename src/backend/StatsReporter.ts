@@ -14,7 +14,6 @@ import { StatsPulseHistory } from './StatsPulseHistory'
 
 
 export class StatsReporter {
-  private readonly cachedPeerPlugins = new Map<`0x${string}`, string[]>()
   private readonly debounceMs = 1000
   private dhtDebounceTimer: NodeJS.Timeout | null = null
   private readonly pulseHistory: StatsPulseHistory
@@ -116,18 +115,6 @@ export class StatsReporter {
       .filter(announcerAddress => currentlyConnected.has(announcerAddress))
   }
 
-  private getKnownPlugins(address: `0x${string}`, connectedPeer: Peer | undefined): string[] {
-    if (connectedPeer?.plugins.length) {
-      this.cachedPeerPlugins.set(address, [...connectedPeer.plugins])
-      return connectedPeer.plugins
-    }
-    const cached = this.cachedPeerPlugins.get(address)
-    if (cached?.length) return cached
-    const fromDb = this.repos.peer.getPlugins(address)
-    if (fromDb.length) this.cachedPeerPlugins.set(address, fromDb)
-    return fromDb
-  }
-
   private readonly knownPeers = (): ApiPeer[] => {
     const connectedByAddress = new Map(this.peers.connectedPeers.map(peer => [peer.address, peer]))
     const authByAddress = new Map(
@@ -142,13 +129,12 @@ export class StatsReporter {
     ])
     return [...addresses].map((address) => {
       const connectedPeer = connectedByAddress.get(address)
-      const knownPlugins = this.getKnownPlugins(address, connectedPeer)
       const identity = authByAddress.get(address)
       const announcedBy = this.peers.getAnnouncementConnections(address)
       return {
         address,
         ...(announcedBy.length ? { announcedBy } : {}),
-        ...(knownPlugins.length ? { knownPlugins } : {}),
+        ...(!connectedPeer && identity?.plugins.length ? { knownPlugins: identity.plugins } : {}),
         ...(identity ? {
           auth: {
             ...(identity.bio ? { bio: identity.bio } : {}),

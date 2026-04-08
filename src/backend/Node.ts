@@ -192,7 +192,7 @@ export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): 
   trace.step('9/14 Building Web UI')
   await buildWebUI()
   trace.step('10/14 Starting HTTP server')
-  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', { address: account.address, bio: CONFIG.node.bio?.slice(0, 140), hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, userAgent: 'Hydrabase', username: CONFIG.node.username })
+  startServer(account, peerManager, CONFIG.node, CONFIG.apiKey ?? '', { address: account.address, bio: CONFIG.node.bio?.slice(0, 140), hostname: `${CONFIG.node.hostname}:${CONFIG.node.port}`, plugins: metadataManager.installedPlugins.map(plugin => plugin.id), userAgent: 'Hydrabase', username: CONFIG.node.username })
   startDevWatchers(peerManager)
   trace.step('11/14 Starting DHT node')
   const dhtNode = new DHT_Node(peerManager, CONFIG.dht, CONFIG.node, repos.dhtNode)

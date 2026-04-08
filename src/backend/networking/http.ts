@@ -120,7 +120,7 @@ export const startServer = (
   peerManager: PeerManager,
   node: Config['node'],
   apiKey: string,
-  identity: Identity = { address: account.address, bio: node.bio?.slice(0, 140), hostname: `${node.hostname}:${node.port}`, userAgent: 'Hydrabase', username: node.username }
+  identity: Identity = { address: account.address, bio: node.bio?.slice(0, 140), hostname: `${node.hostname}:${node.port}`, plugins: [], userAgent: 'Hydrabase', username: node.username }
 ) => logContext('HTTP', () => {
   const server = Bun.serve({
     fetch: async (req, server) => {
@@ -153,7 +153,7 @@ export const startServer = (
     port: node.port,
     routes: { '/auth': async () => {
       const trace = Trace.start('Peer requested server auth')
-      const res = new Response(JSON.stringify(await proveServer(account, node, trace))) 
+      const res = new Response(JSON.stringify(await proveServer(account, node, trace, identity.plugins))) 
       trace.success()
       return res
     } },

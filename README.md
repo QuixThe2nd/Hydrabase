@@ -1,14 +1,14 @@
 <h1 align="center">Hydrabase - Beta</h1>
-<p align="center">Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source for music metadata.
+<p align="center">Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source of music metadata.
 </p>
 <p align="center">
   <img src="./public/logo-black.svg">
 </p>
 <p align="center">
-<img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
-<img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
-
-[Skip To Install](#install)
+  <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
+  <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
+</p>
+<a href="#install">Skip To Install</a>
 
 ## Why Hydrabase?
 

@@ -11,7 +11,7 @@ const authenticateHostname = async (claimedHostname: `${string}:${number}`, clai
   const [claimedIP] = claimedHostname.split(':')
   if (actualIP === claimedIP) {
     trace.step(`[WS] [SERVER] NAT detected: same IP (${actualIP}), accepting claimed peer ${claimedAddress} at ${claimedHostname}`)
-    return { address: claimedAddress, hostname: claimedHostname, userAgent: identity.userAgent, username: identity.username }
+    return { address: claimedAddress, hostname: claimedHostname, plugins: identity.plugins, userAgent: identity.userAgent, username: identity.username }
   }
   return result
 }

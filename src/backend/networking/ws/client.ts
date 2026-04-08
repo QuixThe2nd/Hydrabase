@@ -19,6 +19,7 @@ export default class WebSocketClient implements Socket {
     public readonly identity: Identity,
     private readonly account: Account,
     private readonly node: Config['node'],
+    private readonly localPlugins: string[],
     trace: Trace,
     private readonly onOpen: () => void,
     private readonly onFail: (error: Error) => void
@@ -27,9 +28,9 @@ export default class WebSocketClient implements Socket {
     this._connect(account)
   }
 
-  static init = (identity: Identity, account: Account, node: Config['node'], trace: Trace): Promise<WebSocketClient> => new Promise<WebSocketClient>((res, rej) => {
+  static init = (identity: Identity, account: Account, node: Config['node'], localPlugins: string[], trace: Trace): Promise<WebSocketClient> => new Promise<WebSocketClient>((res, rej) => {
     let settled = false
-    const socket = new WebSocketClient(identity, account, node, trace, () => {
+    const socket = new WebSocketClient(identity, account, node, localPlugins, trace, () => {
       if (settled) return
       settled = true
       res(socket)
@@ -65,7 +66,7 @@ export default class WebSocketClient implements Socket {
   private _connect(account: Account) {
     this.trace.step('Connecting')
     const authHeaders = Object.fromEntries(
-      Object.entries(proveClient(account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
+      Object.entries(proveClient(account, this.node, this.identity.hostname, this.trace, this.localPlugins, true)).filter(([, value]) => typeof value === 'string')
     ) as Record<string, string>
     const BunWebSocket = WebSocket as unknown as new (url: string, options: { headers: Record<string, string> }) => WebSocket
     this.socket = new BunWebSocket(`ws://${this.identity.hostname}`, {
@@ -122,7 +123,7 @@ export default class WebSocketClient implements Socket {
     try {
       const httpUrl = `http://${this.identity.hostname}`
       const authHeaders = Object.fromEntries(
-        Object.entries(proveClient(this.account, this.node, this.identity.hostname, this.trace, true)).filter(([, value]) => typeof value === 'string')
+        Object.entries(proveClient(this.account, this.node, this.identity.hostname, this.trace, this.localPlugins, true)).filter(([, value]) => typeof value === 'string')
       ) as Record<string, string>
       const response = await fetch(httpUrl, { 
         headers: {

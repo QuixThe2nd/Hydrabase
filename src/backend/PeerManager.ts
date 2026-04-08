@@ -814,7 +814,7 @@ export default class PeerManager {
     }
     switch (preferTransport) {
       case 'TCP':
-        return await WebSocketClient.init(identity, this.account, this.nodeConfig, trace)
+        return await WebSocketClient.init(identity, this.account, this.nodeConfig, this.metadataManager.installedPlugins.map(plugin => plugin.id), trace)
       case 'UTP': {
         if (!this.utpSocket) return 'UTP unavailable in current runtime'
         const localHostname = `${this.nodeConfig.hostname}:${this.nodeConfig.port}` as `${string}:${number}`

@@ -866,6 +866,7 @@ describe('Transport Authentication Edge Cases', () => {
     const testIdentity = {
       address: '0x1234567890abcdef1234567890abcdef12345678' as `0x${string}`,
       hostname: '127.0.0.1:4545' as `${string}:${number}`,
+      plugins: [],
       userAgent: 'Hydrabase/test',
       username: 'TestNode'
     }
