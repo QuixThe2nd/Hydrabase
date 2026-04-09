@@ -12,7 +12,7 @@ import { Trace } from '../utils/trace'
 import { authenticatedPeers } from './networking/authenticatedPeers'
 import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
-import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
+import { type ConnectPeer, HIP2_Messaging, type MarkMessageRead, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
@@ -84,10 +84,19 @@ export class Peer {
       if (this.address !== '0x0') return
       this.send({ nonce, runtime_config: this.peers.getRuntimeConfig() }, trace)
     },
+    mark_message_read: (data: MarkMessageRead, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.peers.markMessageRead(data.conversation, data.timestamp)
+      this.send({ message_read_state: this.peers.getMessageReadState(), nonce }, trace)
+    },
     message: (packet: MessagePacket, trace: Trace) => this.peers.handleMessage(packet, this, trace),
     message_history: (_data: 'get', nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       this.send({ message_history: this.peers.messageHistory, nonce }, trace)
+    },
+    message_read_state: (_data: 'get', nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.send({ message_read_state: this.peers.getMessageReadState(), nonce }, trace)
     },
     peer_stats: (data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
@@ -301,6 +310,8 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
+      else if (type === 'message_read_state') this.handlers[type](data as 'get', nonce, trace)
+      else if (type === 'mark_message_read') this.handlers[type](data as MarkMessageRead, nonce, trace)
       else if (type === 'connect_peer') this.handlers[type](data as ConnectPeer, nonce, trace)
       else if (type === 'restart') this.handlers[type](data as true, nonce, trace)
       else if (this.handleRuntimeConfigMessage(type, data, nonce, trace)) {
@@ -323,7 +334,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { peer_cache_purged: true } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { message_read_state: Record<string, number> } | { peer_cache_purged: true } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     this.peers.notifyDataTransfer()

@@ -722,6 +722,68 @@ describe('purge_peer_cache handler', () => {
   })
 })
 
+describe('PeerManager reconnect hardening', () => {
+  const makeMockSocket = (address: `0x${string}`, hostname: `${string}:${number}`) => {
+    const closeHandlers: (() => void)[] = []
+    const sentMessages: string[] = []
+    let closed = false
+    const socket = {
+      close: () => {
+        if (closed) return
+        closed = true
+        for (const handler of closeHandlers) handler()
+      },
+      identity: {
+        address,
+        bio: undefined,
+        hostname,
+        plugins: [],
+        userAgent: 'Hydrabase/test',
+        username: 'MockPeer',
+      },
+      onClose: (handler: () => void) => { closeHandlers.push(handler) },
+      onMessage: () => undefined,
+      send: (msg: string) => { sentMessages.push(msg) },
+    }
+    return { isClosed: () => closed, sentMessages, socket }
+  }
+
+  it('rejects duplicate non-API socket connections for the same peer address', async () => {
+    const address = '0xfeedfacefeedfacefeedfacefeedfacefeedface' as `0x${string}`
+    const hostname = 'mock-peer:4545' as `${string}:${number}`
+    const first = makeMockSocket(address, hostname)
+    const second = makeMockSocket(address, hostname)
+
+    expect(await peerManager1.add(first.socket, trace.child('duplicate socket first add'))).toBe(true)
+    expect(await peerManager1.add(second.socket, trace.child('duplicate socket second add'))).toBe(false)
+
+    expect(second.isClosed()).toBe(true)
+    expect(peerManager1.peers.get(address)?.socket).toBe(first.socket)
+
+    first.socket.close()
+  })
+
+  it('ignores stale close events from superseded peer objects', async () => {
+    const address = '0xdecafbaddecafbaddecafbaddecafbaddecafbad' as `0x${string}`
+    const hostname = 'mock-stale:4545' as `${string}:${number}`
+    const original = makeMockSocket(address, hostname)
+    const replacement = makeMockSocket(address, hostname)
+
+    expect(await peerManager1.add(original.socket, trace.child('stale close original add'))).toBe(true)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const {repos} = (peerManager1 as any)
+    const replacementPeer = new Peer(replacement.socket, peerManager1, repos, [], () => Promise.resolve([]))
+    peerManager1.peers.set(address, replacementPeer)
+
+    original.socket.close()
+
+    expect(peerManager1.peers.get(address)).toBe(replacementPeer)
+
+    replacement.socket.close()
+  })
+})
+
 // describe('Peer search integration', () => {
 //   it.skip('search for non-existent artist returns empty', async () => {
 //     // Skipped: test infra does not connect peer1 to peer2, so peer2 is undefined

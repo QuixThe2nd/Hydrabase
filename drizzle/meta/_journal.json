@@ -99,6 +99,13 @@
       "when": 1775001600000,
       "tag": "0013_runtime_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1775692800000,
+      "tag": "0014_message_read_state",
+      "breakpoints": true
     }
   ]
 }

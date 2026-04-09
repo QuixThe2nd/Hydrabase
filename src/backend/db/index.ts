@@ -7,6 +7,7 @@ import { AlbumRepository } from './repositories/AlbumRepository'
 import { ArtistRepository } from './repositories/ArtistRepository'
 import { AuthenticatedPeerRepository } from './repositories/AuthenticatedPeerRepository'
 import { DhtNodeRepository } from './repositories/DhtNodeRepository'
+import { MessageReadStateRepository } from './repositories/MessageReadStateRepository'
 import { PeerRepository } from './repositories/PeerRepository'
 import { SearchHistoryRepository } from './repositories/SearchHistoryRepository'
 import { SettingsRepository } from './repositories/SettingsRepository'
@@ -21,6 +22,7 @@ export interface Repositories {
   artist: ArtistRepository
   authenticatedPeer: AuthenticatedPeerRepository
   dhtNode: DhtNodeRepository
+  messageReadState: MessageReadStateRepository
   onVotesChanged: (handler: () => void) => void
   peer: PeerRepository
   searchHistory: SearchHistoryRepository
@@ -49,6 +51,7 @@ export const startDatabase = async (pluginConfidenceFormula: string): Promise<Re
     artist,
     authenticatedPeer: new AuthenticatedPeerRepository(db),
     dhtNode: new DhtNodeRepository(db),
+    messageReadState: new MessageReadStateRepository(db),
     onVotesChanged,
     peer: new PeerRepository(db, pluginConfidenceFormula),
     searchHistory: new SearchHistoryRepository(db),
