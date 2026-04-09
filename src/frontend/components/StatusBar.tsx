@@ -1,7 +1,7 @@
 import type { PeerWithCountry, WsState } from '../../types/hydrabase'
 
 import { ACCENT, BORD, MUTED, TEXT } from '../theme'
-import { fmtBytes, fmtClock } from '../utils'
+import { fmtBytes, fmtUptime } from '../utils'
 import { SocketStatus } from './SocketStatus'
 
 declare const VERSION: string
@@ -44,7 +44,7 @@ export const StatusBar = ({ dhtNodes, peers, uptime, wsState }: Props) => {
     <Sep />
     <Item label="↓" value={fmtBytes(totalDL)} valueColor="#f0883e" />
     <Sep />
-    <Item label="uptime" value={fmtClock(uptime)} />
+    <Item label="uptime" value={fmtUptime(uptime * 1_000)} />
     <span style={{ background: '#21262d', border: `1px solid ${BORD}`, borderRadius: 3, color: MUTED, fontSize: 9, letterSpacing: '.05em', marginLeft: 'auto', padding: '1px 5px' }}>v{VERSION}</span>
   </div>
 }
