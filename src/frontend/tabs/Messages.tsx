@@ -185,16 +185,16 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
           const isSelected = selectedAddress === addr
           // Show unread badge if there are messages newer than lastRead
           const lastReadTime = readState[addr] || 0
-          const hasNew = msgs.some(m => m.from !== ownAddress && m.timestamp > lastReadTime)
+          const unreadCount = msgs.filter(m => m.from !== ownAddress && m.timestamp > lastReadTime).length
           return <button key={addr} onClick={() => onSelectAddress(addr as `0x${string}`)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'none', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'transparent'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
             <Identicon address={addr as `0x${string}`} size={28} style={{ borderRadius: 4, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ alignItems: 'center', display: 'flex', gap: 8, minWidth: 0 }}>
-                <div style={{ flex: 1, fontSize: 12, fontWeight: hasNew ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ flex: 1, fontSize: 12, fontWeight: unreadCount > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {getPeerName(addr)}
                 </div>
                 <div style={{ alignItems: 'center', display: 'flex', flexShrink: 0, gap: 6, marginLeft: 'auto' }}>
-                  {hasNew && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px' }}>NEW</span>}
+                  {unreadCount > 0 && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px' }}>{unreadCount}</span>}
                   {lastMsg && <span style={{ color: MUTED, fontSize: 9 }}>{fmtConversationTimestamp(lastMsg.timestamp)}</span>}
                 </div>
               </div>
