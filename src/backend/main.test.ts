@@ -145,7 +145,19 @@ beforeAll(async () => {
 })
 
 afterAll(() => {
-  server1?.stop()
+  for (const peer of peerManager1?.connectedPeers ?? []) {
+    try {
+      peer.socket.close()
+    } catch {
+      // Ignore socket cleanup errors in tests.
+    }
+  }
+  peerManager1?.purgePeerCache()
+  try {
+    server1?.stop(true)
+  } catch {
+    // Ignore server teardown errors in tests.
+  }
 })
 
 const trace = Trace.start('Unit tests', true)
