@@ -9,6 +9,9 @@ import { logContext, warn, withTelemetryContext } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
 import { type Identity, verifyClient } from '../../protocol/HIP1_Identity'
 
+const MAX_PLUGIN_COUNT = 32
+const MAX_PLUGIN_LENGTH = 128
+
 export type WebSocketData = Identity & {
   conn?: WebSocketServerConnection
   isOpened: boolean
@@ -107,10 +110,18 @@ export const handleConnection = async (
   req.headers.forEach((value, key) => {
     headers[key.toLowerCase()] = value
   })
-  const plugins = (headers['x-plugins'] ?? '')
+  const rawPlugins = headers['x-plugins'] ?? ''
+  const plugins = rawPlugins
     .split(',')
     .map(value => value.trim())
     .filter(Boolean)
+
+  if (plugins.length > MAX_PLUGIN_COUNT || plugins.some(plugin => plugin.length > MAX_PLUGIN_LENGTH)) {
+    trace.fail('Invalid x-plugins header')
+    warn('DEVWARN:', `Rejected connection from ${ip?.address}: invalid x-plugins header`)
+    return { res: [400, 'Invalid x-plugins header'] }
+  }
+
   const auth = 'x-api-key' in headers ? { apiKey: headers['x-api-key'] } : 'sec-websocket-protocol' in headers ? { apiKey: headers['sec-websocket-protocol'].replace('x-api-key-', '') } : { address: headers['x-address'] as `0x${string}`, bio: headers['x-bio'], hostname: headers['x-hostname'] as `${string}:${number}`, plugins, signature: headers['x-signature'] as string, userAgent: headers['x-useragent'] as string, username: headers['x-username'] as string, }
   const isApiKeyAuth = 'apiKey' in auth
   const hasRequiredHeaders = isApiKeyAuth || Boolean(auth.address && auth.hostname && auth.signature && auth.username)
