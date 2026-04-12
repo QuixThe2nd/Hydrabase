@@ -9,9 +9,10 @@ import type PeerManager from './PeerManager'
 
 import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
+import { authenticatedPeers } from './networking/authenticatedPeers'
 import { UTPClient } from './networking/utp/client'
 import WebSocketClient from './networking/ws/client'
-import { type ConnectPeer, HIP2_Messaging, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
+import { type ConnectPeer, HIP2_Messaging, type MarkMessageRead, type MessagePacket, type Ping, type Pong, type SendMessage, type UpdateConfig } from './protocol/HIP2_Messaging'
 import { type Announce, HIP3_AnnouncePeers } from './protocol/HIP3_AnnouncePeers'
 import { RequestManager } from './RequestManager'
 
@@ -27,6 +28,9 @@ export class Peer {
     return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
   }
   get hostname() { return this.socket.identity.hostname }
+  get lastPongedPingSentAt(): number | undefined {
+    return this.lastPongedPingSentAtMs
+  }
   get latency(): number {
     return this.totalLatency/this.totalPongs
   }
@@ -40,7 +44,7 @@ export class Peer {
     return this.requestManager.averageLatencyMs
   }
   get plugins(): string[] {
-    return this.repos.peer.getPlugins(this.address)
+    return this.socket.identity.plugins
   }
   get totalDL() { return this._dl }
 
@@ -69,6 +73,7 @@ export class Peer {
   private consecutivePingTimeouts = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
+  private lastPongedPingSentAtMs: number | undefined
   private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
   private readonly requestManager: RequestManager
   private totalLatency = 0
@@ -83,14 +88,26 @@ export class Peer {
       if (this.address !== '0x0') return
       this.send({ nonce, runtime_config: this.peers.getRuntimeConfig() }, trace)
     },
+    mark_message_read: (data: MarkMessageRead, nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.peers.markMessageRead(data.conversation, data.timestamp)
+      this.send({ message_read_state: this.peers.getMessageReadState(), nonce }, trace)
+    },
     message: (packet: MessagePacket, trace: Trace) => this.peers.handleMessage(packet, this, trace),
     message_history: (_data: 'get', nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
       this.send({ message_history: this.peers.messageHistory, nonce }, trace)
     },
+    message_read_state: (_data: 'get', nonce: number, trace: Trace) => {
+      if (this.address !== '0x0') return
+      this.send({ message_read_state: this.peers.getMessageReadState(), nonce }, trace)
+    },
     peer_stats: (data: { address: `0x${string}` }, nonce: number, trace: Trace) => {
       if (this.address !== '0x0') return
-      const peer_stats = this.repos.peer.collectPeerStats(data.address, this.ownPlugins)
+      const connectedPlugins = this.peers.peers.get(data.address)?.plugins
+      const knownPlugins = authenticatedPeers.values().find(identity => identity.address === data.address)?.plugins ?? []
+      const announcedPlugins = connectedPlugins?.length ? connectedPlugins : knownPlugins
+      const peer_stats = this.repos.peer.collectPeerStats(data.address, this.ownPlugins, announcedPlugins)
       this.send({ nonce, peer_stats }, trace)
     },
     ping: (ping: Ping, nonce: number, trace: Trace) => {
@@ -117,6 +134,7 @@ export class Peer {
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
+      this.lastPongedPingSentAtMs = pendingPing.time
       this.consecutivePingTimeouts = 0
       pendingPing.trace.step(`[HIP2] Received pong ${nonce} in ${latency}ms`)
       pendingPing.trace.success()
@@ -297,6 +315,8 @@ export class Peer {
       else if (type === 'response') this.handlers[type](data as Response, nonce)
       else if (type === 'search_history') this.handlers[type](data as 'clear' | 'get' | { remove: number }, nonce, trace)
       else if (type === 'message_history') this.handlers[type](data as 'get', nonce, trace)
+      else if (type === 'message_read_state') this.handlers[type](data as 'get', nonce, trace)
+      else if (type === 'mark_message_read') this.handlers[type](data as MarkMessageRead, nonce, trace)
       else if (type === 'connect_peer') this.handlers[type](data as ConnectPeer, nonce, trace)
       else if (type === 'restart') this.handlers[type](data as true, nonce, trace)
       else if (this.handleRuntimeConfigMessage(type, data, nonce, trace)) {
@@ -319,7 +339,7 @@ export class Peer {
     return response
   }
 
-  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { peer_cache_purged: true } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
+  send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: import('../types/hydrabase').PeerConnectionError } | { log_event: import('../types/hydrabase').LogEvent } | { message: MessagePacket } | { message_history: MessageEnvelope[] } | { message_read_state: Record<string, number> } | { peer_cache_purged: true } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: import('../types/hydrabase').RuntimeConfigSnapshot } | { runtime_config_updated: import('../types/hydrabase').RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: import('../types/hydrabase').StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
     this._ul += message.length
     this.peers.notifyDataTransfer()

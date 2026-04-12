@@ -1,7 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function */
 /* global window */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerConnectionAttempt, PeerConnectionError, PeerStats, PeerWithCountry, RuntimeConfigSnapshot, RuntimeConfigUpdate, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
 import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
@@ -31,6 +31,8 @@ const CONNECT_ATTEMPT_TIMEOUT_MS = 30_000
 const MAX_CONNECTION_ATTEMPTS = 20
 const GLOBAL_CHAT_ADDRESS = '0x0' as `0x${string}`
 
+type ConversationReadState = Record<string, number>
+
 const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, intervalMs: number): BwPoint[] => {
   const maxPoints = Math.ceil(PULSE_WINDOW_MS / Math.max(intervalMs, PULSE_MIN_INTERVAL_MS)) + 4
   const bounded = history.length > maxPoints ? history.slice(history.length - maxPoints) : history
@@ -40,7 +42,25 @@ const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, inte
   return bounded.slice(firstRecentIndex)
 }
 
-const messageEnvelopeKey = (envelope: MessageEnvelope): string => `${envelope.from}|${envelope.to}|${envelope.timestamp}`
+const messageEnvelopeKey = (envelope: MessageEnvelope): string => envelope.sig
+
+const getConversationAddress = (envelope: MessageEnvelope, ownAddress: `0x${string}` | undefined): `0x${string}` => {
+  if (envelope.to === GLOBAL_CHAT_ADDRESS) return GLOBAL_CHAT_ADDRESS
+  return envelope.from === ownAddress ? envelope.to : envelope.from
+}
+
+const countUnreadMessages = (
+  allMessages: MessageEnvelope[],
+  ownAddress: `0x${string}` | undefined,
+  readState: ConversationReadState,
+): number => allMessages.reduce((unread, envelope) => {
+  if (!ownAddress) return unread
+  if (envelope.from === ownAddress) return unread
+  const conversationAddress = getConversationAddress(envelope, ownAddress)
+  const lastRead = readState[conversationAddress] ?? 0
+  if (envelope.timestamp <= lastRead) return unread
+  return unread + 1
+}, 0)
 
 const mergeMessages = (current: MessageEnvelope[], incoming: MessageEnvelope[]): { added: number; merged: MessageEnvelope[] } => {
   if (incoming.length === 0) return { added: 0, merged: current }
@@ -114,8 +134,17 @@ const isSearchType = (value: string): value is SearchType => (
   || value === 'tracks'
 )
 
-const getLocationState = (): { peerAddress?: string; searchType: SearchType; tab: Tab } => {
+const getLocationState = (): { messageAddress?: `0x${string}`; peerAddress?: string; searchType: SearchType; tab: Tab } => {
   const pathname = window.location.pathname.replace(/\/+$/u, '') || '/'
+
+  const messageMatch = pathname.match(/^\/(?:message|messages)\/(?<address>0x[0-9a-fA-F]+)$/u)
+  if (messageMatch?.groups?.['address']) {
+    return {
+      messageAddress: messageMatch.groups['address'] as `0x${string}`,
+      searchType: 'artists',
+      tab: 'messages',
+    }
+  }
 
   const peerMatch = pathname.match(/^\/peers\/(?<address>0x[0-9a-fA-F]+)$/u)
   if (peerMatch?.groups?.['address']) return { peerAddress: peerMatch.groups['address'], searchType: 'artists', tab: 'peers' }
@@ -140,6 +169,8 @@ const getLocationState = (): { peerAddress?: string; searchType: SearchType; tab
 
 const shouldCanonicalizeTabUrl = (): boolean => {
   const pathname = window.location.pathname.replace(/\/+$/u, '') || '/'
+  if (/^\/messages\/(?<address>0x[0-9a-fA-F]+)$/u.test(pathname)) return true
+
   const searchRouteMatch = pathname.match(/^\/search\/(?<searchType>[a-z-]+)$/u)
   if (searchRouteMatch?.groups?.['searchType']) {
     const fromPath = PATH_SEARCH_TYPES[searchRouteMatch.groups['searchType']]
@@ -160,9 +191,18 @@ const shouldCanonicalizeTabUrl = (): boolean => {
   return pathname in PATH_TABS
 }
 
-const updateUrlForState = (tab: Tab, searchType: SearchType, mode: 'push' | 'replace' = 'push') => {
+const updateUrlForState = (
+  tab: Tab,
+  searchType: SearchType,
+  mode: 'push' | 'replace' = 'push',
+  messageAddress?: `0x${string}`,
+) => {
   const url = new URL(window.location.href)
-  const nextPath = tab === 'search' ? `/search/${SEARCH_TYPE_PATHS[searchType]}` : TAB_PATHS[tab]
+  const nextPath = tab === 'search'
+    ? `/search/${SEARCH_TYPE_PATHS[searchType]}`
+    : tab === 'messages' && messageAddress
+      ? `/message/${messageAddress}`
+      : TAB_PATHS[tab]
   if (url.pathname !== nextPath) {
     url.pathname = nextPath
   }
@@ -218,6 +258,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const pendingConnectAttempts = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const nonceRef = useRef(Math.floor(nonce * 90_000) + 10_000)
   const [tab, setTab] = useState<Tab>(() => initialLocationState.tab)
+  const [selectedMessageAddress, setSelectedMessageAddress] = useState<`0x${string}` | null>(() => initialLocationState.messageAddress ?? null)
   // keep tabRef in sync so the ws message handler can read current tab without stale closure
   const [sel, setSel] = useState<null | PeerWithCountry>(null)
   const pendingPeerAddrRef = useRef<null | string>(initialLocationState.peerAddress ?? null)
@@ -232,7 +273,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
   const [runtimeConfigLoading, setRuntimeConfigLoading] = useState(true)
   const [restartPendingReconnect, setRestartPendingReconnect] = useState(false)
   const restartSawDisconnectRef = useRef(false)
-  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [messageReadState, setMessageReadState] = useState<ConversationReadState>({})
   const statsRef = useRef<NodeStats | null>(null)
   const [connectionAttempts, setConnectionAttempts] = useState<PeerConnectionAttempt[]>([])
   const connectionAttemptsRef = useRef<PeerConnectionAttempt[]>([])
@@ -271,6 +312,27 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
     return added
   }, [])
+
+  const markConversationRead = useCallback((conversationAddress: `0x${string}`, lastReadTimestamp: number) => {
+    if (!Number.isFinite(lastReadTimestamp) || lastReadTimestamp <= 0) return
+    setMessageReadState((current) => {
+      const previous = current[conversationAddress] ?? 0
+      if (lastReadTimestamp <= previous) return current
+      return { ...current, [conversationAddress]: lastReadTimestamp }
+    })
+
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({
+      mark_message_read: {
+        conversation: conversationAddress,
+        timestamp: lastReadTimestamp,
+      },
+      nonce: nonceRef.current++,
+    }))
+  }, [])
+
+  const unreadMessages = useMemo(() => countUnreadMessages(messages, stats?.self.address, messageReadState), [messageReadState, messages, stats?.self.address])
 
   useEffect(() => {
     if (!restartPendingReconnect) return
@@ -435,9 +497,8 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     const selfAddress = newStats.self.address
     if (selfAddress && pendingDirectMessagesRef.current.length > 0) {
       const pendingForSelf = pendingDirectMessagesRef.current.filter((envelope) => envelope.to === selfAddress)
-      pendingDirectMessagesRef.current = []
-      const added = appendMessages(pendingForSelf)
-      if (added > 0 && tabRef.current !== 'messages') setUnreadMessages((u) => u + added)
+      pendingDirectMessagesRef.current = pendingDirectMessagesRef.current.filter((envelope) => envelope.to !== selfAddress)
+      appendMessages(pendingForSelf)
     }
 
     if (isFull || partialUpdate?.dhtNodes !== undefined) {
@@ -480,6 +541,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         setRuntimeConfigError(null)
         ws.send(JSON.stringify({ nonce: nonceRef.current++, search_history: 'get' }))
         ws.send(JSON.stringify({ message_history: 'get', nonce: nonceRef.current++ }))
+        ws.send(JSON.stringify({ message_read_state: 'get', nonce: nonceRef.current++ }))
       }
       ws.onmessage = (e: MessageEvent) => {
         if (destroyed) return
@@ -522,6 +584,16 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           } else if (data.message_history !== undefined) {
             const snapshot = data.message_history as MessageEnvelope[]
             appendMessages(snapshot)
+          } else if (data.message_read_state !== undefined) {
+            const incomingReadState = data.message_read_state as ConversationReadState
+            setMessageReadState((current) => {
+              const merged: ConversationReadState = { ...current }
+              for (const [conversationAddress, timestamp] of Object.entries(incomingReadState)) {
+                const previous = merged[conversationAddress] ?? 0
+                if (timestamp > previous) merged[conversationAddress] = timestamp
+              }
+              return merged
+            })
           } else if (data.message) {
             const packet = data.message as { envelope?: MessageEnvelope }
             const {envelope} = packet
@@ -529,13 +601,11 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
 
             const selfAddress = statsRef.current?.self.address
             if (envelope.to === GLOBAL_CHAT_ADDRESS) {
-              const added = appendMessages([envelope])
-              if (added > 0 && tabRef.current !== 'messages') setUnreadMessages(u => u + added)
+              appendMessages([envelope])
             } else if (!selfAddress) {
               pendingDirectMessagesRef.current.push(envelope)
             } else if (envelope.to === selfAddress) {
-              const added = appendMessages([envelope])
-              if (added > 0 && tabRef.current !== 'messages') setUnreadMessages(u => u + added)
+              appendMessages([envelope])
             }
           } else if (data.stats) {
             const fullStats = data.stats as NodeStats
@@ -761,11 +831,22 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
         return prev
       }
       if (resolved !== 'peers' && sel !== null) setSel(null)
-      if (resolved === 'messages') setUnreadMessages(0)
-      if (resolved !== prev) updateUrlForState(resolved, searchType)
+      if (resolved !== prev) {
+        updateUrlForState(
+          resolved,
+          searchType,
+          'push',
+          resolved === 'messages' ? (selectedMessageAddress ?? undefined) : undefined,
+        )
+      }
       return resolved
     })
-  }, [searchType, sel])
+  }, [searchType, sel, selectedMessageAddress])
+
+  const handleSelectMessageAddress = useCallback((address: `0x${string}` | null) => {
+    setSelectedMessageAddress(address)
+    updateUrlForState('messages', searchType, 'push', address ?? undefined)
+  }, [searchType])
 
   const handleSelectPeer = useCallback((p: null | PeerWithCountry) => {
     if (!p) { setSel(null); return }
@@ -794,10 +875,10 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       const fromLocation = getLocationState()
       setTab((current) => {
         if (current === fromLocation.tab) return current
-        if (fromLocation.tab === 'messages') setUnreadMessages(0)
         return fromLocation.tab
       })
       setSearchType((current) => current === fromLocation.searchType ? current : fromLocation.searchType)
+      setSelectedMessageAddress((current) => current === (fromLocation.messageAddress ?? null) ? current : (fromLocation.messageAddress ?? null))
       if (fromLocation.peerAddress) {
         pendingPeerAddrRef.current = fromLocation.peerAddress
       } else {
@@ -808,7 +889,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     // Canonicalize tab URLs on first load (e.g. /overview -> /) without rewriting unknown deep links.
     if (shouldCanonicalizeTabUrl()) {
       const locationState = getLocationState()
-      updateUrlForState(locationState.tab, locationState.searchType, 'replace')
+      updateUrlForState(locationState.tab, locationState.searchType, 'replace', locationState.messageAddress)
     }
     window.addEventListener('popstate', syncTabFromUrl)
     window.addEventListener('hashchange', syncTabFromUrl)
@@ -837,7 +918,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
       {tab === 'votes' && <VotesTab peers={peers} stats={stats} />}
       {tab === 'search' && <SearchTab onClearHistory={handleClearHistory} onHistorySelect={handleHistorySelect} onRemoveHistory={handleRemoveHistory} onSearch={doSearch} onTogglePlay={handleTogglePlay} playingId={playingId} searchElapsed={searchElapsed} searchError={searchError} searchHistory={searchHistory} searchLoading={searchLoading} searchQuery={searchQuery} searchResults={searchResults} searchType={searchType} setSearchQuery={setSearchQuery} setSearchResults={setSearchResults} setSearchType={handleSetSearchType} setShowHistory={setShowHistory} showHistory={showHistory} />}
       {tab === 'settings' && <SettingsTab config={runtimeConfig} error={runtimeConfigError} isLoading={runtimeConfigLoading} isRestarting={restartPendingReconnect} onPurgePeerCache={purgePeerCache} onRefresh={refreshRuntimeConfig} onRestart={handleRestart} onSave={updateRuntimeConfig} />}
-      {tab === 'messages' && <MessagesTab messages={messages} ownAddress={stats?.self.address} peers={peers} sendMessage={handleSendMessage} />}
+      {tab === 'messages' && <MessagesTab messages={messages} onMarkRead={markConversationRead} onSelectAddress={handleSelectMessageAddress} ownAddress={stats?.self.address} peers={peers} readState={messageReadState} selectedAddress={selectedMessageAddress} sendMessage={handleSendMessage} />}
     </div>
     <ActivityFeed eventLog={eventLog} />
     <StatusBar dhtNodes={dhtNodes} peers={peers} uptime={uptime} wsState={wsState} />

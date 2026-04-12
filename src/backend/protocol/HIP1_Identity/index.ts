@@ -17,6 +17,7 @@ export const IdentitySchema = z.object({
   address: z.string().regex(/^0x/iu, { message: 'Address must start with 0x' }).transform(val => val as `0x${string}`),
   bio: z.string().max(140, { message: 'Bio must be 140 characters or less' }).optional(),
   hostname: z.string().includes(':').transform(h => h as `${string}:${number}`),
+  plugins: z.array(z.string().min(1).max(64)).max(64).default([]),
   userAgent: z.string(),
   username: z.string().regex(/^[a-zA-Z0-9]{3,20}$/u, { message: 'Username must be 3-20 alphanumeric characters, no spaces' })
 }).strict()
@@ -28,7 +29,7 @@ export const AuthSchema = IdentitySchema.extend({
 export type Auth = z.infer<typeof AuthSchema>
 export type Identity = z.infer<typeof IdentitySchema>
 
-export const proveServer = async (account: Account, node: Config['node'], trace: Trace): Promise<Auth> => {
+export const proveServer = async (account: Account, node: Config['node'], trace: Trace, plugins: string[] = []): Promise<Auth> => {
   trace.step('[HIP1] Proving server')
   let {hostname} = node
   if (node.hostname === node.ip && !isPeerLocalHostname(node.hostname)) {
@@ -46,6 +47,7 @@ export const proveServer = async (account: Account, node: Config['node'], trace:
     address: account.address,
     ...(bio ? { bio } : {}),
     hostname: `${hostname}:${node.port}`,
+    plugins,
     signature: account.sign(`I am ${hostname}:${node.port}`, trace).toString(),
     userAgent: `Hydrabase/${BRANCH}-${VERSION_WITH_HASH}`,
     username: node.username
@@ -58,18 +60,24 @@ export const verifyServer = (auth: Auth, hostname: string, trace: Trace): [numbe
   return true
 }
 
-export const proveClient = (account: Account, node: Config['node'], hostname: `${string}:${number}`, trace: Trace, x = false): Auth => {
+export function proveClient(account: Account, node: Config['node'], hostname: `${string}:${number}`, trace: Trace, plugins?: string[], x?: false): Auth
+export function proveClient(account: Account, node: Config['node'], hostname: `${string}:${number}`, trace: Trace, plugins: string[] | undefined, x: true): Record<string, string>
+export function proveClient(account: Account, node: Config['node'], hostname: `${string}:${number}`, trace: Trace, plugins: string[] = [], x = false): Auth | Record<string, string> {
   trace.step(`[HIP1] Proving client to ${hostname}`)
   const bio = node.bio?.slice(0, 140)
-  const result = {
+  const result: Auth = {
     address: account.address,
     ...(bio ? { bio } : {}),
-    hostname: `${node.hostname}:${node.port}`,
+    hostname: `${node.hostname}:${node.port}` as `${string}:${number}`,
+    plugins,
     signature: account.sign(`I am connecting to ${hostname}`, trace).toString(),
     userAgent: `Hydrabase/${BRANCH}-${VERSION_WITH_HASH}`,
     username: node.username
-  } as const
-  return x ? Object.fromEntries(Object.entries(result).map(entry => ([`x-${entry[0]}`, entry[1]]))) as Auth : result
+  }
+  if (!x) return result
+  return Object.fromEntries(
+    Object.entries(result).flatMap(([key, value]) => value === undefined ? [] : [[`x-${key}`, Array.isArray(value) ? value.join(',') : value]])
+  ) as Record<string, string>
 }
 
 export const verifyClient = async (
@@ -87,7 +95,7 @@ export const verifyClient = async (
   if ('apiKey' in auth) {
     trace.step('[HIP1] Verifying API')
     return auth.apiKey === apiKey
-      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', userAgent: `Hydrabase-API/${VERSION_WITH_HASH}`, username: `${node.username} (API)` }
+      ? { address: '0x0', ...(node.bio ? { bio: node.bio.slice(0, 140) } : {}), hostname: 'API:0', plugins: [], userAgent: `Hydrabase-API/${VERSION_WITH_HASH}`, username: `${node.username} (API)` }
       : [500, 'Invalid API Key']
   }
   trace.step(`[HIP1] Verifying client ${auth.username} running ${auth.userAgent}`)

@@ -4,7 +4,7 @@ import type { PeerStats, PeerWithCountry } from '../../types/hydrabase'
 import type { MessageEnvelope } from '../../types/hydrabase-schemas'
 
 import { ACCENT, BG, BG2, BG3, BORD, confColor, latColor, MUTED, SURF, TEXT } from '../theme'
-import { fmtBytes, fmtUptime, shortAddr, toEmoji } from '../utils'
+import { fmtBytes, fmtTimeAgo, fmtUptime, shortAddr, toEmoji } from '../utils'
 import { Identicon } from './Identicon'
 import { StatusDot } from './StatusDot'
 
@@ -84,6 +84,7 @@ const Statistics = ({ peer }: { peer: PeerWithCountry }) => {
     {([
       ['Connections', String(connection?.connectionCount ?? 0), '#79c0ff'],
       ['Latency', connection?.latency ? `${(connection.latency).toFixed(1)}ms` : '—', connection?.latency ? latColor(connection.latency) : MUTED],
+      ['Last Ponged Ping', fmtTimeAgo(connection?.lastPongedPingSentAt), '#a5d6ff'],
       ['Uptime', fmtUptime(connection?.uptime ?? 0), '#a5d6ff'],
       ['↑ Session UL', fmtBytes(connection?.totalUL ?? 0), ACCENT],
       ['↓ Session DL', fmtBytes(connection?.totalDL ?? 0), '#f0883e'],

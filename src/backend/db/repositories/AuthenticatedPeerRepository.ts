@@ -25,6 +25,7 @@ export class AuthenticatedPeerRepository {
       address: row.address as `0x${string}`,
       ...(row.bio ? { bio: row.bio } : {}),
       hostname: row.hostname as `${string}:${number}`,
+      plugins: [],
       userAgent: row.userAgent,
       username: row.username,
     }
@@ -38,6 +39,7 @@ export class AuthenticatedPeerRepository {
         address: row.address as `0x${string}`,
         ...(row.bio ? { bio: row.bio } : {}),
         hostname: row.hostname as `${string}:${number}`,
+        plugins: [],
         userAgent: row.userAgent,
         username: row.username,
       })
@@ -73,6 +75,7 @@ export class AuthenticatedPeerRepository {
       address: row.address as `0x${string}`,
       ...(row.bio ? { bio: row.bio } : {}),
       hostname: row.hostname as `${string}:${number}`,
+      plugins: [],
       userAgent: row.userAgent,
       username: row.username,
     }))

@@ -7,7 +7,7 @@ import ConnectPeerDialog from '../components/ConnectPeerDialog'
 import { Identicon } from '../components/Identicon'
 import { StatusDot } from '../components/StatusDot'
 import { ACCENT, BORD, confColor, latColor, MUTED, panel } from '../theme'
-import { fmtBytes, fmtUptime, shortAddr, toEmoji } from '../utils'
+import { fmtBytes, fmtTimeAgo, fmtUptime, shortAddr, toEmoji } from '../utils'
 
 interface Props {
   connectionAttempts: PeerConnectionAttempt[];
@@ -225,6 +225,7 @@ const PeerStats = ({ peer }: { peer: PeerWithCountry }) => {
   const uptimeColor = uptime / 1_000 > 90 ? '#3fb950' : uptime / 1_000 > 60 ? '#d29922' : '#f85149'
   const stats = [
     ['Latency', peer.connection?.latency ? `${Math.round(peer.connection?.latency * 10) / 10}ms` : '—', peer.connection?.latency ? latColor(peer.connection?.latency) : MUTED],
+    ['Last Ponged Ping', fmtTimeAgo(peer.connection?.lastPongedPingSentAt), '#a5d6ff'],
     ['↑ UL (Session)', fmtBytes(peer.connection?.totalUL ?? 0), ACCENT],
     ['↓ DL (Session)', fmtBytes(peer.connection?.totalDL ?? 0), '#f0883e'],
     ['↑ UL (Lifetime)', fmtBytes(peer.connection?.lifetimeUL ?? 0), ACCENT],

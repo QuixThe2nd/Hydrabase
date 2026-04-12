@@ -41,6 +41,22 @@ const fmtDuration = (totalSeconds: number): string => {
 
 export const fmtUptime = (ms: number): string => fmtDuration(ms / 1_000)
 
+export const fmtTimeAgo = (timestamp: null | number | undefined): string => {
+  if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || timestamp <= 0) return '—'
+
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1_000))
+  if (diffSeconds < 60) return `${diffSeconds}s ago`
+
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
+}
+
 export const fmtClock = (totalSeconds: number): string => {
   const seconds = Math.max(0, Math.floor(totalSeconds))
   const hours = Math.floor(seconds / 3_600)

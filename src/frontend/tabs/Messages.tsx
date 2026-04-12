@@ -8,12 +8,15 @@ import type { MessageEnvelope } from '../../types/hydrabase-schemas'
 import { Identicon } from '../components/Identicon'
 import { ACCENT, BG, BG3, BORD, MUTED, panel, SURF, TEXT } from '../theme'
 import { shortAddr } from '../utils'
-import { useLastRead } from './useLastRead'
 
 interface Props {
   messages: MessageEnvelope[]
+  onMarkRead: (conversationAddress: `0x${string}`, lastReadTimestamp: number) => void
+  onSelectAddress: (address: `0x${string}` | null) => void
   ownAddress: `0x${string}` | undefined
   peers: PeerWithCountry[]
+  readState: Record<string, number>
+  selectedAddress: `0x${string}` | null
   sendMessage: (to: `0x${string}`, payload: string) => void
 }
 
@@ -31,6 +34,15 @@ const getConversations = (messages: MessageEnvelope[], ownAddress: string | unde
 }
 
 const fmtTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+const fmtConversationTimestamp = (timestamp: number): string => {
+  const date = new Date(timestamp)
+  const now = new Date()
+  const isSameDay = date.toDateString() === now.toDateString()
+  if (isSameDay) return fmtTime(timestamp)
+
+  return date.toLocaleDateString([], { day: 'numeric', month: 'short' })
+}
 
 const FAILED_CONNECT_PREFIX = 'system:connection_attempt_failed|'
 
@@ -73,11 +85,8 @@ const getMessagePreview = (payload: string): string => {
 }
 
 // eslint-disable-next-line max-lines-per-function
-export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props) => {
-  const [selectedAddress, setSelectedAddress] = useState<`0x${string}` | null>(null)
+export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress, peers, readState, selectedAddress, sendMessage }: Props) => {
   const conversations = getConversations(messages, ownAddress)
-  // Per-conversation last-read timestamp
-  const [lastRead] = useLastRead(selectedAddress, conversations)
   const [composeText, setComposeText] = useState('')
   const [newRecipient, setNewRecipient] = useState('')
   const [showNewConv, setShowNewConv] = useState(false)
@@ -86,9 +95,15 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
   // conversations already declared above
   const peerMap = new Map(peers.map(p => [p.address, p]))
   const thread = selectedAddress ? (conversations.get(selectedAddress) ?? []) : []
-  const lastReadTime = selectedAddress ? (lastRead[selectedAddress] || 0) : 0
+  const lastReadTime = selectedAddress ? (readState[selectedAddress] || 0) : 0
+  const latestThreadTimestamp = thread[thread.length - 1]?.timestamp ?? 0
   const firstUnreadIncomingIndex = thread.findIndex(msg => msg.from !== ownAddress && msg.timestamp > lastReadTime)
 
+  useEffect(() => {
+    if (!selectedAddress) return
+    if (!latestThreadTimestamp || latestThreadTimestamp <= lastReadTime) return
+    onMarkRead(selectedAddress, latestThreadTimestamp)
+  }, [lastReadTime, latestThreadTimestamp, onMarkRead, selectedAddress])
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -103,7 +118,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
   const handleStartConversation = () => {
     const addr = newRecipient.trim() as `0x${string}`
     if (addr !== GLOBAL_CHAT_ADDRESS && !addr.startsWith('0x')) return
-    setSelectedAddress(addr)
+    onSelectAddress(addr)
     setShowNewConv(false)
     setNewRecipient('')
   }
@@ -152,10 +167,13 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
         {(() => {
           const isSelected = selectedAddress === GLOBAL_CHAT_ADDRESS
           const lastMsg = globalChatMsgs?.[globalChatMsgs.length - 1]
-          return <button onClick={() => setSelectedAddress(GLOBAL_CHAT_ADDRESS)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'rgba(0,200,255,.03)', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'rgba(0,200,255,.3)'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
+          return <button onClick={() => onSelectAddress(GLOBAL_CHAT_ADDRESS)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'rgba(0,200,255,.03)', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'rgba(0,200,255,.3)'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
             <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: '1px solid rgba(0,200,255,.3)', borderRadius: 4, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 14, height: 28, justifyContent: 'center', width: 28 }}>#</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Global Chat</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ alignItems: 'center', display: 'flex', gap: 8, minWidth: 0 }}>
+                <div style={{ flex: 1, fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Global Chat</div>
+                {lastMsg && <span style={{ color: MUTED, flexShrink: 0, fontSize: 9, marginLeft: 'auto' }}>{fmtConversationTimestamp(lastMsg.timestamp)}</span>}
+              </div>
               <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : 'Broadcast to all peers'}</div>
             </div>
           </button>
@@ -166,14 +184,19 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
           const lastMsg = msgs[msgs.length - 1]
           const isSelected = selectedAddress === addr
           // Show unread badge if there are messages newer than lastRead
-          const lastReadTime = lastRead[addr] || 0
-          const hasNew = msgs.some(m => m.from !== ownAddress && m.timestamp > lastReadTime)
-          return <button key={addr} onClick={() => setSelectedAddress(addr as `0x${string}`)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'none', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'transparent'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
+          const lastReadTime = readState[addr] || 0
+          const unreadCount = msgs.filter(m => m.from !== ownAddress && m.timestamp > lastReadTime).length
+          return <button key={addr} onClick={() => onSelectAddress(addr as `0x${string}`)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'none', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'transparent'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
             <Identicon address={addr as `0x${string}`} size={28} style={{ borderRadius: 4, flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ alignItems: 'center', display: 'flex', fontSize: 12, fontWeight: hasNew ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {getPeerName(addr)}
-                {hasNew && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, marginLeft: 8, padding: '1px 5px' }}>NEW</span>}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ alignItems: 'center', display: 'flex', gap: 8, minWidth: 0 }}>
+                <div style={{ flex: 1, fontSize: 12, fontWeight: unreadCount > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {getPeerName(addr)}
+                </div>
+                <div style={{ alignItems: 'center', display: 'flex', flexShrink: 0, gap: 6, marginLeft: 'auto' }}>
+                  {unreadCount > 0 && <span style={{ background: '#ff4a5e', borderRadius: 99, color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px' }}>{unreadCount}</span>}
+                  {lastMsg && <span style={{ color: MUTED, fontSize: 9 }}>{fmtConversationTimestamp(lastMsg.timestamp)}</span>}
+                </div>
               </div>
               <div style={{ color: MUTED, fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastMsg ? getMessagePreview(lastMsg.payload) : ''}</div>
             </div>
@@ -197,7 +220,7 @@ export const MessagesTab = ({ messages, ownAddress, peers, sendMessage }: Props)
                 {selectedAddress === GLOBAL_CHAT_ADDRESS ? 'Messages broadcast to all connected peers' : selectedAddress}
               </div>
             </div>
-            <button className="fbtn" onClick={() => setSelectedAddress(null)} style={{ flexShrink: 0, marginLeft: 'auto' }}>✕</button>
+            <button className="fbtn" onClick={() => onSelectAddress(null)} style={{ flexShrink: 0, marginLeft: 'auto' }}>✕</button>
           </div>
 
           {/* Messages */}

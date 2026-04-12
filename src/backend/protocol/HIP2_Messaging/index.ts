@@ -30,6 +30,11 @@ const SearchHistoryDataSchema = z.union([
 ])
 
 const MessageHistoryRequestSchema = z.literal('get')
+const MessageReadStateRequestSchema = z.literal('get')
+const MarkMessageReadSchema = z.object({
+  conversation: z.string().startsWith('0x').transform(v => v as `0x${string}`),
+  timestamp: z.number().int().nonnegative()
+})
 const PurgePeerCacheSchema = z.literal(true)
 const UpdateConfigSchema = z.object({
   config: z.object({
@@ -82,14 +87,17 @@ export const MessagePacketSchema = z.object({
   envelope: MessageEnvelopeSchema,
   hops: z.number().int().min(0).max(5)
 })
+export type MarkMessageRead = z.infer<typeof MarkMessageReadSchema>
 export type MessagePacket = z.infer<typeof MessagePacketSchema>
 
 const MessageSchemas = {
   announce: AnnounceSchema,
   connect_peer: ConnectPeerSchema,
   get_config: z.literal(true),
+  mark_message_read: MarkMessageReadSchema,
   message: MessagePacketSchema,
   message_history: MessageHistoryRequestSchema,
+  message_read_state: MessageReadStateRequestSchema,
   peer_stats: PeerStatsRequestSchema,
   ping: PingSchema,
   pong: PongSchema,
@@ -140,6 +148,8 @@ export class HIP2_Messaging {
     : 'send_message' in result ? 'send_message'
     : 'update_config' in result ? 'update_config'
     : 'message_history' in result ? 'message_history'
+    : 'message_read_state' in result ? 'message_read_state'
+    : 'mark_message_read' in result ? 'mark_message_read'
     : null
 
   parseMessage = (message: string, trace: Trace): false | { data: Message, nonce: number; type: MessageType } => {

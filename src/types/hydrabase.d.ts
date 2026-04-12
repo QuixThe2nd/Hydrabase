@@ -48,6 +48,7 @@ export interface Connection {
   connectionCount: number
   connections: `0x${string}`[]
   hostname: `${string}:${number}`
+  lastPongedPingSentAt?: number
   latency: number
   lifetimeDL: number
   lifetimeUL: number

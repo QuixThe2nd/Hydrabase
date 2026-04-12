@@ -1,14 +1,14 @@
 <h1 align="center">Hydrabase - Beta</h1>
-<p align="center">Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source for music metadata.
+<p align="center">Hydrabase is web-of-trust inspired consensus-less distributed relational database. Hydrabase is a P2P network that acts as a unified source of music metadata.
 </p>
 <p align="center">
   <img src="./public/logo-black.svg">
 </p>
 <p align="center">
-<img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
-<img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
-
-[Skip To Install](#install)
+  <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/docker-build-prod.yaml/badge.svg" />
+  <img src="https://github.com/QuixThe2nd/Hydrabase/actions/workflows/checks.yaml/badge.svg" />
+</p>
+<a href="#install">Skip To Install</a>
 
 ## Why Hydrabase?
 
@@ -34,6 +34,8 @@ All config is listed in the docker compose file. Hydrabase works out of the box 
 
 The compose file is available [here](https://raw.githubusercontent.com/QuixThe2nd/Hydrabase/refs/heads/main/compose.yaml).
 
+Docker installs do not self-update from inside the container. Update them by pulling a newer image and recreating the container.
+
 ### Opt 2: Manual
 
 To install:
@@ -41,7 +43,7 @@ To install:
 ```bash
 git clone https://github.com/QuixThe2nd/Hydrabase
 cd Hydrabase
-# install CMake with your system package manager first
+# Install CMake with your system package manager
 bun install
 ```
 
@@ -50,6 +52,16 @@ To run:
 ```bash
 bun start
 ```
+
+Manual installs started with `bun start` will automatically check for updates when Hydrabase starts and periodically while it is running. Auto-update only applies to clean git checkouts outside Docker.
+
+To disable this behavior:
+
+```bash
+HYDRABASE_AUTO_UPDATE=false bun start
+```
+
+To keep the startup check but disable periodic polling, set `HYDRABASE_AUTO_UPDATE_INTERVAL_MS=0`.
 
 If UPnP/automatic port forwarding says the `node-portmapping` native addon is unavailable, run:
 
@@ -60,17 +72,11 @@ bun install
 
 ## Networking
 
-Manually forward port 4545 (TCP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
-
-```
-TCP: 4545 (WebSocket)
-```
-
-Hydrabase will automatically try to port forward using uPnP. For best connectability, manually port forward TCP.
+Manually forward port 4545 (TCP & UDP) if you can. Without port forwarding, you won't be able to connect to connect to other peers who don't port forward.
 
 When setting `PREFER_TRANSPORT`, you only change the transport for connections you initiate, not on ones initiated by other peers. Available transports are TCP and UTP.
 
-The select port must be between 4000-5000. This limitation is not permanent, it is simply so we can reduce the number of non Hydrabase nodes we try to connect to.
+The select port must be between 4000-5000. This limitation is not permanent, it is simply so we can reduce the number of non Hydrabase nodes we try to connect (DHT crawlers).
 
 ## API Documentation
 
@@ -134,7 +140,7 @@ To lookup items, the query must be the Soul ID:
 
 ## How it Works
 
-As Hydrabase is under active development, this section will be incomplete. Here is what is currently functional:
+As Hydrabase is under active development, this section will be incomplete. Here is what is currently functional (might be outdated):
 
 ### Peer Discovery
 

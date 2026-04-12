@@ -110,6 +110,9 @@ export default class PeerManager {
   get messageHistory(): MessageEnvelope[] {
     return this.localMessageHistory
   }
+  get ownAddress(): `0x${string}` {
+    return this.account.address
+  }
   get peerAddresses() {
     return this.peers.addresses
   }
@@ -183,18 +186,33 @@ export default class PeerManager {
     try {
       const socket = typeof _peer === 'string' ? await this.toPeer(_peer, preferTransport, trace) : _peer
       if (socket === false) return false
+
+      if (socket.identity.address !== '0x0' && this.peers.has(socket.identity.address)) {
+        const existingPeer = this.peers.get(socket.identity.address)
+        trace.step(`[PEERS] Duplicate socket for ${socket.identity.username} (${truncateAddress(socket.identity.address)}) ${socket.identity.hostname}; keeping existing connection`)
+        try { socket.close() } catch { /* ignore close errors */ }
+        return trace.softFail(existingPeer ? `[PEERS] Already connected to peer ${existingPeer.username} ${existingPeer.address} ${existingPeer.hostname}` : `[PEERS] Already connected to peer ${socket.identity.address}`)
+      }
+
       const peer = new Peer(socket, this, this.repos, this.metadataManager.installedPlugins, this.search)
       warnIfPeerHasNewerBranchVersion(peer)
 
       socket.onClose(() => logContext('PEERS', () => {
         const uptime = formatUptime(peer.uptimeMs)
         const disconnectTrace = Trace.start(`[PEERS] Peer disconnect: ${peer.username} (${truncateAddress(peer.address)})`)
+
+        if (this.peers.get(peer.address) !== peer) {
+          disconnectTrace.step(`[PEERS] Ignoring stale close event for ${peer.username} (${truncateAddress(peer.address)})`)
+          disconnectTrace.success()
+          return
+        }
+
         disconnectTrace.step(`- ${peer.username} (${truncateAddress(peer.address)}) disconnected after ${uptime}`)
         disconnectTrace.success()
         this.notifyPeerDisconnected(peer)
         this.removePeerAnnouncements(peer.address)
         this.peers.delete(peer.address)
-        this.knownPeers.delete(peer.hostname)
+        this.knownPeers.delete(PeerManager.normalizeHostname(peer.hostname))
         this.scheduleReconnect(peer.hostname)
       }))
 
@@ -208,7 +226,7 @@ export default class PeerManager {
       }
       this.repos.wsServer.replaceAll([...this.peers.values()].map(peer => peer.hostname))
       // this.announce(peer, trace) // removed: peer lists are now sent on every ping
-      this.knownPeers.add(peer.hostname)
+      this.knownPeers.add(PeerManager.normalizeHostname(peer.hostname))
       this.clearReconnectState(peer.hostname)
       this.recentPeerAddresses.set(PeerManager.normalizeHostname(peer.hostname), peer.address)
       this.notifyPeerOfRecentConnectionFailure(peer, trace)
@@ -248,6 +266,10 @@ export default class PeerManager {
     const peer = this.peers.get(address)
     if (!peer) return 0
     return peer.historicConfidence // TODO: tit for tat
+  }
+
+  public getMessageReadState(): Record<string, number> {
+    return this.repos.messageReadState.getByReader(this.ownAddress)
   }
 
   public getRuntimeConfig() {
@@ -361,6 +383,11 @@ export default class PeerManager {
       await this.add(hostname, trace)
     }
   } // TODO: time based confidence scores - older peers = more trustworthy
+
+  public markMessageRead(conversationAddress: `0x${string}`, timestamp: number): void {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return
+    this.repos.messageReadState.markRead(this.ownAddress, conversationAddress, timestamp)
+  }
 
   public notifyDataTransfer(): void {
     this.dataTransferHandlers.forEach(handler => handler())
@@ -814,7 +841,7 @@ export default class PeerManager {
     }
     switch (preferTransport) {
       case 'TCP':
-        return await WebSocketClient.init(identity, this.account, this.nodeConfig, trace)
+        return await WebSocketClient.init(identity, this.account, this.nodeConfig, this.metadataManager.installedPlugins.map(plugin => plugin.id), trace)
       case 'UTP': {
         if (!this.utpSocket) return 'UTP unavailable in current runtime'
         const localHostname = `${this.nodeConfig.hostname}:${this.nodeConfig.port}` as `${string}:${number}`

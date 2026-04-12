@@ -4,7 +4,7 @@ import { Identicon } from '../components/Identicon'
 import { NetworkPulseCanvas } from '../components/Pulse'
 import { StatCard } from '../components/StatCard'
 import { ACCENT, ACCENT2, BG2, BORD, confColor, DIM, GREEN, MUTED, ORANGE, PURPLE, TEXT, YELLOW } from '../theme'
-import { fmtClock, fmtUptime, parseEndpoint, shortAddr, toEmoji } from '../utils'
+import { fmtTimeAgo, fmtUptime, parseEndpoint, shortAddr, toEmoji } from '../utils'
 
 interface BwPoint { dl: number; t: number; ul: number }
 type ConnectionType = NonNullable<PeerWithCountry['connection']>['type']
@@ -63,10 +63,11 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
   const parsedPeerEndpoint = peer.connection?.hostname ? parseEndpoint(peer.connection.hostname) : null
   const peerIp = parsedPeerEndpoint?.hostname ?? 'unknown'
   const peerPort = parsedPeerEndpoint?.port ?? 'N/A'
+  const plugins = peer.connection?.plugins ?? []
   const peerUserAgent = peer.connection?.userAgent ?? peer.auth?.userAgent
   const peerUptime = peer.connection?.uptime ?? 0
   const peerUptimeColor = peerUptime / 1_000 > 90 ? GREEN : peerUptime / 1_000 > 60 ? YELLOW : ORANGE
-  return <div className={isSelected ? 'peer-overview-row selected' : 'peer-overview-row'} data-addr={peer.address} onClick={onSelect} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.06)' : 'transparent', borderBottom: `1px solid ${BORD}`, cursor: 'pointer', display: 'grid', gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 72px 60px 60px 80px 50px', transition: 'background .1s' }}>
+  return <div className={isSelected ? 'peer-overview-row selected' : 'peer-overview-row'} data-addr={peer.address} onClick={onSelect} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.06)' : 'transparent', borderBottom: `1px solid ${BORD}`, cursor: 'pointer', display: 'grid', gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 72px 92px 60px 60px 80px 50px', transition: 'background .1s' }}>
     <div style={{ padding: '8px 6px 8px 10px' }}>
       <Identicon address={peer.address} size={22} />
     </div>
@@ -85,12 +86,14 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
       </div>}
     </div>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '8px 6px' }}>
-      {peer.connection?.plugins.slice(0, 2).map(pl => <span key={pl} style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: ACCENT, fontSize: 8, letterSpacing: '.03em', padding: '1px 5px' }}>{pl}</span>)}
-      {(peer.connection?.plugins.length ?? 0) > 2 && <span style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: MUTED, fontSize: 8, padding: '1px 5px' }}>+{(peer.connection?.plugins.length ?? 0) - 2}</span>}
+      {plugins.slice(0, 2).map(pl => <span key={pl} style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: ACCENT, fontSize: 8, letterSpacing: '.03em', padding: '1px 5px' }}>{pl}</span>)}
+      {plugins.length > 2 && <span style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: MUTED, fontSize: 8, padding: '1px 5px' }}>+{plugins.length - 2}</span>}
+      {plugins.length === 0 && <span style={{ background: 'rgba(0,200,255,.08)', border: '1px solid rgba(0,200,255,.18)', borderRadius: 3, color: MUTED, fontSize: 8, letterSpacing: '.03em', padding: '1px 5px' }}>unknown</span>}
     </div>
     <div style={{ padding: '8px 6px' }}><ConnectionTypeLabel type={peer.connection?.type} /></div>
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection ? peerUptimeColor : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection ? fmtUptime(peerUptime) : '—'}</span></div>
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection !== undefined && peer.connection?.latency ? (peer.connection?.latency < 100 ? GREEN : peer.connection?.latency < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.latency ? `${Math.round(peer.connection?.latency)}ms` : '—'}</span></div>
+    <div style={{ padding: '8px 6px' }}><span style={{ color: '#a5d6ff', fontSize: 10, fontWeight: 600 }}>{fmtTimeAgo(peer.connection?.lastPongedPingSentAt)}</span></div>
     <div style={{ padding: '8px 6px' }}><span style={{ color: peer.connection !== undefined && peer.connection?.lookupTime ? (peer.connection?.lookupTime < 100 ? GREEN : peer.connection?.lookupTime < 250 ? YELLOW : ORANGE) : MUTED, fontSize: 10, fontWeight: 600 }}>{peer.connection !== undefined && peer.connection?.lookupTime ? `${Math.round(peer.connection?.lookupTime)}ms` : '—'}</span></div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 6px' }}>
       <span style={{ color: ACCENT, fontSize: 10, fontWeight: 600 }}>{formatBytes(peer.connection?.totalUL ?? 0)}</span>
@@ -105,13 +108,14 @@ const PeerRow = ({ isSelected, onSelect, peer }: { isSelected: boolean; onSelect
 }
 
 const PeerList = ({ onViewMorePeers, peers, sel, setSel }: { onViewMorePeers: () => void; peers: PeerWithCountry[]; sel: ApiPeer | null; setSel: (p: null | PeerWithCountry) => void }) => <div style={{ background: BG2, border: `1px solid ${BORD}`, borderRadius: 8, overflow: 'hidden' }}>
-  <div style={{ alignItems: 'center', borderBottom: `1px solid ${BORD}`, color: MUTED, display: 'grid', fontSize: 9, fontWeight: 700, gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 72px 60px 60px 80px 50px', letterSpacing: '.08em', padding: '6px 0', textTransform: 'uppercase' }}>
+  <div style={{ alignItems: 'center', borderBottom: `1px solid ${BORD}`, color: MUTED, display: 'grid', fontSize: 9, fontWeight: 700, gap: 0, gridTemplateColumns: '36px 1fr 100px 70px 72px 92px 60px 60px 80px 50px', letterSpacing: '.08em', padding: '6px 0', textTransform: 'uppercase' }}>
     <div />
     <div style={{ padding: '0 10px' }}>Peer</div>
     <div style={{ padding: '0 6px' }}>Plugins</div>
     <div style={{ padding: '0 6px' }}>Type</div>
     <div style={{ padding: '0 6px' }}>Uptime</div>
     <div style={{ padding: '0 6px' }}>Latency</div>
+    <div style={{ padding: '0 6px' }}>Last Ponged Ping</div>
     <div style={{ padding: '0 6px' }}>Lookup Time</div>
     <div style={{ padding: '0 6px' }}>UL / DL</div>
     <div style={{ padding: '0 8px 0 4px' }}>Conf</div>
@@ -148,7 +152,7 @@ export const OverviewTab = ({ bwHistory, onViewMorePeers, peers: knownPeers, sel
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
     <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(4, 1fr)' }}>
       <StatCard color={ACCENT2} label="DHT Nodes" sub="bootstrap nodes" value={stats?.dhtNodes.length ?? 0} />
-      <StatCard color={ACCENT} label="Connected Peers" sub={`of ${knownNetworkPeers.length} known · ${connCount} total connections`} value={peerCount} />
+      <StatCard color={ACCENT} label="Connected Peers" sub={`of ${knownNetworkPeers.length} known`} value={peerCount} />
       <StatCard color={confColor(avgConf)} label="Avg Confidence" sub="network-wide" value={peerCount ? `${(avgConf * 100).toFixed(1)}` : 'N/A'} />
       <StatCard color={PURPLE} label="Your Votes" sub={`${stats?.self.votes.tracks} tracks · ${stats?.self.votes.artists} artists · ${stats?.self.votes.albums} albums`} value={(stats?.self.votes.tracks ?? 0) + (stats?.self.votes.artists ?? 0) + (stats?.self.votes.albums ?? 0)} />
 
@@ -157,7 +161,7 @@ export const OverviewTab = ({ bwHistory, onViewMorePeers, peers: knownPeers, sel
       <StatCard color="#58a6ff" label="Session Uploaded" sub={`across ${connCount} connections`} value={formatBytes(totalUL)} />
       <StatCard color="#58a6ff" label="Lifetime Uploaded" sub="across all connections" value={formatBytes(lifetimeUL)} />
       
-      <StatCard color={YELLOW} label="Node Uptime" sub="how long running" value={fmtClock(uptime)} />
+      <StatCard color={YELLOW} label="Node Uptime" sub="how long running" value={fmtUptime(uptime * 1_000)} />
       <StatCard color={ORANGE} label="Session Transfer" sub={`${formatBytes(totalDL)} down · ${formatBytes(totalUL)} up`} value={formatBytes(totalDL + totalUL)} />
       <StatCard color={ORANGE} label="Session Downloaded" sub={`across ${connCount} connections`} value={formatBytes(totalDL)} />
       <StatCard color={ORANGE} label="Lifetime Downloaded" sub="across all connections" value={formatBytes(lifetimeDL)} />

@@ -5,27 +5,13 @@ import type PeerManager from './PeerManager'
 
 import { warn } from '../utils/log'
 import { Trace } from '../utils/trace'
+import { isDirectBunHostRun } from './runtime'
 import { buildWebUI } from './webui'
 
 const BACKEND_DIR = resolve('./src/backend')
 const BACKEND_REFRESH_DEBOUNCE_MS = 250
 const FRONTEND_BUILD_DEBOUNCE_MS = 250
 const FRONTEND_DIR = resolve('./src/frontend')
-
-const isRunningInDocker = (): boolean => {
-  if (process.env['DOCKER_CONTAINER'] === 'true') return true
-  if (process.env['container'] === 'docker') return true
-
-  try {
-    if (Bun.file('/.dockerenv').size > 0) return true
-  } catch {
-    // Ignore filesystem detection errors and continue with env-based checks.
-  }
-
-  return false
-}
-
-const isDirectBunHostRun = (): boolean => typeof Bun !== 'undefined' && !isRunningInDocker()
 
 const queueFrontendBuildFactory = (peerManager: PeerManager) => {
   let frontendBuildTimer: NodeJS.Timeout | undefined

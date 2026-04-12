@@ -95,6 +95,13 @@ export const wsServer = sqliteTable('ws_servers', {
   hostname: text('hostname').notNull().primaryKey(),
 })
 
+export const messageReadState = sqliteTable('message_read_state', {
+  conversation_address: text('conversation_address').notNull(),
+  last_read_timestamp: integer('last_read_timestamp').notNull(),
+  reader_address: text('reader_address').notNull(),
+  updated_at: integer('updated_at').notNull(),
+}, table => [uniqueIndex('idx_message_read_state').on(table.reader_address, table.conversation_address)])
+
 export const setting = sqliteTable('settings', {
   key: text('key').primaryKey().notNull(),
   updated_at: integer('updated_at').notNull(),
@@ -102,5 +109,5 @@ export const setting = sqliteTable('settings', {
   value: text('value').notNull(),
 })
 
-export const schema = { album, announcedPeers, artist, authenticatedPeer, dhtNode, peerStats, searchHistory, setting, soul, track, wsServer } as const
+export const schema = { album, announcedPeers, artist, authenticatedPeer, dhtNode, messageReadState, peerStats, searchHistory, setting, soul, track, wsServer } as const
 // Bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts

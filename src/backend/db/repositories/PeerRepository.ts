@@ -24,9 +24,9 @@ export class PeerRepository {
     }
   }
 
-  collectPeerStats(address: `0x${string}`, installedPlugins: MetadataPlugin[]): PeerStats {
+  collectPeerStats(address: `0x${string}`, installedPlugins: MetadataPlugin[], announcedPlugins: string[] = []): PeerStats {
     const installedPluginIds = new Set(installedPlugins.map(p => p.id))
-    const peerPlugins = this.getPlugins(address)
+    const peerPlugins = [...new Set(announcedPlugins)]
     let totalMatches = 0
     let totalMismatches = 0
 
