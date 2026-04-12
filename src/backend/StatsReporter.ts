@@ -58,6 +58,7 @@ export class StatsReporter {
       connectionCount: 0,
       connections: [],
       hostname: peer.hostname,
+        ...(peer.lastPongedPingSentAt === undefined ? {} : { lastPongedPingSentAt: peer.lastPongedPingSentAt }),
       latency: peer.latency,
       lifetimeDL: peer.lifetimeDL,
       lifetimeUL: peer.lifetimeUL,

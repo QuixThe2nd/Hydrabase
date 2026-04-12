@@ -48,7 +48,7 @@
     "zod": "^4.3.6"
   },
   "scripts": {
-    "start": "bun src/backend",
+    "start": "bun scripts/start.ts",
     "dev": "bun --watch src/backend",
     "run": "bun scripts/run-timed.ts",
     "test": "bun test",

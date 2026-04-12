@@ -17,6 +17,7 @@ RUN chmod +x /entrypoint.sh
 RUN chown -R 1000:1000 /app
 
 ENV NODE_ENV=production
+ENV DOCKER_CONTAINER=true
 ENV PUID=1000
 ENV PGID=1000
 

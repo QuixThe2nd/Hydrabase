@@ -28,6 +28,9 @@ export class Peer {
     return this.repos.peer.getHistoricConfidence(this.address, this.ownPlugins)
   }
   get hostname() { return this.socket.identity.hostname }
+  get lastPongedPingSentAt(): number | undefined {
+    return this.lastPongedPingSentAtMs
+  }
   get latency(): number {
     return this.totalLatency/this.totalPongs
   }
@@ -70,6 +73,7 @@ export class Peer {
   private consecutivePingTimeouts = 0 
   private readonly HIP2_Conn_Message: HIP2_Messaging
   private readonly HIP4_Conn_Announce: HIP3_AnnouncePeers
+  private lastPongedPingSentAtMs: number | undefined
   private pendingPings = new Map<number, { time: number; timeout: NodeJS.Timeout; trace: Trace }>()
   private readonly requestManager: RequestManager
   private totalLatency = 0
@@ -130,6 +134,7 @@ export class Peer {
       const latency = Number(new Date()) - pendingPing.time
       this.totalLatency += latency
       this.totalPongs++
+      this.lastPongedPingSentAtMs = pendingPing.time
       this.consecutivePingTimeouts = 0
       pendingPing.trace.step(`[HIP2] Received pong ${nonce} in ${latency}ms`)
       pendingPing.trace.success()
