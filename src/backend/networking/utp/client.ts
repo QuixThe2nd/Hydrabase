@@ -108,7 +108,7 @@ export class UTPClient implements Socket {
 
     onData = (chunk: Buffer): void => {
       buffer += chunk.toString()
-      if (buffer.length > MAX_GREETING_BYTES) {
+      if (Buffer.byteLength(buffer, 'utf8') > MAX_GREETING_BYTES) {
         trace.step(`[UTP] Greeting exceeded ${MAX_GREETING_BYTES} bytes, rejecting`)
         finish(null)
         return
