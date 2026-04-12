@@ -132,7 +132,7 @@ export class UTPClient implements Socket {
 
     conn.on('data', onData)
     timer = setTimeout(() => {
-      trace.step('[UTP] Greeting timed out waiting for complete JSON')
+      trace.step('[UTP] Greeting timed out waiting for framed greeting message')
       finish(null)
     }, UTPClient.GREETING_TIMEOUT_MS)
   })
