@@ -28,7 +28,6 @@ export class UTPClient implements Socket {
       trace.fail('Closed errored connection')
     })
     conn.on('data', data => this.handleData(data.toString()))
-    if (this.receiveBuffer.length > 0) this.flushFrames()
   }
   static readonly authenticateConnectedPeer = async (
     conn: UTPConnection
@@ -83,13 +82,10 @@ export class UTPClient implements Socket {
       rej(err)
     })
   })
-   
-   
   // eslint-disable-next-line max-lines-per-function
   private static readonly readServiceHostnameFromGreeting = (
     conn: UTPConnection,
     trace: Trace
-     
   ): Promise<null | { remainingBuffer: string; serviceHostname: `${string}:${number}` }> => new Promise(resolve => {
     const MAX_GREETING_BYTES = 4_096
     let settled = false
@@ -145,12 +141,16 @@ export class UTPClient implements Socket {
   }
   public readonly onClose = (handler: () => void) => this.closeHandlers.push(handler)
 
-  public readonly onMessage = (handler: (message: string) => void) => this.messageHandlers.push(handler)
+  public readonly onMessage = (handler: (message: string) => void) => {
+    this.messageHandlers.push(handler)
+    this.flushFrames()
+  }
   public readonly send = (message: string) => {
     this.conn.write(`${message}${UTPClient.FRAME_DELIMITER}`)
   }
 
   private readonly flushFrames = (): void => {
+    if (this.messageHandlers.length === 0) return
     for (;;) {
       const delimiterIndex = this.receiveBuffer.indexOf(UTPClient.FRAME_DELIMITER)
       if (delimiterIndex === -1) return
