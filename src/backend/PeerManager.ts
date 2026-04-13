@@ -661,7 +661,7 @@ export default class PeerManager {
     this.localMessageHistory.splice(0, before, ...this.localMessageHistory.filter(m => !this.isEnvelopeExpired(m, now)))
   }
 
-  private recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UTP', stack?: string) {
+  recordConnectionFailure(hostname: `${string}:${number}`, reason: string, transport: 'TCP' | 'UTP', stack?: string) {
     const normalizedHostname = PeerManager.normalizeHostname(hostname)
     const trimmedReason = reason.replace(/\s+/gu, ' ').trim().slice(0, 240)
     const trimmedStack = stack

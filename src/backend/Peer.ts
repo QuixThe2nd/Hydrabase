@@ -242,11 +242,21 @@ export class Peer {
         if (this.consecutivePingTimeouts < timeoutThreshold) {
           trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; keeping peer connected (${this.type} transport, hostname: ${this.hostname}, strike ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
           warn('WARN:', `[PEER][TIMEOUT] Missed pong from peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}; keeping connection (${this.consecutivePingTimeouts}/${timeoutThreshold}).`)
+          // For UTP, record failure immediately so reconnect uses TCP without waiting for second timeout.
+          if (this.type === 'UTP') {
+            this.peers.recordConnectionFailure(this.hostname, 'HIP2 ping timeout via UTP', 'UTP', trace.getFullTrace())
+          }
           return
         }
 
         trace.softFail(`[HIP2][TIMEOUT] Pong ${nonce} timed out after ${Peer.PING_TIMEOUT_MS / 1000}s; disconnecting peer (${this.type} transport, hostname: ${this.hostname}, strikes ${this.consecutivePingTimeouts}/${timeoutThreshold})`)
         warn('WARN:', `[PEER][TIMEOUT] Ping timeout threshold reached for peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}. Disconnecting.`)
+        // Record UTP connection failure so reconnect falls back to TCP.
+        // This handles NAT/symmetric NAT scenarios where UTP connections succeed inbound
+        // but return traffic (pongs) is blocked or the UTP write path is non-functional.
+        if (this.type === 'UTP') {
+          this.peers.recordConnectionFailure(this.hostname, 'HIP2 ping timeout via UTP', 'UTP', trace.getFullTrace())
+        }
         this.socket.close()
       }, Peer.PING_TIMEOUT_MS)
       this.pendingPings.set(nonce, { time, timeout, trace })
