@@ -14,6 +14,7 @@ import { Sidebar, type Tab } from './components/Sidebar'
 import { StatusBar } from './components/StatusBar'
 import { DhtTab } from './tabs/dht'
 import { MessagesTab } from './tabs/Messages'
+import { NextStepsTab } from './tabs/NextSteps'
 import { OverviewTab } from './tabs/Overview'
 import { PeersTab } from './tabs/Peers'
 import { SearchTab } from './tabs/Search'
@@ -84,6 +85,7 @@ const nonce = Math.random()
 const TAB_PATHS: Record<Tab, string> = {
   dht: '/dht',
   messages: '/messages',
+  'next-steps': '/next-steps',
   overview: '/',
   peers: '/peers',
   search: '/search',
@@ -108,6 +110,7 @@ const PATH_TABS: Record<string, Tab> = {
   '/': 'overview',
   '/dht': 'dht',
   '/messages': 'messages',
+  '/next-steps': 'next-steps',
   '/overview': 'overview',
   '/peers': 'peers',
   '/search': 'search',
@@ -118,6 +121,7 @@ const PATH_TABS: Record<string, Tab> = {
 const isTab = (value: string): value is Tab => (
   value === 'dht'
   || value === 'messages'
+  || value === 'next-steps'
   || value === 'overview'
   || value === 'peers'
   || value === 'search'
@@ -911,6 +915,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     <Sidebar onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
+      {tab === 'next-steps' && <NextStepsTab messageCount={messages.length} onOpenMessages={() => handleSetTab('messages')} onOpenPeers={() => handleSetTab('peers')} onOpenSearch={() => handleSetTab('search')} onOpenSettings={() => handleSetTab('settings')} peers={peers} runtimeConfig={runtimeConfig} stats={stats} />}
       {tab === 'peers' && sel
         ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} onSelectPeer={handleSelectPeer} ownAddress={stats?.self.address} peer={sel} peers={peers} sendMessage={handleSendMessage} wsRef={wsRef} />
         : tab === 'peers' && <PeersTab connectionAttempts={connectionAttempts} filter={filter} onRequestConnect={handleRequestConnect} peers={peers} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}

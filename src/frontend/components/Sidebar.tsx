@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 
-import { BarChart3, GitBranch, MessageSquare, Search, Settings, ShieldCheck, Users } from 'lucide-react'
+import { BarChart3, GitBranch, ListChecks, MessageSquare, Search, Settings, ShieldCheck, Users } from 'lucide-react'
 
 import type { NodeStats, PeerWithCountry } from '../../types/hydrabase'
 
@@ -8,11 +8,12 @@ import { ACCENT, BORD, MUTED, TEXT } from '../theme'
 import { fmtBytes, fmtClock, shortAddr, toEmoji } from '../utils'
 import { Identicon } from './Identicon'
 
-export type Tab = 'dht' | 'messages' | 'overview' | 'peers' | 'search' | 'settings' | 'votes'
+export type Tab = 'dht' | 'messages' | 'next-steps' | 'overview' | 'peers' | 'search' | 'settings' | 'votes'
 
 type ActiveTab = null | Tab
 
 const NAV_ITEMS: { icon: LucideIcon; label: string; tab: Tab; }[] = [
+  { icon: ListChecks, label: 'Next Steps', tab: 'next-steps' },
   { icon: BarChart3, label: 'Overview', tab: 'overview' },
   { icon: Search, label: 'Search', tab: 'search' },
   { icon: MessageSquare, label: 'Messages', tab: 'messages' },
