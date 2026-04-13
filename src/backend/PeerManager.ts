@@ -3,7 +3,7 @@ import type { UTPSocket } from 'utp-socket'
 
 import { Parser } from 'expr-eval'
 
-import type { Config, Socket } from '../types/hydrabase'
+import type { Config, Identity as SharedIdentity, Socket } from '../types/hydrabase'
 import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
@@ -840,12 +840,15 @@ export default class PeerManager {
       return 'Attempted to connect to self'
     }
     switch (preferTransport) {
-      case 'TCP':
-        return await WebSocketClient.init(identity, this.account, this.nodeConfig, this.metadataManager.installedPlugins.map(plugin => plugin.id), trace)
+      case 'TCP': {
+        const socketIdentity: SharedIdentity = { ...identity, bio: identity.bio }
+        return await WebSocketClient.init(socketIdentity, this.account, this.nodeConfig, this.metadataManager.installedPlugins.map(plugin => plugin.id), trace)
+      }
       case 'UTP': {
         if (!this.utpSocket) return 'UTP unavailable in current runtime'
         const localHostname = `${this.nodeConfig.hostname}:${this.nodeConfig.port}` as `${string}:${number}`
-        return UTPClient.connectToAuthenticatedPeer(identity, this.utpSocket, localHostname, trace) || 'UTP connection failed'
+        const socketIdentity: SharedIdentity = { ...identity, bio: identity.bio }
+        return UTPClient.connectToAuthenticatedPeer(socketIdentity, this.utpSocket, localHostname, trace) || 'UTP connection failed'
       }
       default:
         return 'Invalid transport preference'

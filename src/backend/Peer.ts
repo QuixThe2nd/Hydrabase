@@ -18,7 +18,6 @@ import { RequestManager } from './RequestManager'
 
 export class Peer {
   private static readonly PING_INTERVAL_MS = 60_000
-  // Keep timeout comfortably above interval to tolerate network and event-loop jitter.
   private static readonly PING_TIMEOUT_MS = 90_000
 
   public nonce = 0
@@ -300,8 +299,14 @@ export class Peer {
       if (!result) {
         if (matchedPongTrace && typeof parsedNonce === 'number') {
           const pendingPing = this.pendingPings.get(parsedNonce)
-          if (pendingPing) clearTimeout(pendingPing.timeout)
+          if (pendingPing) {
+            clearTimeout(pendingPing.timeout)
+            pendingPing.trace.softFail(`[HIP2][TIMEOUT] Received invalid pong ${parsedNonce}; disconnecting peer (${this.type} transport, hostname: ${this.hostname})`)
+            warn('WARN:', `[PEER][TIMEOUT] Invalid pong payload from peer ${this.username} (${this.address}) on ${this.hostname} via ${this.type}. Disconnecting.`)
+          }
           this.pendingPings.delete(parsedNonce)
+          this.socket.close()
+          return
         }
         trace.fail('Failed to parse message')
         return

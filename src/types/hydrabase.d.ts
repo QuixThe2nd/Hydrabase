@@ -43,7 +43,7 @@ export interface Config {
 export interface Connection {
   address: `0x${string}`
   announcedHostnames: `${string}:${number}`[]
-  bio?: string
+  bio?: string | undefined
   confidence: number
   connectionCount: number
   connections: `0x${string}`[]
@@ -71,6 +71,15 @@ export interface EventEntry {
 }
 
 export type FilterState = 'all' | 'connected' | 'disconnected'
+
+export interface Identity {
+  address: `0x${string}`
+  bio: string | undefined
+  hostname: `${string}:${number}`
+  plugins: string[]
+  userAgent: string
+  username: string
+}
 
 export interface LogEvent {
   lv: string
@@ -103,7 +112,7 @@ export interface PartialNodeStats {
 }
 
 export interface PeerAuthInfo {
-  bio?: string
+  bio?: string | undefined
   hostname: `${string}:${number}`
   userAgent: string
   username: string

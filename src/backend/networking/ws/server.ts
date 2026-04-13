@@ -1,6 +1,6 @@
 import type { SocketAddress } from 'bun'
 
-import type { Config, Socket } from '../../../types/hydrabase'
+import type { Config, Identity as SharedIdentity, Socket } from '../../../types/hydrabase'
 import type { HydrabaseTelemetryContext } from '../../../utils/log'
 import type { Account } from '../../crypto/Account'
 import type PeerManager from '../../PeerManager'
@@ -20,7 +20,7 @@ export type WebSocketData = Identity & {
 }
 
 export class WebSocketServerConnection implements Socket {
-  get identity() {
+  get identity(): SharedIdentity {
     return {
       address: this.socket.data.address,
       bio: this.socket.data.bio,
