@@ -797,7 +797,8 @@ export default class PeerManager {
     }
     held.push(envelope)
     this.heldMessages.set(envelope.to, held)
-    trace.step(`[HIP2] Stored message for offline recipient ${envelope.to}`)
+    // Only log when first message is stored for a recipient (count > 1) to reduce spam
+    if (held.length === 1) trace.step(`[HIP2] Storing messages for offline recipient ${envelope.to}`)
   }
 
   private syncHeldMessagesToPeer(peer: Peer) {

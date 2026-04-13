@@ -350,8 +350,10 @@ export class Peer {
     const message = JSON.stringify(payload)
     this._ul += message.length
     this.peers.notifyDataTransfer()
-    const keys = Object.keys(JSON.parse(message))
-    trace.step(`[PEER] [${this.type}] Sending ${keys.join(',')} to ${this.username} ${this.address} ${this.hostname}`)
+    const keys = Object.keys(JSON.parse(message)).filter(k => k !== 'nonce')
+    // Only log non-frequent message types to avoid spam (skip message, message_batch, and stats)
+    const isFrequentMessageType = keys.some(k => k.startsWith('stats') || k === 'message' || k === 'message_batch')
+    if (!isFrequentMessageType) trace.step(`[PEER] [${this.type}] Sending ${keys.join(',')} to ${this.username} ${this.address}`)
     this.socket.send(message)
   }
 
