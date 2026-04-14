@@ -14,7 +14,6 @@ interface NextStep {
 }
 
 interface NextStepsTabProps {
-  messageCount: number
   onOpenMessages: () => void
   onOpenPeers: () => void
   onOpenSearch: () => void
@@ -80,7 +79,7 @@ const NextStepCard = ({ onNavigate, step }: { onNavigate: (tab: NonNullable<Next
 }
 
 // eslint-disable-next-line max-lines-per-function
-const buildSteps = ({ messageCount, peers, runtimeConfig, stats }: Pick<NextStepsTabProps, 'messageCount' | 'peers' | 'runtimeConfig' | 'stats'>): NextStep[] => {
+const buildSteps = ({ peers, runtimeConfig, stats }: Pick<NextStepsTabProps, 'peers' | 'runtimeConfig' | 'stats'>): NextStep[] => {
   const connectedPeers = peers.filter(peer => peer.connection !== undefined && peer.address !== '0x0')
   const hasGithubNode = peers.some(peer => peer.connection?.address.toLowerCase() === GITHUB_BOOTSTRAP_NODE)
   const hasConnectedNonApiPeer = connectedPeers.length > 0
@@ -95,8 +94,6 @@ const buildSteps = ({ messageCount, peers, runtimeConfig, stats }: Pick<NextStep
 
   const bio = (runtimeConfig?.desired.node.bio ?? '').trim()
   const hasCustomBio = Boolean(bio) && bio !== DEFAULT_BIO
-
-  const hasMessages = messageCount > 0
 
   return [
     {
@@ -142,36 +139,25 @@ const buildSteps = ({ messageCount, peers, runtimeConfig, stats }: Pick<NextStep
         : 'Consider pointing a domain to your node and setting it as hostname. Domains are easier to share and usually survive IP changes.',
       done: hasPublicDomain,
       key: 'domain',
-      severity: 'important',
+      severity: 'nice',
       title: 'Point a Domain to Your Node',
     },
     {
       actionLabel: 'Open Peers',
       actionTab: 'peers',
       description: connectedPeers.length > 0
-        ? `You currently have ${connectedPeers.length} connected ${connectedPeers.length === 1 ? 'peer' : 'peers'}.`
+        ? `You currently have ${connectedPeers.length} connected peer${connectedPeers.length === 1 ? '' : 's'}.`
         : 'No connected peers yet. Add or connect to peers to start exchanging network data.',
       done: connectedPeers.length > 0,
       key: 'peers',
       severity: 'important',
       title: 'Establish Peer Connections',
     },
-    {
-      actionLabel: hasMessages ? 'Open Messages' : 'Open Search',
-      actionTab: hasMessages ? 'messages' : 'search',
-      description: hasMessages
-        ? 'You have active message history. Keep conversations going and follow up with peers.'
-        : 'Try a search to test your setup end-to-end, then message a peer once results come in.',
-      done: hasMessages,
-      key: 'activity',
-      severity: 'nice',
-      title: 'Do a First Real Interaction',
-    },
   ]
 }
 
-export const NextStepsTab = ({ messageCount, onOpenMessages, onOpenPeers, onOpenSearch, onOpenSettings, peers, runtimeConfig, stats }: NextStepsTabProps) => {
-  const steps = buildSteps({ messageCount, peers, runtimeConfig, stats })
+export const NextStepsTab = ({ onOpenMessages, onOpenPeers, onOpenSearch, onOpenSettings, peers, runtimeConfig, stats }: NextStepsTabProps) => {
+  const steps = buildSteps({ peers, runtimeConfig, stats })
   const pendingSteps = steps.filter(step => !step.done)
   const doneSteps = steps.filter(step => step.done)
 

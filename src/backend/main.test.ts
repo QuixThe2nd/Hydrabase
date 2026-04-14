@@ -314,7 +314,30 @@ describe('Peer discovery', () => {
     try {
       const handleDiscoveredHostnameTrace = trace.child('handleDiscoveredHostname test')
       await peerManager1.handleDiscoveredHostname(announcerAddress, announcedHostname, handleDiscoveredHostnameTrace)
-      expect(addCalls).toContain(announcedHostname)
+      expect(addCalls).toHaveLength(0)
+      expect(peerManager1.getAnnouncedHostnames(announcerAddress)).toContain(announcedHostname)
+      expect(peerManager1.getAnnouncementConnections(announcedAddress)).toContain(announcerAddress)
+    } finally {
+      peerManager1.peers.delete(announcedAddress)
+      ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = originalAdd
+    }
+  })
+
+  it('records announcements for already-connected peers', async () => {
+    const announcerAddress = '0x3333333333333333333333333333333333333333' as `0x${string}`
+    const announcedAddress = '0x4444444444444444444444444444444444444444' as `0x${string}`
+    const announcedHostname = `${config3.hostname}:${config3.port}` as `${string}:${number}`
+    const fakePeer = {
+      address: announcedAddress,
+      hostname: announcedHostname,
+    } as unknown as (typeof peerManager1.connectedPeers)[number]
+    const originalAdd = peerManager1.add.bind(peerManager1)
+
+    ;(peerManager1 as unknown as { add: typeof peerManager1.add }).add = () => Promise.resolve(false)
+    peerManager1.peers.set(announcedAddress, fakePeer)
+    try {
+      const handleDiscoveredHostnameTrace = trace.child('handleDiscoveredHostname already-connected test')
+      await peerManager1.handleDiscoveredHostname(announcerAddress, announcedHostname, handleDiscoveredHostnameTrace)
       expect(peerManager1.getAnnouncedHostnames(announcerAddress)).toContain(announcedHostname)
       expect(peerManager1.getAnnouncementConnections(announcedAddress)).toContain(announcerAddress)
     } finally {
@@ -760,6 +783,11 @@ describe('PeerManager reconnect hardening', () => {
     return { isClosed: () => closed, sentMessages, socket }
   }
 
+  const getAnnouncedHostnames = (messages: string[]): `${string}:${number}`[] => messages.flatMap(message => {
+    const parsed = JSON.parse(message) as { announce?: { hostname?: `${string}:${number}` } }
+    return parsed.announce?.hostname ? [parsed.announce.hostname] : []
+  })
+
   it('rejects duplicate non-API socket connections for the same peer address', async () => {
     const address = '0xfeedfacefeedfacefeedfacefeedfacefeedface' as `0x${string}`
     const hostname = 'mock-peer:4545' as `${string}:${number}`
@@ -793,6 +821,26 @@ describe('PeerManager reconnect hardening', () => {
     expect(peerManager1.peers.get(address)).toBe(replacementPeer)
 
     replacement.socket.close()
+  })
+
+  it('announces existing peers to a newcomer immediately', async () => {
+    const firstAddress = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as `0x${string}`
+    const secondAddress = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as `0x${string}`
+    const firstHostname = 'mock-first:4545' as `${string}:${number}`
+    const secondHostname = 'mock-second:4545' as `${string}:${number}`
+    const first = makeMockSocket(firstAddress, firstHostname)
+    const second = makeMockSocket(secondAddress, secondHostname)
+
+    expect(await peerManager1.add(first.socket, trace.child('sync announcements first add'))).toBe(true)
+    first.sentMessages.length = 0
+
+    expect(await peerManager1.add(second.socket, trace.child('sync announcements second add'))).toBe(true)
+
+    expect(getAnnouncedHostnames(first.sentMessages)).toContain(secondHostname)
+    expect(getAnnouncedHostnames(second.sentMessages)).toContain(firstHostname)
+
+    first.socket.close()
+    second.socket.close()
   })
 })
 

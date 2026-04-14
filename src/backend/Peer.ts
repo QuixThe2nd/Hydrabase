@@ -362,6 +362,7 @@ export class Peer {
   public readonly sendLogEvent = (log_event: LogEvent, trace: Trace) => this.send({ log_event, nonce: this.nonce++ }, trace)
   public readonly sendMessageBatch = (packets: MessagePacket[], trace: Trace) => this.send({ message_batch: { packets }, nonce: this.nonce++ }, trace)
   public readonly sendMessagePacket = (packet: MessagePacket, trace: Trace) => this.send({ message: packet, nonce: this.nonce++ }, trace)
+  public readonly sendPeerAnnouncement = (hostname: `${string}:${number}`, trace: Trace) => this.HIP4_Conn_Announce.sendAnnounce({ hostname }, trace)
   public readonly sendRefreshUi = (trace: Trace) => this.send({ nonce: this.nonce++, refresh_ui: 'backend_changed' }, trace)
   public readonly sendStatsDhtNodeConnected = (stats_dht_node_connected: string, trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_node_connected }, trace)
   public readonly sendStatsDhtNodes = (stats_dht_nodes: NodeStats['dhtNodes'], trace: Trace) => this.send({ nonce: this.nonce++, stats_dht_nodes }, trace)

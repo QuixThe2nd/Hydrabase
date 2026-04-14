@@ -915,7 +915,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
     <Sidebar onSelectPeer={handleSelectPeer} peers={peers} selectedPeerAddress={sel?.address ?? null} setTab={handleSetTab} stats={stats} tab={sidebarTab} unreadMessages={unreadMessages} uptime={uptime} />
     <div style={{ animation: 'fadein .3s ease', flex: 1, minWidth: 0, padding: '14px 16px 70px' }}>
       {tab === 'overview' && <OverviewTab bwHistory={bwHistory} onViewMorePeers={() => handleSetTab('peers')} peers={peers} sel={sel} setSel={handleSelectPeer} stats={stats} uptime={uptime} />}
-      {tab === 'next-steps' && <NextStepsTab messageCount={messages.length} onOpenMessages={() => handleSetTab('messages')} onOpenPeers={() => handleSetTab('peers')} onOpenSearch={() => handleSetTab('search')} onOpenSettings={() => handleSetTab('settings')} peers={peers} runtimeConfig={runtimeConfig} stats={stats} />}
+      {tab === 'next-steps' && <NextStepsTab onOpenMessages={() => handleSetTab('messages')} onOpenPeers={() => handleSetTab('peers')} onOpenSearch={() => handleSetTab('search')} onOpenSettings={() => handleSetTab('settings')} peers={peers} runtimeConfig={runtimeConfig} stats={stats} />}
       {tab === 'peers' && sel
         ? <PeerDetail callback={onPeerStatsCallback} messages={messages} onClose={handlePeerClose} onSelectPeer={handleSelectPeer} ownAddress={stats?.self.address} peer={sel} peers={peers} sendMessage={handleSendMessage} wsRef={wsRef} />
         : tab === 'peers' && <PeersTab connectionAttempts={connectionAttempts} filter={filter} onRequestConnect={handleRequestConnect} peers={peers} sel={sel} setFilter={setFilter} setSel={handleSelectPeer} sorted={filterPeers(peers, filter)} />}

@@ -229,13 +229,13 @@ export default class PeerManager {
       this.peers.set(peer.address, peer)
       if (peer.address === '0x0') this.apiConnectedHandlers.forEach(handler => handler())
       else {
+        this.syncPeerAnnouncements(peer, trace)
         this.notifyPeerConnected(peer)
         const connectTrace = Trace.start(`[PEERS] Sending connect message to ${peer.username}`)
         this.createAndSendMessage(peer.address, this.nodeConfig.connectMessage, connectTrace)
         connectTrace.success()
       }
       this.repos.wsServer.replaceAll([...this.peers.values()].map(peer => peer.hostname))
-      // this.announce(peer, trace) // removed: peer lists are now sent on every ping
       this.knownPeers.add(PeerManager.normalizeHostname(peer.hostname))
       this.clearReconnectState(peer.hostname)
       this.recentPeerAddresses.set(PeerManager.normalizeHostname(peer.hostname), peer.address)
@@ -323,16 +323,24 @@ export default class PeerManager {
 
   public async handleDiscoveredHostname(announcerAddress: `0x${string}`, announcedHostname: `${string}:${number}`, trace: Trace): Promise<void> {
     try {
-      const success = await this.add(announcedHostname, trace)
-      if (!success) {
-        trace.fail(`Failed to connect to discovered hostname ${announcedHostname}`)
+      this.recordPeerAnnouncedHostname(announcerAddress, announcedHostname)
+
+      const existingPeer = this.findConnectedPeerByHostname(announcedHostname)
+      if (existingPeer) {
+        this.recordPeerAnnouncement(existingPeer.address, announcerAddress)
+        trace.step(`[PEERS] Already connected to discovered hostname ${announcedHostname}; recorded announcement only`)
+        trace.success()
         return
       }
 
-      this.recordPeerAnnouncedHostname(announcerAddress, announcedHostname)
-
+      const success = await this.add(announcedHostname, trace)
       const announcedPeer = this.findConnectedPeerByHostname(announcedHostname)
       if (announcedPeer) this.recordPeerAnnouncement(announcedPeer.address, announcerAddress)
+
+      if (!success && !announcedPeer) {
+        trace.fail(`Failed to connect to discovered hostname ${announcedHostname}`)
+        return
+      }
 
       trace.success()
     } catch (error) {
@@ -824,6 +832,20 @@ export default class PeerManager {
     PeerManager.sendMessageBatchToPeer(peer, packets, trace)
     trace.step(`[HIP2] Synced ${packets.length} held message${packets.length === 1 ? '' : 's'} to ${peer.address}`)
     trace.success()
+  }
+
+  private syncPeerAnnouncements(peer: Peer, trace: Trace): void {
+    if (peer.address === '0x0') return
+
+    const peersToSync = this.connectedPeers.filter(candidate => candidate.address !== '0x0' && candidate.address !== peer.address)
+    if (peersToSync.length === 0) return
+
+    const syncTrace = trace.child(`[HIP3] Syncing ${peersToSync.length} peer announcement${peersToSync.length === 1 ? '' : 's'} for ${peer.username}`)
+    for (const existingPeer of peersToSync) {
+      existingPeer.sendPeerAnnouncement(peer.hostname, syncTrace)
+      peer.sendPeerAnnouncement(existingPeer.hostname, syncTrace)
+    }
+    syncTrace.success()
   }
 
   private async toPeer(hostname: `${string}:${number}`, preferTransport: 'TCP' | 'UTP', trace: Trace): Promise<false | Socket> {
