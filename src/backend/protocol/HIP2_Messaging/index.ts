@@ -87,7 +87,11 @@ export const MessagePacketSchema = z.object({
   envelope: MessageEnvelopeSchema,
   hops: z.number().int().min(0).max(5)
 })
+export const MessageBatchSchema = z.object({
+  packets: z.array(MessagePacketSchema).min(1)
+})
 export type MarkMessageRead = z.infer<typeof MarkMessageReadSchema>
+export type MessageBatch = z.infer<typeof MessageBatchSchema>
 export type MessagePacket = z.infer<typeof MessagePacketSchema>
 
 const MessageSchemas = {
@@ -96,6 +100,7 @@ const MessageSchemas = {
   get_config: z.literal(true),
   mark_message_read: MarkMessageReadSchema,
   message: MessagePacketSchema,
+  message_batch: MessageBatchSchema,
   message_history: MessageHistoryRequestSchema,
   message_read_state: MessageReadStateRequestSchema,
   peer_stats: PeerStatsRequestSchema,
@@ -133,6 +138,7 @@ export class HIP2_Messaging {
   static readonly identifyType = (result: Record<string, unknown>): MessageType | null => 'request' in result ? 'request'
     : 'response' in result ? 'response'
     : 'message' in result ? 'message'
+    : 'message_batch' in result ? 'message_batch'
     // Backward compatibility with older peers; both old packet forms map to unified message handling.
     : 'store_message' in result ? 'message'
     : 'deliver_message' in result ? 'message'

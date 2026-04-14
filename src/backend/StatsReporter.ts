@@ -1,5 +1,5 @@
 
-import type { ApiPeer, Config, Connection, NodeStats, StatsVotesPayload } from '../types/hydrabase'
+import type { ApiPeer, Config, Connection, NodeStats, StatsPulseBundle, StatsPulsePayload, StatsVotesPayload } from '../types/hydrabase'
 import type { MetadataPlugin } from '../types/hydrabase-schemas'
 import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
@@ -224,9 +224,9 @@ export class StatsReporter {
     this.recordPulse()
     const history = this.pulseHistory.getHistory()
     if (history.length === 0) return
-    let latest: import('../types/hydrabase').StatsPulsePayload
+    let latest: StatsPulsePayload
     if (history.length > 0 && history[history.length - 1]) {
-      latest = history[history.length - 1] as import('../types/hydrabase').StatsPulsePayload
+      latest = history[history.length - 1] as StatsPulsePayload
     } else {
       latest = {
         intervalMs: 0,
@@ -235,7 +235,7 @@ export class StatsReporter {
         totalUL: 0,
       }
     }
-    const bundle: import('../types/hydrabase').StatsPulseBundle = { history, latest }
+    const bundle: StatsPulseBundle = { history, latest }
     this.report((client, trace) => {
       client.sendStatsPulseBundle(bundle, trace)
     })

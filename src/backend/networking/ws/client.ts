@@ -1,9 +1,9 @@
-import type { Config, Socket } from '../../../types/hydrabase'
+import type { Config, Identity, Socket } from '../../../types/hydrabase'
 import type { Account } from '../../crypto/Account'
 
 import { warn } from '../../../utils/log'
 import { Trace } from '../../../utils/trace'
-import { type Identity, proveClient } from '../../protocol/HIP1_Identity'
+import { proveClient } from '../../protocol/HIP1_Identity'
 
 export default class WebSocketClient implements Socket {
   private static readonly OPEN_TIMEOUT_MS = 30_000

@@ -665,7 +665,7 @@ describe('purge_peer_cache handler', () => {
     const closeHandlers: (() => void)[] = []
     const socket = {
       close: () => { for (const h of closeHandlers) h() },
-      identity: { address, bio: undefined, hostname: 'test:1234' as `${string}:${number}`, userAgent: 'test', username: 'TestUser' },
+      identity: { address, bio: undefined, hostname: 'test:1234' as `${string}:${number}`, plugins: [], userAgent: 'test', username: 'TestUser' },
       onClose: (handler: () => void) => { closeHandlers.push(handler) },
       onMessage: () => undefined,
       send: (msg: string) => { sentMessages.push(msg) },

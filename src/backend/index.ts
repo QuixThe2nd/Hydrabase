@@ -55,10 +55,7 @@ const initTelemetry = (enabled: boolean): void => {
     release,
     sendDefaultPii: true,
     tracesSampleRate: 1.0,
-  })
-
-  log(`[TELEMETRY] Enabled (Sentry) release=${release}`)
-  ;(globalThis as typeof globalThis & {
+  });(globalThis as typeof globalThis & {
     __hydrabaseSentryLogger__?: unknown
   }).__hydrabaseSentryLogger__ = Sentry.logger
   ;(globalThis as typeof globalThis & {
