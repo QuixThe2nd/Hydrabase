@@ -1,7 +1,7 @@
 /* eslint-disable max-lines */
 import { useState } from 'react'
 
-import type { ApiPeer, FilterState, PeerConnectionAttempt, PeerWithCountry } from '../../types/hydrabase'
+import type { ApiPeer, ConnectionType, FilterState, PeerConnectionAttempt, PeerWithCountry } from '../../types/hydrabase'
 
 import ConnectPeerDialog from '../components/ConnectPeerDialog'
 import { Identicon } from '../components/Identicon'
@@ -99,7 +99,7 @@ const ConnectionTypePie = ({ counts }: { counts: Record<ConnType, number> }) => 
   </div>
 }
 
-const getConnectionPrefix = (type?: 'CLIENT' | 'SERVER' | 'UTP') => {
+const getConnectionPrefix = (type?: ConnectionType) => {
   if (!type) return undefined
   if (type === 'UTP') return 'utp://'
   if (type === 'CLIENT') return 'ws://'

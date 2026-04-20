@@ -127,4 +127,3 @@ process.on('beforeExit', () => {
 const { config, envLockedPaths } = await createLiveConfig({ env: process.env })
 initTelemetry(config.telemetry)
 await startNode(config, envLockedPaths)
-// TODO: Merge duplicate artists from diff plugins

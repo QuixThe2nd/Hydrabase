@@ -1,18 +1,19 @@
 import { and, eq } from 'drizzle-orm'
 
 import type { DB } from '..'
+import type { MessageReadState } from '../../../types/hydrabase'
 
 import { messageReadState } from '../schema'
 
 export class MessageReadStateRepository {
   constructor(private readonly db: DB) {}
 
-  getByReader(readerAddress: `0x${string}`): Record<string, number> {
+  getByReader(readerAddress: `0x${string}`): MessageReadState {
     const rows = this.db.select().from(messageReadState)
       .where(eq(messageReadState.reader_address, readerAddress))
       .all()
 
-    return rows.reduce<Record<string, number>>((state, row) => {
+    return rows.reduce<MessageReadState>((state, row) => {
       state[row.conversation_address] = row.last_read_timestamp
       return state
     }, {})

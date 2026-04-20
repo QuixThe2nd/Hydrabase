@@ -5,7 +5,6 @@ import type PeerManager from '../../PeerManager'
 
 import { Trace } from '../../../utils/trace'
 
-// TODO: reputation endorsement - vouch for peer and get rewarded/penalised based off their activity
 export const AnnounceSchema = z.object({ hostname: z.string().transform(a => a as `${string}:${number}`) })
 export type Announce = z.infer<typeof AnnounceSchema>
 

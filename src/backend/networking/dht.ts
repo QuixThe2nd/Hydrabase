@@ -23,7 +23,7 @@ export class DHT_Node {
   }
   private cacheSize = 0
   private readonly dht: DHT
-  private readonly knownPeers: Set<`${string}:${number}`> // TODO: prune old peers, mem leak
+  private readonly knownPeers: Set<`${string}:${number}`>
   private readonly nodeHandlers: (() => void)[] = []
   private readonly startupTrace = Trace.start('[DHT] Startup')
   constructor (peers: PeerManager, private readonly config: Config['dht'], private readonly node: Config['node'], private readonly dhtNodeRepo: DhtNodeRepository) {
@@ -87,7 +87,7 @@ export class DHT_Node {
         setInterval(() => this.announce(), this.config.reannounce)
         this.startupTrace.success()
         res(undefined)
-      } // TODO: rate limiting
+      }
     }, 1_000)
   })
   public onNode(handler: () => void): void {

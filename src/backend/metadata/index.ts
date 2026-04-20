@@ -29,7 +29,6 @@ const matchId = (items: (Album | Artist)[], getPeerConfidence: (address: `0x${st
       peerConfidences: [...pastVotes.peerConfidences, getPeerConfidence(item.address)]
     })
   }
-// TODO: if over 50 peers, boot the 10% worst performing peers (use a bunch of variables to select; confidence scores, plugin variety, latency, etc)
   const confidences = new Map<string, number>()
   for (const entry of votes) {
     const [artistId, votes] = entry

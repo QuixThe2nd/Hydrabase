@@ -231,9 +231,8 @@ const logTraceErrors = (trace: Trace, errors: string[], fallback: string): void 
   }
 }
 
-export const requestPort = async (node: Config['node'], upnp: Config['upnp']) => {
+export const requestPort = async (node: Config['node']) => {
   const trace = Trace.start(`[UPnP] Requesting port ${node.port}`)
-  trace.step(`[UPnP] node-portmapping manages leases internally; ignoring legacy reannounce=${upnp.reannounce}ms ttl=${upnp.ttl}ms`)
 
   const errors: string[] = []
   try {

@@ -1,4 +1,4 @@
-export interface ParsedHydrabaseUserAgent {
+interface ParsedHydrabaseUserAgent {
   branch: string
   version: string
 }

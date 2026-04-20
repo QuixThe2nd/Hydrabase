@@ -11,7 +11,7 @@ import { MessageEnvelopeSchema, RequestSchema } from '../types/hydrabase-schemas
 import { Trace } from '../utils/trace'
 import { Account, generatePrivateKey } from './crypto/Account'
 import { Signature } from './crypto/Signature'
-import { startDatabase } from './db'
+import { type Repositories, startDatabase } from './db'
 import MetadataManager from './metadata'
 import ITunes from './metadata/plugins/iTunes'
 import { authenticatedPeers } from './networking/authenticatedPeers'
@@ -553,8 +553,7 @@ describe('RequestManager', () => {
 
 describe('HIP2 message parsing', () => {
   it('identifies message types correctly', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const identify = (obj: any) => HIP2_Messaging.identifyType(obj)
+    const identify = (obj: Record<string, unknown>) => HIP2_Messaging.identifyType(obj)
     expect(identify({ request: { query: 'test', type: 'artists' } })).toBe('request')
     expect(identify({ response: [] })).toBe('response')
     expect(identify({ announce: { hostname: '1.2.3.4:4545' } })).toBe('announce')
@@ -715,8 +714,7 @@ describe('purge_peer_cache handler', () => {
 
   it('non-API peer cannot trigger purge_peer_cache', () => {
     const { sentMessages, socket } = makeMockSocket('0xdeadbeef1234567890deadbeef1234567890dead' as `0x${string}`)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const {repos} = (peerManager1 as any)
+    const {repos} = (peerManager1 as unknown as { repos: Repositories })
     const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
 
     const pm = peerManager1 as unknown as { recentPeerAddresses: Map<string, unknown> }
@@ -736,8 +734,7 @@ describe('purge_peer_cache handler', () => {
 
   it('API peer receives peer_cache_purged with correct nonce', () => {
     const { sentMessages, socket } = makeMockSocket('0x0' as `0x${string}`)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const {repos} = (peerManager1 as any)
+    const {repos} = (peerManager1 as unknown as { repos: Repositories })
     const peer = new Peer(socket, peerManager1, repos, [], () => Promise.resolve([]))
 
     const handlerTrace = trace.child('purge_peer_cache API test')
@@ -811,8 +808,7 @@ describe('PeerManager reconnect hardening', () => {
 
     expect(await peerManager1.add(original.socket, trace.child('stale close original add'))).toBe(true)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const {repos} = (peerManager1 as any)
+    const {repos} = (peerManager1 as unknown as { repos: Repositories })
     const replacementPeer = new Peer(replacement.socket, peerManager1, repos, [], () => Promise.resolve([]))
     peerManager1.peers.set(address, replacementPeer)
 
@@ -853,8 +849,6 @@ describe('PeerManager reconnect hardening', () => {
 //     // Skipped: test infra does not connect peer1 to peer2, so peer2 is undefined
 //   })
 // })
-
-// TODO: reconnect to a disconnected peer
 
 const mockNode: Config['node'] = {
   connectMessage: 'Hello!',

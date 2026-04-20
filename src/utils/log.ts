@@ -99,7 +99,7 @@ export const withTelemetryContext = <T>(telemetry: HydrabaseTelemetryContext, ca
   return asyncLocalStorage.run(nextStore, callback)
 }
 
-export const getTelemetryContext = (): HydrabaseTelemetryContext | undefined =>
+const getTelemetryContext = (): HydrabaseTelemetryContext | undefined =>
   asyncLocalStorage?.getStore()?.telemetry
 
 export const captureException = (exception: unknown, telemetry?: HydrabaseTelemetryContext): void => {

@@ -1,13 +1,11 @@
-import type { ApiPeer, NodeStats, PeerWithCountry } from '../../types/hydrabase'
+import type { ApiPeer, ConnectionType, NodeStats, PeerWithCountry } from '../../types/hydrabase'
+import type { BwPoint } from '../types'
 
 import { Identicon } from '../components/Identicon'
 import { NetworkPulseCanvas } from '../components/Pulse'
 import { StatCard } from '../components/StatCard'
 import { ACCENT, ACCENT2, BG2, BORD, confColor, DIM, GREEN, MUTED, ORANGE, PURPLE, TEXT, YELLOW } from '../theme'
 import { fmtTimeAgo, fmtUptime, parseEndpoint, shortAddr, toEmoji } from '../utils'
-
-interface BwPoint { dl: number; t: number; ul: number }
-type ConnectionType = NonNullable<PeerWithCountry['connection']>['type']
 
 interface Props {
   bwHistory: BwPoint[]

@@ -3,6 +3,7 @@ import type { Repositories } from './db'
 
 import { warn } from '../utils/log'
 import { CONFIGURABLE_ENV_VARS } from './config'
+import { applyRuntimePatch, stripAutoManagedNodeFields, stripEnvLockedFields } from './runtimeConfigPatch'
 
 const KEY_DESIRED_CONFIG = 'runtime.config.desired'
 
@@ -15,29 +16,7 @@ const LIVE_UPDATE_PATHS = [
   'node.preferTransport',
   'node.username',
 ] as const
-const ALL_CONFIG_PATHS = [
-  'apiKey',
-  'bootstrapPeers',
-  'dht.bootstrapNodes',
-  'dht.reannounce',
-  'dht.requireReady',
-  'dht.roomSeed',
-  'formulas.finalConfidence',
-  'formulas.pluginConfidence',
-  'node.bio',
-  'node.connectMessage',
-  'node.hostname',
-  'node.ip',
-  'node.listenAddress',
-  'node.port',
-  'node.preferTransport',
-  'node.username',
-  'rpc.prefix',
-  'soulIdCutoff',
-  'telemetry',
-  'upnp.reannounce',
-  'upnp.ttl',
-] as const
+const ALL_CONFIG_PATHS = CONFIGURABLE_ENV_VARS.map(({ path }) => path)
 const LIVE_UPDATE_PATH_SET = new Set<string>(LIVE_UPDATE_PATHS)
 const RESTART_REQUIRED_PATHS = ALL_CONFIG_PATHS.filter(path => !LIVE_UPDATE_PATH_SET.has(path))
 
@@ -59,10 +38,6 @@ const getPathValue = (config: Config, path: string): unknown => path.split('.').
   if (typeof current !== 'object' || current === null || Array.isArray(current)) return undefined
   return (current as Record<string, unknown>)[key]
 }, config)
-
-const setIfDefined = <T>(value: T | undefined, updater: (nextValue: T) => void): void => {
-  if (value !== undefined) updater(value)
-}
 
 const normalizeLoadedPatch = (patch: RuntimeConfigPatch): { normalizedPatch: RuntimeConfigPatch; warnings: string[] } => {
   const warnings: string[] = []
@@ -98,75 +73,9 @@ export class RuntimeSettingsManager {
     this.envLockedPathSet = new Set(envLockedPaths)
   }
 
-  private static applyPatch(target: Config, patch: RuntimeConfigPatch): void {
-    setIfDefined(patch.apiKey, value => { target.apiKey = value })
-    setIfDefined(patch.bootstrapPeers, value => { target.bootstrapPeers = value })
-    setIfDefined(patch.soulIdCutoff, value => { target.soulIdCutoff = value })
-
-    if (patch.dht) target.dht = { ...target.dht, ...patch.dht }
-    if (patch.formulas) target.formulas = { ...target.formulas, ...patch.formulas }
-    if (patch.node) target.node = { ...target.node, ...patch.node }
-    if (patch.rpc) target.rpc = { ...target.rpc, ...patch.rpc }
-    if (patch.telemetry !== undefined) target.telemetry = patch.telemetry
-    if (patch.upnp) target.upnp = { ...target.upnp, ...patch.upnp }
-  }
-
-  private static stripAutoManagedNodeFields(patch: null | RuntimeConfigPatch): null | RuntimeConfigPatch {
-    if (!patch?.node) return patch
-    const nextNode = Object.fromEntries(Object.entries(patch.node).filter(([key]) => key !== 'ip')) as Partial<Config['node']>
-    if (Object.keys(nextNode).length === 0) {
-      const rest = { ...patch }
-      delete rest.node
-      return rest
-    }
-    return { ...patch, node: nextNode }
-  }
-
-  private static stripEnvLockedFields(patch: null | RuntimeConfigPatch, envLockedPathSet: ReadonlySet<string>): null | RuntimeConfigPatch {
-    if (!patch) return patch
-    const nextPatch: RuntimeConfigPatch = { ...patch }
-
-    if (envLockedPathSet.has('apiKey')) delete nextPatch.apiKey
-    if (envLockedPathSet.has('bootstrapPeers')) delete nextPatch.bootstrapPeers
-    if (envLockedPathSet.has('soulIdCutoff')) delete nextPatch.soulIdCutoff
-    if (envLockedPathSet.has('telemetry')) delete nextPatch.telemetry
-
-    if (nextPatch.dht) {
-      const nextDht = Object.fromEntries(Object.entries(nextPatch.dht).filter(([key]) => !envLockedPathSet.has(`dht.${key}`))) as Partial<Config['dht']>
-      if (Object.keys(nextDht).length === 0) delete nextPatch.dht
-      else nextPatch.dht = nextDht
-    }
-
-    if (nextPatch.formulas) {
-      const nextFormulas = Object.fromEntries(Object.entries(nextPatch.formulas).filter(([key]) => !envLockedPathSet.has(`formulas.${key}`))) as Partial<Config['formulas']>
-      if (Object.keys(nextFormulas).length === 0) delete nextPatch.formulas
-      else nextPatch.formulas = nextFormulas
-    }
-
-    if (nextPatch.node) {
-      const nextNode = Object.fromEntries(Object.entries(nextPatch.node).filter(([key]) => !envLockedPathSet.has(`node.${key}`))) as Partial<Config['node']>
-      if (Object.keys(nextNode).length === 0) delete nextPatch.node
-      else nextPatch.node = nextNode
-    }
-
-    if (nextPatch.rpc) {
-      const nextRpc = Object.fromEntries(Object.entries(nextPatch.rpc).filter(([key]) => !envLockedPathSet.has(`rpc.${key}`))) as Partial<Config['rpc']>
-      if (Object.keys(nextRpc).length === 0) delete nextPatch.rpc
-      else nextPatch.rpc = nextRpc
-    }
-
-    if (nextPatch.upnp) {
-      const nextUpnp = Object.fromEntries(Object.entries(nextPatch.upnp).filter(([key]) => !envLockedPathSet.has(`upnp.${key}`))) as Partial<Config['upnp']>
-      if (Object.keys(nextUpnp).length === 0) delete nextPatch.upnp
-      else nextPatch.upnp = nextUpnp
-    }
-
-    return nextPatch
-  }
-
   private static toPersistedPatch(config: Config): RuntimeConfigPatch {
     const patch = cloneConfig(config) as unknown as RuntimeConfigPatch
-    return RuntimeSettingsManager.stripAutoManagedNodeFields(patch) ?? {}
+    return stripAutoManagedNodeFields(patch) ?? {}
   }
 
   private static validatePatch(patch: RuntimeConfigPatch): void {
@@ -232,8 +141,8 @@ export class RuntimeSettingsManager {
   loadFromStorage(): void {
     const [stored] = this.repos.settings.getByKeys([KEY_DESIRED_CONFIG])
     if (!stored) return
-    const parsed = RuntimeSettingsManager.stripEnvLockedFields(
-      RuntimeSettingsManager.stripAutoManagedNodeFields(fromSettingValue(stored.value)),
+    const parsed = stripEnvLockedFields(
+      stripAutoManagedNodeFields(fromSettingValue(stored.value)),
       this.envLockedPathSet,
     )
     if (!parsed) return
@@ -243,7 +152,7 @@ export class RuntimeSettingsManager {
 
     try {
       RuntimeSettingsManager.validatePatch(normalizedPatch)
-      RuntimeSettingsManager.applyPatch(this.desiredConfig, normalizedPatch)
+      applyRuntimePatch(this.desiredConfig, normalizedPatch)
       this.applyDesiredToActive()
     } catch (err) {
       warn('WARN:', `[SETTINGS] Failed to load runtime settings from storage: ${String(err)}`)
@@ -251,12 +160,12 @@ export class RuntimeSettingsManager {
   }
 
   update(update: RuntimeConfigUpdate, updatedBy: string): RuntimeConfigSnapshot {
-    const patch = RuntimeSettingsManager.stripEnvLockedFields(
-      RuntimeSettingsManager.stripAutoManagedNodeFields(update.config ?? {}),
+    const patch = stripEnvLockedFields(
+      stripAutoManagedNodeFields(update.config ?? {}),
       this.envLockedPathSet,
     ) ?? {}
     RuntimeSettingsManager.validatePatch(patch)
-    RuntimeSettingsManager.applyPatch(this.desiredConfig, patch)
+    applyRuntimePatch(this.desiredConfig, patch)
     this.applyLivePatchToActive(patch)
 
     this.repos.settings.upsertMany([

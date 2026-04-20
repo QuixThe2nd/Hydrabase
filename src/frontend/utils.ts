@@ -3,6 +3,8 @@ import { countryCodeEmoji } from 'country-code-emoji'
 
 import type { Config, NodeStats, PartialNodeStats, RuntimeConfigEnvVar } from '../types/hydrabase'
 
+import { toRuntimeConfigEnvVars } from '../types/configEnv'
+
 interface DnsAnswer {
   data?: string
   type?: number
@@ -21,11 +23,6 @@ export const fmtBytes = (bytes: number): string => bytes > 1024 * 1024
   : `${bytes}B`
 
 export const shortAddr = (a?: null | string): string => a ? `${a.slice(0, 10)}…${a.slice(-6)}` : '—'
-
-export const parseWsHost = (wsUrl: string): { hostname: string; port: number } => {
-  const url = new URL(wsUrl)
-  return { hostname: url.hostname, port: Number(url.port) }
-}
 
 const fmtDuration = (totalSeconds: number): string => {
   const seconds = Math.max(0, Math.floor(totalSeconds))
@@ -78,31 +75,7 @@ const isIpAddress = (hostname: string): boolean => IPV4_REGEX.test(hostname) || 
 
 const normalizeHostname = (hostname: string): string => hostname.replace(/^\[(?<host>[^\]]+)\]$/u, '$<host>').replace(/\.$/u, '').toLowerCase()
 
-const LEGACY_ENV_ALIASES: Record<string, string[]> = {
-  apiKey: ['API_KEY'],
-  'node.bio': ['BIO'],
-  'node.hostname': ['DOMAIN'],
-  'node.port': ['PORT'],
-  'node.username': ['USERNAME'],
-  telemetry: ['HYDRABASE_TELEMETRY'],
-}
-
-const toEnvKey = (path: string): string => `HYDRABASE_${path.replace(/\./gu, '_').toUpperCase()}`
-
-const collectLeafPaths = (value: unknown, prefix = ''): string[] => {
-  if (typeof value !== 'object' || value === null) return prefix ? [prefix] : []
-
-  const entries = Object.entries(value)
-  if (entries.length === 0) return prefix ? [prefix] : []
-
-  return entries.flatMap(([key, child]) => collectLeafPaths(child, prefix ? `${prefix}.${key}` : key))
-}
-
-export const getConfigurableEnvVarsFromConfig = (config: Config): RuntimeConfigEnvVar[] => collectLeafPaths(config).map(path => ({
-  aliases: LEGACY_ENV_ALIASES[path] ?? [],
-  env: toEnvKey(path),
-  path,
-}))
+export const getConfigurableEnvVarsFromConfig = (config: Config): RuntimeConfigEnvVar[] => toRuntimeConfigEnvVars(config)
 
 export const parseEndpoint = (endpoint: string): { hostname: string; port: null | number } => {
   try {

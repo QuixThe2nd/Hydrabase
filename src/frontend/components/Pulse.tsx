@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import type { BwPoint } from '../App'
+import type { BwPoint } from '../types'
 
 import { ACCENT, BG2, BORD, GREEN, MUTED, ORANGE, TEXT } from '../theme'
 

@@ -3,8 +3,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerConnectionAttempt, PeerConnectionError, PeerStats, PeerWithCountry, RuntimeConfigSnapshot, RuntimeConfigUpdate, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
+import type { ApiPeer, EventEntry, FilterState, NodeStats, PartialNodeStats, PeerConnectionAttempt, PeerConnectionError, PeerStats, PeerWithCountry, RuntimeConfigSnapshot, RuntimeConfigUpdate, StatsPulseBundle, StatsPulsePayload, StatsVotesPayload, WsState } from '../types/hydrabase'
 import type { MessageEnvelope, SearchHistoryEntry } from '../types/hydrabase-schemas'
+import type { BwPoint, ConversationReadState, SearchType } from './types'
 
 import { error, warn } from '../utils/log'
 import { ActivityFeed } from './components/ActivityFeed'
@@ -23,16 +24,11 @@ import { VotesTab } from './tabs/votes'
 import { BG, GLOBAL_STYLES, TEXT } from './theme'
 import { getCountryForHost, mergePartialStats } from './utils'
 
-export interface BwPoint { dl: number; t: number; ul: number }
-type SearchType = 'album.tracks' | 'albums' | 'artist.albums' | 'artist.tracks' | 'artists' | 'tracks'
-
 const PULSE_WINDOW_MS = 6 * 60 * 60 * 1000
 const PULSE_MIN_INTERVAL_MS = 500
 const CONNECT_ATTEMPT_TIMEOUT_MS = 30_000
 const MAX_CONNECTION_ATTEMPTS = 20
 const GLOBAL_CHAT_ADDRESS = '0x0' as `0x${string}`
-
-type ConversationReadState = Record<string, number>
 
 const keepRecentPulsePoints = (history: BwPoint[], latestTimestamp: number, intervalMs: number): BwPoint[] => {
   const maxPoints = Math.ceil(PULSE_WINDOW_MS / Math.max(intervalMs, PULSE_MIN_INTERVAL_MS)) + 4
@@ -628,7 +624,7 @@ const Dashboard = ({ apiKey, socket }: { apiKey: string; socket: string }) => {
           }
           else if (data.stats_dht_nodes) applyStats({ dhtNodes: data.stats_dht_nodes })
           else if (data.stats_pulse) {
-            const bundle = data.stats_pulse as { history: StatsPulsePayload[]; latest: StatsPulsePayload, }
+            const bundle = data.stats_pulse as StatsPulseBundle
             // Always apply history first, then latest
             if (bundle.history && bundle.history.length > 0) {
               applyPulseHistory(bundle.history)

@@ -1,6 +1,6 @@
 export const DEFAULT_AUTO_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1_000
 
-export type GitSyncState = 'ahead' | 'behind' | 'diverged' | 'up-to-date'
+type GitSyncState = 'ahead' | 'behind' | 'diverged' | 'up-to-date'
 
 export const classifyGitSyncState = (localHead: string, upstreamHead: string, mergeBase: string): GitSyncState => {
   if (localHead === upstreamHead) return 'up-to-date'

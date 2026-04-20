@@ -5,7 +5,7 @@ import z from 'zod'
 
 import type { Trace } from '../../utils/trace'
 
-import { Account } from './Account'
+import { hashMessage } from './hash'
 
 export const SignatureSchema = z.object({
   message: z.string().default(''),
@@ -28,7 +28,7 @@ export class Signature implements SignatureObj {
 
   static sign(message: string, privKey: Uint8Array, trace: Trace) {
     trace.step(`[SIGN] Signing message ${message}`)
-    const { recid, signature } = secp256k1.ecdsaSign(Account.hash(message), privKey)
+    const { recid, signature } = secp256k1.ecdsaSign(hashMessage(message), privKey)
     return new Signature({ message, recid, signature })
   }
   public readonly toString = (): string => SuperJSON.stringify({ message: this.message, recid: this.recid, signature: this.signature } satisfies SignatureObj)
@@ -36,7 +36,7 @@ export class Signature implements SignatureObj {
   public readonly verify = (message: string, address: string, trace: Trace) => {
     trace.step(`[SIGN] Verifying message '${message}' from ${address}`)
     if (message !== this.message) return trace.fail(`[SIGN] Expected '${message}' - Signed '${this.message}'`)
-    const signer = `0x${keccak256(secp256k1.ecdsaRecover(this.signature, this.recid, Account.hash(message), false).slice(1)).slice(-40)}`
+    const signer = `0x${keccak256(secp256k1.ecdsaRecover(this.signature, this.recid, hashMessage(message), false).slice(1)).slice(-40)}`
     if (signer !== address) return trace.fail(`[SIGN] Expected ${address} - Signed by ${signer}`)
     return true
   }

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
+import type { MessageReadState } from '../../types/hydrabase'
+
 const LAST_READ_KEY = 'hydrabase:lastReadMessages'
 
 
-const loadLastRead = (): Record<string, number> => {
+const loadLastRead = (): MessageReadState => {
   try {
     const raw = localStorage.getItem(LAST_READ_KEY)
     if (!raw) return {}
@@ -14,7 +16,7 @@ const loadLastRead = (): Record<string, number> => {
 }
 
 
-const saveLastRead = (map: Record<string, number>) => {
+const saveLastRead = (map: MessageReadState) => {
   try {
     localStorage.setItem(LAST_READ_KEY, JSON.stringify(map))
   } catch {
@@ -27,7 +29,7 @@ export const useLastRead = (
   selectedAddress: null | string,
   conversations: Map<string, unknown[]>
 ) => {
-  const [lastRead, setLastRead] = useState<Record<string, number>>(() => loadLastRead())
+  const [lastRead, setLastRead] = useState<MessageReadState>(() => loadLastRead())
   const previousSelectedAddressRef = useRef<null | string>(null)
 
   useEffect(() => {

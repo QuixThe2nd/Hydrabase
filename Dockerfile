@@ -1,20 +1,36 @@
-FROM oven/bun AS deps
+# syntax=docker/dockerfile:1.7-labs
+
+# Keep digest pinning for reproducible builds. Bump tag+digest together intentionally.
+ARG BUN_IMAGE=oven/bun:1.3.11-slim@sha256:478281fdd196871c7e51ba6a820b7803a8ae97042ec86cdbc2e1c6b6626442d9
+
+FROM ${BUN_IMAGE} AS deps
 WORKDIR /app
-RUN apt-get update && apt-get install -y g++ cmake make python3 git && rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	apt-get update \
+	&& apt-get install -y --no-install-recommends g++ cmake make python3 git \
+	&& rm -rf /var/lib/apt/lists/*
+
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+	bun install --frozen-lockfile
 
-FROM oven/bun AS release
+FROM ${BUN_IMAGE} AS release
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+	--mount=type=cache,target=/var/lib/apt,sharing=locked \
+	apt-get update \
+	&& apt-get install -y --no-install-recommends gosu \
+	&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-RUN chown -R 1000:1000 /app
+RUN chmod +x /entrypoint.sh \
+	&& chown -R 1000:1000 /app
 
 ENV NODE_ENV=production
 ENV DOCKER_CONTAINER=true

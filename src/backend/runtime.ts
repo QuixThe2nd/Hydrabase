@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 
-export interface RuntimeEnvironment {
+interface RuntimeEnvironment {
   container?: string
   dockerContainer?: string
 }

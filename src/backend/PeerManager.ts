@@ -3,7 +3,7 @@ import type { UTPSocket } from 'utp-socket'
 
 import { Parser } from 'expr-eval'
 
-import type { Config, RuntimeConfigUpdate, Identity as SharedIdentity, Socket } from '../types/hydrabase'
+import type { Config, MessageReadState, RuntimeConfigUpdate, Identity as SharedIdentity, Socket } from '../types/hydrabase'
 import type { MessageEnvelope, Request, Response, SearchResult } from '../types/hydrabase-schemas'
 import type { Account } from './crypto/Account'
 import type { Repositories } from './db'
@@ -62,14 +62,13 @@ const checkPluginMatches = (peerResults: Response<Request['type']>, confirmedHas
     pluginMatches[result.plugin_id] = entry
   }
   return pluginMatches
-} // TODO: pipe all console.log's to gui
+}
 
 const calculatePeerConfidence = (formulas: Config['formulas'], pluginMatches: Record<string, { match: number, mismatch: number }>, installedPlugins: Set<string>) => avg(
   Object.entries(pluginMatches)
     .filter(([pluginId]) => installedPlugins.has(pluginId))
     .map(([, { match, mismatch }]) => Parser.evaluate(formulas.pluginConfidence, { x: match, y: mismatch }))
-) // 0-1
-// TODO: dedupe usernames
+)
 const saveResults = <T extends Request['type']>(formulas: Config['formulas'], peerResults: Response<T>, peerConfidence: number, results: Map<bigint, SearchResult[T] & { confidences: number[] }>, peer: Peer): Map<bigint, SearchResult[T] & { confidences: number[] }> => {
   for (const _result of peerResults) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -174,7 +173,6 @@ export default class PeerManager {
     }
   }
 
-  // TODO: some mechanism to proactively propagate unsolicited votes
   // eslint-disable-next-line max-lines-per-function
   public async add(_peer: `${string}:${number}` | Socket, trace: Trace, preferTransport = this.nodeConfig.preferTransport): Promise<boolean> {
     let connectionKey: `${string}:${number}` | null = null
@@ -272,13 +270,13 @@ export default class PeerManager {
     return [...announcers]
   }
 
-  public getConfidence(address: `0x${string}`): number { // TODO: Soulsync plugin - https://github.com/Nezreka/SoulSync/blob/main/Support/API.md
+  public getConfidence(address: `0x${string}`): number {
     const peer = this.peers.get(address)
     if (!peer) return 0
-    return peer.historicConfidence // TODO: tit for tat
+    return peer.historicConfidence
   }
 
-  public getMessageReadState(): Record<string, number> {
+  public getMessageReadState(): MessageReadState {
     return this.repos.messageReadState.getByReader(this.ownAddress)
   }
 
@@ -382,7 +380,6 @@ export default class PeerManager {
     this.handleMessage({ envelope, hops: 0 }, peer, trace)
   }
 
-  // TODO: endpoint soulsync can call with user feedback of "spotify result x is listenbrainz result y"
   public readonly has = (address: `0x${string}`) => this.peers.has(address)
 
   public async loadCache(bootstrapPeers: string[]) {
@@ -395,7 +392,7 @@ export default class PeerManager {
       const trace = Trace.start(`[PEERS] Connecting to cached peer ${hostname}`)
       await this.add(hostname, trace)
     }
-  } // TODO: time based confidence scores - older peers = more trustworthy
+  }
 
   public markMessageRead(conversationAddress: `0x${string}`, timestamp: number): void {
     if (!Number.isFinite(timestamp) || timestamp <= 0) return

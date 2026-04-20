@@ -100,7 +100,7 @@ export class Node {
 export const startNode = async (CONFIG: Config, envLockedPaths: string[] = []): Promise<Node> => {
   const trace = Trace.start('STARTUP')
   trace.step('1/14 Using UPnP')
-  await requestPort(CONFIG.node, CONFIG.upnp)
+  await requestPort(CONFIG.node)
   trace.step('2/14 Fetching private key')
   const key = await getPrivateKey()
   trace.step('3/14 Initialising account')

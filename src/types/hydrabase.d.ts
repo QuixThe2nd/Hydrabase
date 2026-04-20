@@ -63,6 +63,8 @@ export interface Connection {
   votes: Votes
 }
 
+export type ConnectionType = Connection['type']
+
 export interface EventEntry {
   lv: string
   m: string
@@ -86,6 +88,8 @@ export interface LogEvent {
   m: string
   stack?: string
 }
+
+export type MessageReadState = Record<string, number>
 
 export interface NodeStats {
   dhtNodes: string[]
@@ -140,7 +144,7 @@ export interface PeerStats {
   sharedPlugins: string[]
   totalMatches: number
   totalMismatches: number
-  votes: { albums: number; artists: number; tracks: number }
+  votes: Votes
 }
 
 export type PeerWithCountry = ApiPeer & {

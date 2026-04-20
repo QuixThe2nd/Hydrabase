@@ -110,14 +110,14 @@ export default class WebSocketClient implements Socket {
       
       this.isOpened = false
       this.onFail(new Error(errorMsg || 'WebSocket connection failed'))
-    }) // TODO: peer rate limiting
+    })
     this.socket.addEventListener('message', message => {
       if (this.messageHandlers.length === 0) warn('DEVWARN:', `[RPC] Couldn't find message handler ${this.identity.hostname}`)
       this.messageHandlers.forEach(handler => {
         handler(message.data)
       })
     })
-  } // TODO: SSL support
+  }
   
   private async _fetchRejectionReason() {
     try {
@@ -149,4 +149,3 @@ export default class WebSocketClient implements Socket {
     for (const fn of queue) fn()
   }
 }
-// TODO: force logout of gui on api key change

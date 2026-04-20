@@ -1,4 +1,4 @@
-export interface SentryReleaseParts {
+interface SentryReleaseParts {
   app: string
   branch: string
   version: string

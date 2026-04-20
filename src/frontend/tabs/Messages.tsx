@@ -2,7 +2,7 @@
  
 import { useEffect, useRef, useState } from 'react'
 
-import type { PeerWithCountry } from '../../types/hydrabase'
+import type { MessageReadState, PeerWithCountry } from '../../types/hydrabase'
 import type { MessageEnvelope } from '../../types/hydrabase-schemas'
 
 import { Identicon } from '../components/Identicon'
@@ -15,7 +15,7 @@ interface Props {
   onSelectAddress: (address: `0x${string}` | null) => void
   ownAddress: `0x${string}` | undefined
   peers: PeerWithCountry[]
-  readState: Record<string, number>
+  readState: MessageReadState
   selectedAddress: `0x${string}` | null
   sendMessage: (to: `0x${string}`, payload: string) => void
 }
@@ -140,7 +140,6 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
 
   return <div style={{ display: 'flex', gap: 12, height: 'calc(100vh - 120px)' }}>
 
-    {/* Left: conversation list */}
     <div style={{ ...panel(), display: 'flex', flexDirection: 'column', flexShrink: 0, width: 240 }}>
       <div style={{ alignItems: 'center', borderBottom: `1px solid ${BORD}`, display: 'flex', justifyContent: 'space-between', padding: '10px 14px' }}>
         <span style={{ color: MUTED, fontSize: 9, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>Conversations</span>
@@ -163,7 +162,6 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
       </div>}
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {/* Global Chat pinned entry */}
         {(() => {
           const isSelected = selectedAddress === GLOBAL_CHAT_ADDRESS
           const lastMsg = globalChatMsgs?.[globalChatMsgs.length - 1]
@@ -183,7 +181,6 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
         {dmConversations.map(([addr, msgs]) => {
           const lastMsg = msgs[msgs.length - 1]
           const isSelected = selectedAddress === addr
-          // Show unread badge if there are messages newer than lastRead
           const lastReadTime = readState[addr] || 0
           const unreadCount = msgs.filter(m => m.from !== ownAddress && m.timestamp > lastReadTime).length
           return <button key={addr} onClick={() => onSelectAddress(addr as `0x${string}`)} style={{ alignItems: 'center', background: isSelected ? 'rgba(0,200,255,.08)' : 'none', border: 'none', borderBottom: `1px solid ${BORD}`, borderLeft: `2px solid ${isSelected ? ACCENT : 'transparent'}`, color: TEXT, cursor: 'pointer', display: 'flex', fontFamily: 'inherit', gap: 10, padding: '10px 12px', textAlign: 'left', width: '100%' }}>
@@ -205,11 +202,9 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
       </div>
     </div>
 
-    {/* Right: thread or empty state */}
     {selectedAddress
       ? <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minWidth: 0 }}>
 
-          {/* Thread header */}
           <div style={{ ...panel({ borderRadius: '8px 8px 0 0', overflow: 'visible' }), alignItems: 'center', borderBottom: 'none', display: 'flex', gap: 10, padding: '10px 16px' }}>
             {selectedAddress === GLOBAL_CHAT_ADDRESS
               ? <div style={{ alignItems: 'center', background: 'rgba(0,200,255,.15)', border: '1px solid rgba(0,200,255,.3)', borderRadius: 5, color: ACCENT, display: 'flex', flexShrink: 0, fontSize: 16, height: 30, justifyContent: 'center', width: 30 }}>#</div>
@@ -223,7 +218,6 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
             <button className="fbtn" onClick={() => onSelectAddress(null)} style={{ flexShrink: 0, marginLeft: 'auto' }}>✕</button>
           </div>
 
-          {/* Messages */}
           <div style={{ background: SURF, border: `1px solid ${BORD}`, borderBottom: 'none', borderTop: 'none', flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
             {thread.length === 0
               ? <div style={{ color: MUTED, fontSize: 11, paddingTop: 20, textAlign: 'center' }}>No messages yet. Say hello!</div>
@@ -232,7 +226,6 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
                   const isGlobal = selectedAddress === GLOBAL_CHAT_ADDRESS
                   const failedConnect = parseFailedConnectNotice(msg.payload)
                   const showUnreadSeparator = i === firstUnreadIncomingIndex
-                  // Highlight unread incoming messages in the thread
                   const isNew = !isMine && msg.timestamp > lastReadTime
                   return <div key={i}>
                     {showUnreadSeparator && <div style={{ alignItems: 'center', display: 'flex', gap: 10, margin: '6px 0 10px' }}>
@@ -269,7 +262,6 @@ export const MessagesTab = ({ messages, onMarkRead, onSelectAddress, ownAddress,
             <div ref={threadEndRef} />
           </div>
 
-          {/* Compose */}
           <div style={{ ...panel({ borderRadius: '0 0 8px 8px' }), alignItems: 'flex-end', borderTop: 'none', display: 'flex', gap: 8, padding: '10px 16px' }}>
             <textarea
               onChange={e => setComposeText(e.target.value)}

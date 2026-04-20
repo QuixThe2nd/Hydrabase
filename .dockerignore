@@ -1,0 +1,26 @@
+# Dependency and build output
+node_modules
+bun.lockb
+dist
+
+# VCS and editor metadata
+.git
+.gitignore
+.github
+.vscode
+.claude
+.cursor
+
+# Runtime and local data
+data
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Secrets and local env
+.env
+.env.*
+
+# OS junk
+.DS_Store

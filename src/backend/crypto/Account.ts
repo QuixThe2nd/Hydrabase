@@ -5,6 +5,7 @@ import secp256k1 from 'secp256k1'
 import type { Trace } from '../../utils/trace'
 
 import { log } from '../../utils/log'
+import { hashMessage } from './hash'
 import { Signature } from './Signature'
 
 export const generatePrivateKey = (): Buffer => {
@@ -31,15 +32,12 @@ export const getPrivateKey = async (): Promise<Uint8Array> => {
 }
 
 export class Account {
+  static readonly hash = hashMessage
+
   public readonly address: `0x${string}`
 
   constructor(private readonly privKey: Uint8Array) {
     this.address = `0x${keccak256(secp256k1.publicKeyCreate(this.privKey, false).slice(1)).slice(-40)}`
-  }
-
-  static readonly hash = (message: string) => {
-    const msg = Buffer.from(message)
-    return Buffer.from(keccak256(Buffer.concat([Buffer.from(`\x19Ethereum Signed Message:\n${msg.length}`), msg])), 'hex')
   }
 
   public readonly sign = (message: string, trace: Trace) => Signature.sign(message, this.privKey, trace)

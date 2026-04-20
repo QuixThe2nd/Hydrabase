@@ -27,9 +27,15 @@ export const getIp = async (): Promise<string> => {
   for (const ipServer of ipServers) {
     try {
       const response = await fetchWithTimeout(ipServer, IP_FETCH_TIMEOUT_MS)
-      if (!response.ok) throw new Error(`Received HTTP ${response.status} from ${ipServer}`)
+      if (!response.ok) {
+        error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, { e: new Error(`Received HTTP ${response.status}`) })
+        continue
+      }
       const ip = (await response.text()).trim()
-      if (!ip) throw new Error(`Received empty response from ${ipServer}`)
+      if (!ip) {
+        error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, { e: new Error('Received empty response') })
+        continue
+      }
       return ip
     } catch (e) {
       error('ERROR:', `[IP] Failed to fetch external IP from ${ipServer}`, { e })
