@@ -275,7 +275,7 @@ export class Peer {
     })
     // eslint-disable-next-line max-lines-per-function
     this.socket.onMessage(async message => {
-      this._dl += message.length
+      if (this.address !== '0x0') this._dl += message.length
       this.peers.notifyDataTransfer()
       let parsedMessage: unknown
       try {
@@ -348,10 +348,10 @@ export class Peer {
 
   send(payload: ({ announce: Announce } | { config_error: string } | { connect_peer: ConnectPeer } | { connection_error: PeerConnectionError } | { log_event: LogEvent } | { message: MessagePacket } | { message_batch: MessageBatch } | { message_history: MessageEnvelope[] } | { message_read_state: Record<string, number> } | { peer_cache_purged: true } | { peer_stats: PeerStats } | { ping: Ping } | { pong: Pong } | { refresh_ui: string } | { request: Request } | { response: Response } | { restarting: true } | { runtime_config: RuntimeConfigSnapshot } | { runtime_config_updated: RuntimeConfigSnapshot } | { search_history: SearchHistoryEntry[] } | { stats: NodeStats } | { stats_dht_node_connected: string } | { stats_dht_nodes: NodeStats['dhtNodes'] } | { stats_peer_connected: ApiPeer } | { stats_peers: NodeStats['peers']['known'] } | { stats_pulse: StatsPulseBundle } | { stats_self: NodeStats['self'] } | { stats_votes: StatsVotesPayload }) & { nonce: number }, trace: Trace) {
     const message = JSON.stringify(payload)
-    this._ul += message.length
+    // Don't count loopback stats traffic to the local API client as real network usage
+    if (this.address !== '0x0') this._ul += message.length
     this.peers.notifyDataTransfer()
     const keys = Object.keys(JSON.parse(message)).filter(k => k !== 'nonce')
-    // Only log non-frequent message types to avoid spam (skip message, message_batch, and stats)
     const isFrequentMessageType = keys.some(k => k.startsWith('stats') || k === 'message' || k === 'message_batch')
     if (!isFrequentMessageType) trace.step(`[PEER] [${this.type}] Sending ${keys.join(',')} to ${this.username} ${this.address}`)
     this.socket.send(message)

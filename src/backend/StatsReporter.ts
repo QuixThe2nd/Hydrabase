@@ -124,7 +124,7 @@ export class StatsReporter {
         .map(identity => [identity.address, identity])
     )
     const addresses = new Set<`0x${string}`>([
-      ...this.repos.stats.getKnownAddresses(),
+      ...this.repos.stats.getKnownAddresses().filter(a => a !== '0x0'),
       ...connectedByAddress.keys(),
       ...authByAddress.keys(),
     ])

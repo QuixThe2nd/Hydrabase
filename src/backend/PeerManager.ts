@@ -106,7 +106,7 @@ export default class PeerManager {
     return this.peers.get('0x0')
   }
   get connectedPeers() {
-    return [...this.peers.values()]
+    return [...this.peers.values()].filter(peer => peer.address !== '0x0')
   }
   get messageHistory(): MessageEnvelope[] {
     return this.localMessageHistory
@@ -473,13 +473,10 @@ export default class PeerManager {
   }
 
   public sendRefreshUi(trace: Trace): number {
-    let sent = 0
-    for (const peer of this.connectedPeers) {
-      if (peer.address !== '0x0') continue
-      peer.sendRefreshUi(trace)
-      sent++
-    }
-    return sent
+    const peer = this.peers.get('0x0')
+    if (!peer) return 0
+    peer.sendRefreshUi(trace)
+    return 1
   }
 
   public sendStoreMessage(envelope: MessageEnvelope, trace: Trace): number {
