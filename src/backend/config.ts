@@ -11,7 +11,7 @@ export const DEFAULT_CONFIG: Config = {
   apiKey: undefined,
   bootstrapPeers: 'ddns.yazdani.au:4543,ddns.yazdani.au:4544,ddns.yazdani.au:4545,bob.yazdani.au:4545',
   dht: {
-    bootstrapNodes: 'router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,ddns.yazdani.au:4543,ddns.yazdani.au:4544,ddns.yazdani.au:4545,bob.yazdani.au:4545',
+    bootstrapNodes: 'dht.transmissionbt.com:6881,dht.libtorrent.org:25401,router.bittorrent.com:6881,router.utorrent.com:6881,87.98.162.88:6881',
     reannounce: 15 * 60 * 1_000,
     requireReady: true,
     roomSeed: 'hydrabase',
