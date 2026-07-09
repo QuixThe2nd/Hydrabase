@@ -73,6 +73,7 @@ declare module 'k-rpc' {
   }
 
   export interface KRPCOptions {
+    backgroundConcurrency?: number;
     concurrency?: number;
     id?: Buffer;
     idLength?: number;

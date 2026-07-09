@@ -66,7 +66,7 @@ const verifyAuthenticatedServer = (auth: Auth, hostname: `${string}:${number}`, 
   return auth
 }
 
-const handleAdvertisedHostname = (
+const handleAdvertisedHostname = async (
   auth: Auth,
   hostname: `${string}:${number}`,
   trace: Trace,
@@ -79,15 +79,32 @@ const handleAdvertisedHostname = (
     const authResults = verifyServer(auth, auth.hostname, trace)
     if (authResults !== true) {
       trace.step('[HIP1] Failed to verify server')
-      return Promise.resolve(authResults)
+      return authResults
     }
     trace.step('[HIP1] Successfully verified server')
     const routedAuth: Identity = { ...auth, hostname }
     authenticatedPeers.set(hostname, routedAuth)
-    return Promise.resolve(routedAuth)
+    return routedAuth
   }
+  // Try the advertised hostname first; if it's unreachable (common with dynamic
+  // IPs / NAT), fall back to verifying against the original hostname that already
+  // responded successfully. The signature proves ownership of the advertised
+  // identity regardless of which IP we connected through.
   trace.step(`Upgrading hostname → ${auth.hostname}`)
-  return authenticate(auth.hostname, trace)
+  const result = await authenticate(auth.hostname, trace)
+  if (Array.isArray(result)) {
+    trace.step(`[HTTP] Advertised hostname ${auth.hostname} unreachable (${result[1]}), falling back to ${hostname}`)
+    const authResults = verifyServer(auth, auth.hostname, trace)
+    if (authResults !== true) {
+      trace.step('[HIP1] Failed to verify server against advertised hostname')
+      return authResults
+    }
+    trace.step('[HIP1] Successfully verified server (advertised hostname, original route)')
+    const routedAuth: Identity = { ...auth, hostname }
+    authenticatedPeers.set(hostname, routedAuth)
+    return routedAuth
+  }
+  return result
 }
 
 export const authenticateServerHTTP = async (hostname: `${string}:${number}`, trace: Trace): Promise<[number, string] | Identity> => {
