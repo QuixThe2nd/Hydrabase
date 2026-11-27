@@ -59,5 +59,8 @@
   },
   "trustedDependencies": [
     "node-portmapping"
-  ]
+  ],
+  "patchedDependencies": {
+    "@iplookup/country@1.0.20260331": "patches/@iplookup__country.patch"
+  }
 }

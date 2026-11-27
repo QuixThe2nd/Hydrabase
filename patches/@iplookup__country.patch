@@ -1,0 +1,13 @@
+diff --git a/iplookup.mjs b/iplookup.mjs
+index f7be8e72bc3da96b812db1532496a02bedf7cbe4..9e3b43bc8b21063f7d75daf8343324e9bb392971 100644
+--- a/iplookup.mjs
++++ b/iplookup.mjs
+@@ -87,7 +87,7 @@ const Preload = {
+ 		}
+ 		if(buf[0]) {
+ 			Url[6] = __CDN_URL__.replace(/\/$/, '@'+buf[0]+'/');
+-			return Idx[6] = new BigUint64Array(buf.slice(1))
++			return Idx[6] = new BigUint64Array(buf[1])
+ 		}
+ 		return Idx[6] = new BigUint64Array(buf)
+ 	})
